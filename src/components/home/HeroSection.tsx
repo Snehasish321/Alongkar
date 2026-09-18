@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
-import { Sparkles, ArrowRight } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { SparkleParticles } from '../ui/SparkleParticles';
 
@@ -24,17 +24,6 @@ export const HeroSection: React.FC = () => {
 
       {/* Content Container */}
       <div className="relative z-20 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center py-20 flex flex-col items-center">
-        {/* Tagline Badge */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gold/20 backdrop-blur-md border border-gold/40 text-gold-champagne text-xs uppercase tracking-[0.3em] font-semibold mb-6 shadow-gold-glow"
-        >
-          <Sparkles size={14} className="text-gold" />
-          <span>City Gold Craftsmanship • Since 1994</span>
-        </motion.div>
-
         {/* Main Headline */}
         <motion.h1
           initial={{ opacity: 0, y: 25 }}
