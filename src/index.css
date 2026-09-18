@@ -1,0 +1,80 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ivory: #F8F4EC;
+  --color-ivory-soft: #EDE4D5;
+  --color-ivory-pearl: #FFFDF8;
+
+  --color-espresso: #211A17;
+  --color-espresso-charcoal: #292522;
+  --color-espresso-light: #3D3430;
+
+  --color-gold: #B08D57;
+  --color-gold-champagne: #D6B878;
+  --color-gold-light: #E6D3A7;
+  --color-gold-dark: #8C6C38;
+
+  --color-burgundy: #7A3035;
+  --color-burgundy-muted: #8F3D43;
+
+  --font-serif: "Playfair Display", Georgia, serif;
+  --font-sans: "Inter", system-ui, sans-serif;
+
+  --radius-brand: 6px;
+
+  --shadow-soft: 0 4px 20px -2px rgba(33, 26, 23, 0.05);
+  --shadow-elevated: 0 10px 30px -5px rgba(33, 26, 23, 0.1);
+  --shadow-gold-glow: 0 0 15px rgba(214, 184, 120, 0.25);
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    font-family: var(--font-sans);
+  }
+
+  h1, h2, h3, h4, h5, h6, .font-serif {
+    font-family: var(--font-serif);
+  }
+}
+
+/* Metallic Champagne Gold Text Gradient & Shimmer */
+.text-gold-gradient {
+  background: linear-gradient(135deg, #B08D57 0%, #D6B878 50%, #B08D57 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.text-gold-shimmer {
+  background: linear-gradient(
+    90deg,
+    #B08D57 0%,
+    #FFF5D6 25%,
+    #D6B878 50%,
+    #FFF5D6 75%,
+    #B08D57 100%
+  );
+  background-size: 200% auto;
+  color: #000;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer 4s infinite linear;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Hide scrollbar for clean horizontal scrollers */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
