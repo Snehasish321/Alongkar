@@ -16,6 +16,7 @@ import { CollectionsPage } from './pages/CollectionsPage';
 import { AboutPage } from './pages/AboutPage';
 import { ContactPage } from './pages/ContactPage';
 import { PlaceholderPage } from './pages/PlaceholderPage';
+import { productsData } from './data/products';
 import type { Product } from './types';
 
 // ScrollToTop component to reset scroll position on route navigation
@@ -72,10 +73,8 @@ export const AppContent: React.FC = () => {
         isOpen={isSearchOpen}
         onClose={() => setIsSearchOpen(false)}
         onSelectProduct={(productId) => {
-          import('./data/products').then(({ productsData }) => {
-            const found = productsData.find((p) => p.id === productId);
-            if (found) setQuickViewProduct(found);
-          });
+          const found = productsData.find((p) => p.id === productId);
+          if (found) setQuickViewProduct(found);
         }}
       />
       <QuickViewModal

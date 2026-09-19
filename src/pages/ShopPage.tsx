@@ -15,15 +15,19 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onQuickView }) => {
   const categoryParam = searchParams.get('category') || 'all';
   const searchParam = searchParams.get('search') || '';
 
-  const [selectedCategory, setSelectedCategory] = useState<string>(categoryParam);
-  const [searchQuery, setSearchQuery] = useState<string>(searchParam);
-  const [sortBy, setSortBy] = useState<'featured' | 'price-asc' | 'price-desc' | 'rating'>('featured');
+  const [selectedCategoryState, setSelectedCategory] = useState<string>(categoryParam);
+  const [searchQueryState, setSearchQuery] = useState<string>(searchParam);
+  const [prevParams, setPrevParams] = useState({ categoryParam, searchParam });
 
-  // Update state if URL search parameters change
-  React.useEffect(() => {
-    if (categoryParam) setSelectedCategory(categoryParam);
-    if (searchParam) setSearchQuery(searchParam);
-  }, [categoryParam, searchParam]);
+  if (prevParams.categoryParam !== categoryParam || prevParams.searchParam !== searchParam) {
+    setPrevParams({ categoryParam, searchParam });
+    setSelectedCategory(categoryParam);
+    setSearchQuery(searchParam);
+  }
+
+  const selectedCategory = selectedCategoryState;
+  const searchQuery = searchQueryState;
+  const [sortBy, setSortBy] = useState<'featured' | 'price-asc' | 'price-desc' | 'rating'>('featured');
 
   const categories = [
     { id: 'all', name: 'All Jewellery' },

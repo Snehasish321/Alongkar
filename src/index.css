@@ -45,6 +45,7 @@
 /* Metallic Champagne Gold Text Gradient & Shimmer */
 .text-gold-gradient {
   background: linear-gradient(135deg, #B08D57 0%, #D6B878 50%, #B08D57 100%);
+  background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
@@ -60,6 +61,7 @@
   );
   background-size: 200% auto;
   color: #000;
+  background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   animation: shimmer 4s infinite linear;
