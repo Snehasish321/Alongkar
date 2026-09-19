@@ -17,6 +17,9 @@ import { AboutPage } from './pages/AboutPage';
 import { ContactPage } from './pages/ContactPage';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 import { productsData } from './data/products';
+import { AlongkarAuthProvider } from './context/AuthContext';
+import { AuthModal } from './components/auth/AuthModal';
+import { SSOCallbackPage } from './pages/SSOCallbackPage';
 import type { Product } from './types';
 
 // ScrollToTop component to reset scroll position on route navigation
@@ -49,6 +52,7 @@ export const AppContent: React.FC = () => {
           <Route path="/collections" element={<CollectionsPage onQuickView={(p) => setQuickViewProduct(p)} />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/contact" element={<ContactPage />} />
+          <Route path="/sso-callback" element={<SSOCallbackPage />} />
 
           {/* Placeholder Legal & Customer Care Routes */}
           <Route path="/shipping-policy" element={<PlaceholderPage title="Shipping & Delivery Policy" />} />
@@ -68,6 +72,7 @@ export const AppContent: React.FC = () => {
       {/* Global Overlays & Modals */}
       <CartDrawer />
       <WishlistDrawer />
+      <AuthModal />
       <MobileMenu isOpen={isMobileMenuOpen} onClose={() => setIsMobileMenuOpen(false)} />
       <SearchModal
         isOpen={isSearchOpen}
@@ -88,11 +93,13 @@ export const AppContent: React.FC = () => {
 export default function App() {
   return (
     <Router>
-      <CartProvider>
-        <WishlistProvider>
-          <AppContent />
-        </WishlistProvider>
-      </CartProvider>
+      <AlongkarAuthProvider>
+        <CartProvider>
+          <WishlistProvider>
+            <AppContent />
+          </WishlistProvider>
+        </CartProvider>
+      </AlongkarAuthProvider>
     </Router>
   );
 }

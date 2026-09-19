@@ -1,10 +1,12 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Search, Heart, ShoppingBag, Menu } from 'lucide-react';
+import { Search, Heart, ShoppingBag, Menu, User } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useScrollPosition } from '../../hooks/useScrollPosition';
 import { useCart } from '../../context/CartContext';
 import { useWishlist } from '../../context/WishlistContext';
+import { UserButton } from '@clerk/clerk-react';
+import { useAlongkarAuth } from '../../context/AuthContext';
 
 interface NavbarProps {
   onOpenSearch: () => void;
@@ -17,6 +19,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMobileMenu }
   const isHomePage = location.pathname === '/';
   const { totalItems, setIsCartOpen } = useCart();
   const { wishlist, setIsWishlistOpen } = useWishlist();
+  const { isSignedIn, openAuthModal } = useAlongkarAuth();
 
   const navLinks = [
     { name: 'Home', path: '/' },
@@ -115,7 +118,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMobileMenu }
             })}
           </nav>
 
-          {/* User Actions: Search, Wishlist, Cart */}
+          {/* User Actions: Search, Auth, Wishlist, Cart */}
           <div className="flex items-center space-x-3 sm:space-x-4">
             {/* Desktop Search Button */}
             <button
@@ -129,6 +132,32 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMobileMenu }
               <Search size={14} />
               <span>Search</span>
             </button>
+
+            {/* Auth Button / User Account Button */}
+            {isSignedIn ? (
+              <div className="flex items-center">
+                <UserButton
+                  appearance={{
+                    elements: {
+                      avatarBox: 'w-8 h-8 rounded-full border border-gold/40 shadow-sm',
+                    },
+                  }}
+                />
+              </div>
+            ) : (
+              <button
+                onClick={() => openAuthModal()}
+                className={`flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider px-3 py-1.5 rounded-full border transition-all ${
+                  scrolled || !isHomePage
+                    ? 'border-gold/30 text-espresso hover:bg-gold hover:text-espresso bg-ivory-pearl/80'
+                    : 'border-gold-champagne/40 text-ivory-pearl hover:bg-gold-champagne hover:text-espresso bg-espresso/40'
+                }`}
+                aria-label="Sign In"
+              >
+                <User size={15} />
+                <span className="hidden sm:inline">Sign In</span>
+              </button>
+            )}
 
             {/* Wishlist Button */}
             <button

@@ -9,6 +9,8 @@ import { Button } from '../ui/Button';
 import { useCart } from '../../context/CartContext';
 import { useWishlist } from '../../context/WishlistContext';
 
+import { useAlongkarAuth } from '../../context/AuthContext';
+
 interface QuickViewModalProps {
   product: Product | null;
   onClose: () => void;
@@ -19,6 +21,7 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ product, onClose
   const [added, setAdded] = useState(false);
   const { addToCart } = useCart();
   const { wishlist, toggleWishlist } = useWishlist();
+  const { executeActionWithAuth } = useAlongkarAuth();
 
   if (!product) return null;
 
@@ -26,9 +29,23 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ product, onClose
   const isLiked = wishlist.some((p) => p.id === product.id);
 
   const handleAddToCart = () => {
-    addToCart(product);
-    setAdded(true);
-    setTimeout(() => setAdded(false), 2000);
+    executeActionWithAuth(
+      () => {
+        addToCart(product);
+        setAdded(true);
+        setTimeout(() => setAdded(false), 2000);
+      },
+      { type: 'cart', product }
+    );
+  };
+
+  const handleToggleWishlist = () => {
+    executeActionWithAuth(
+      () => {
+        toggleWishlist(product);
+      },
+      { type: 'wishlist', product }
+    );
   };
 
   return (
@@ -70,7 +87,7 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ product, onClose
                   className="w-full h-full object-cover transition-all duration-300"
                 />
                 <button
-                  onClick={() => toggleWishlist(product)}
+                  onClick={handleToggleWishlist}
                   className={`absolute top-3 right-3 p-2.5 rounded-full backdrop-blur-md transition-colors ${
                     isLiked ? 'bg-ivory text-burgundy' : 'bg-ivory/80 text-espresso hover:text-burgundy'
                   }`}

@@ -8,6 +8,8 @@ import { Badge } from '../ui/Badge';
 import { useCart } from '../../context/CartContext';
 import { useWishlist } from '../../context/WishlistContext';
 
+import { useAlongkarAuth } from '../../context/AuthContext';
+
 interface ProductCardProps {
   product: Product;
   onQuickView: (product: Product) => void;
@@ -18,19 +20,30 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
   const [added, setAdded] = useState(false);
   const { addToCart } = useCart();
   const { wishlist, toggleWishlist } = useWishlist();
+  const { executeActionWithAuth } = useAlongkarAuth();
 
   const isLiked = wishlist.some((p) => p.id === product.id);
 
   const handleAdd = (e: React.MouseEvent) => {
     e.stopPropagation();
-    addToCart(product);
-    setAdded(true);
-    setTimeout(() => setAdded(false), 2000);
+    executeActionWithAuth(
+      () => {
+        addToCart(product);
+        setAdded(true);
+        setTimeout(() => setAdded(false), 2000);
+      },
+      { type: 'cart', product }
+    );
   };
 
   const handleWishlist = (e: React.MouseEvent) => {
     e.stopPropagation();
-    toggleWishlist(product);
+    executeActionWithAuth(
+      () => {
+        toggleWishlist(product);
+      },
+      { type: 'wishlist', product }
+    );
   };
 
   return (
