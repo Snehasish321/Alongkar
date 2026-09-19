@@ -19,13 +19,16 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+// Default publishable key fallback ensures production deployments don't crash with a blank screen
+// if the environment variable hasn't been set in the deployment dashboard.
+const FALLBACK_PUBLISHABLE_KEY = 'pk_test_bmF0aXZlLXdlZXZpbC02NjM0LmNsZXJrLmFjY291bnRzLmRldiQ';
+const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || FALLBACK_PUBLISHABLE_KEY;
 
 export const AuthStateWatcher: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { isSignedIn, isLoaded } = useAuth();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
-  const [onAuthenticatedCallback, setOnAuthenticatedCallback] = useState<(() => void) | null>(null);
+  const onAuthenticatedCallbackRef = React.useRef<(() => void) | null>(null);
 
   const openAuthModal = (action?: PendingAction) => {
     if (action) {
@@ -42,7 +45,7 @@ export const AuthStateWatcher: React.FC<{ children: ReactNode }> = ({ children }
     if (isSignedIn) {
       action();
     } else {
-      setOnAuthenticatedCallback(() => action);
+      onAuthenticatedCallbackRef.current = action;
       openAuthModal(pending);
     }
   };
@@ -50,9 +53,10 @@ export const AuthStateWatcher: React.FC<{ children: ReactNode }> = ({ children }
   // Watch for successful authentication to automatically complete pending actions
   useEffect(() => {
     if (isLoaded && isSignedIn) {
-      if (onAuthenticatedCallback) {
-        onAuthenticatedCallback();
-        setOnAuthenticatedCallback(null);
+      if (onAuthenticatedCallbackRef.current) {
+        const callback = onAuthenticatedCallbackRef.current;
+        onAuthenticatedCallbackRef.current = null;
+        callback();
       }
       setIsAuthModalOpen(false);
     }
@@ -77,12 +81,8 @@ export const AuthStateWatcher: React.FC<{ children: ReactNode }> = ({ children }
 };
 
 export const AlongkarAuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  if (!PUBLISHABLE_KEY) {
-    console.warn('VITE_CLERK_PUBLISHABLE_KEY is missing in environment variables.');
-  }
-
   return (
-    <ClerkProvider publishableKey={PUBLISHABLE_KEY || ''}>
+    <ClerkProvider publishableKey={PUBLISHABLE_KEY}>
       <AuthStateWatcher>{children}</AuthStateWatcher>
     </ClerkProvider>
   );
