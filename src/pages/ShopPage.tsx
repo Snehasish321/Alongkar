@@ -35,6 +35,8 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onQuickView }) => {
     { id: 'earrings', name: 'Earrings' },
     { id: 'rings', name: 'Rings' },
     { id: 'bracelets', name: 'Bracelets' },
+    { id: 'chains', name: 'Chains' },
+    { id: 'pendants', name: 'Pendants' },
   ];
 
   const filteredProducts = useMemo(() => {

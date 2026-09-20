@@ -2,7 +2,7 @@ export interface Product {
   id: string;
   name: string;
   slug: string;
-  category: 'earrings' | 'necklaces' | 'rings' | 'bracelets';
+  category: 'earrings' | 'necklaces' | 'rings' | 'bracelets' | 'chains' | 'pendants';
   collectionId?: 'everyday-elegance' | 'festive-glow' | 'the-minimalist' | 'statement';
   price: number;
   originalPrice: number;

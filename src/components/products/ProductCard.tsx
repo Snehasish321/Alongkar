@@ -18,9 +18,15 @@ interface ProductCardProps {
 export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [added, setAdded] = useState(false);
+  const [imageError, setImageError] = useState(false);
+  const [hoverImageError, setHoverImageError] = useState(false);
   const { addToCart } = useCart();
   const { wishlist, toggleWishlist } = useWishlist();
   const { executeActionWithAuth } = useAlongkarAuth();
+
+  const fallbackImage = 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?q=80&w=800&auto=format&fit=crop';
+  const displayImage = imageError ? fallbackImage : (product.image || fallbackImage);
+  const displayHoverImage = hoverImageError ? displayImage : (product.hoverImage || displayImage);
 
   const isLiked = wishlist.some((p) => p.id === product.id);
 
@@ -83,16 +89,18 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
         {/* Main Image with Hover Reveal */}
         <div onClick={() => onQuickView(product)} className="w-full h-full relative">
           <img
-            src={product.image}
+            src={displayImage}
             alt={product.name}
+            onError={() => setImageError(true)}
             className={`w-full h-full object-cover transition-all duration-700 ${
               isHovered ? 'opacity-0 scale-105' : 'opacity-100 scale-100'
             }`}
             loading="lazy"
           />
           <img
-            src={product.hoverImage || product.image}
+            src={displayHoverImage}
             alt={`${product.name} alternate view`}
+            onError={() => setHoverImageError(true)}
             className={`w-full h-full object-cover absolute inset-0 transition-all duration-700 ${
               isHovered ? 'opacity-100 scale-105' : 'opacity-0 scale-100'
             }`}

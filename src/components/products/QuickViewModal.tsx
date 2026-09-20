@@ -19,14 +19,20 @@ interface QuickViewModalProps {
 export const QuickViewModal: React.FC<QuickViewModalProps> = ({ product, onClose }) => {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [added, setAdded] = useState(false);
+  const [imageErrors, setImageErrors] = useState<{ [idx: number]: boolean }>({});
   const { addToCart } = useCart();
   const { wishlist, toggleWishlist } = useWishlist();
   const { executeActionWithAuth } = useAlongkarAuth();
 
   if (!product) return null;
 
+  const fallbackImage = 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?q=80&w=800&auto=format&fit=crop';
   const images = [product.image, product.hoverImage].filter(Boolean);
   const isLiked = wishlist.some((p) => p.id === product.id);
+
+  const getImageUrl = (url: string, idx: number) => {
+    return imageErrors[idx] ? fallbackImage : (url || fallbackImage);
+  };
 
   const handleAddToCart = () => {
     executeActionWithAuth(
@@ -82,8 +88,9 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ product, onClose
             <div className="p-6 bg-ivory-pearl flex flex-col items-center justify-between border-b md:border-b-0 md:border-r border-gold/15">
               <div className="relative w-full aspect-square rounded-brand overflow-hidden border border-gold/20 mb-4 bg-ivory-soft">
                 <img
-                  src={images[activeImageIndex]}
+                  src={getImageUrl(images[activeImageIndex], activeImageIndex)}
                   alt={product.name}
+                  onError={() => setImageErrors((prev) => ({ ...prev, [activeImageIndex]: true }))}
                   className="w-full h-full object-cover transition-all duration-300"
                 />
                 <button
@@ -107,7 +114,12 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ product, onClose
                         activeImageIndex === idx ? 'border-gold scale-105' : 'border-transparent opacity-70'
                       }`}
                     >
-                      <img src={img} alt="thumbnail" className="w-full h-full object-cover" />
+                      <img
+                        src={getImageUrl(img, idx)}
+                        alt="thumbnail"
+                        onError={() => setImageErrors((prev) => ({ ...prev, [idx]: true }))}
+                        className="w-full h-full object-cover"
+                      />
                     </button>
                   ))}
                 </div>

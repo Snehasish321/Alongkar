@@ -7,7 +7,7 @@ export const categoriesData: Category[] = [
     slug: 'earrings',
     image: 'https://images.unsplash.com/photo-1630019852942-f89202989a59?q=80&w=800&auto=format&fit=crop',
     itemCount: 42,
-    description: 'From intricate Jhumkas to minimal gold studs, curated to frames every smile with timeless grace.'
+    description: 'From intricate Jhumkas to minimal gold studs, curated to frame every smile with timeless grace.'
   },
   {
     id: 'necklaces',
@@ -29,8 +29,24 @@ export const categoriesData: Category[] = [
     id: 'bracelets',
     name: 'Bracelets',
     slug: 'bracelets',
-    image: 'https://images.unsplash.com/photo-1611591475143-be232935ee37?q=80&w=800&auto=format&fit=crop',
+    image: 'https://images.unsplash.com/photo-1535632787350-4e68ef0ac584?q=80&w=800&auto=format&fit=crop',
     itemCount: 29,
     description: 'Heritage royal Kadas, sleek cuff bangles, and delicate charm bracelets.'
+  },
+  {
+    id: 'chains',
+    name: 'Chains',
+    slug: 'chains',
+    image: 'https://images.unsplash.com/photo-1602751584552-8ba73aad10e1?q=80&w=800&auto=format&fit=crop',
+    itemCount: 20,
+    description: 'Gleaming rope chains, classic Figaro links, and ultra-smooth modern herringbone chains.'
+  },
+  {
+    id: 'pendants',
+    name: 'Pendants',
+    slug: 'pendants',
+    image: 'https://images.unsplash.com/photo-1600003014755-ba31aa59c4b6?q=80&w=800&auto=format&fit=crop',
+    itemCount: 24,
+    description: 'Solitaire gemstones, sacred temple coin medallions, and floral Kundan drop pendants.'
   }
 ];

@@ -11,7 +11,7 @@ interface TrendingSectionProps {
 }
 
 export const TrendingSection: React.FC<TrendingSectionProps> = ({ onQuickView }) => {
-  const [activeTab, setActiveTab] = useState<'all' | 'necklaces' | 'earrings' | 'rings' | 'bracelets'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'necklaces' | 'earrings' | 'rings' | 'bracelets' | 'chains' | 'pendants'>('all');
 
   const filteredProducts = activeTab === 'all'
     ? productsData.slice(0, 8)
@@ -23,6 +23,8 @@ export const TrendingSection: React.FC<TrendingSectionProps> = ({ onQuickView })
     { id: 'earrings', label: 'Earrings' },
     { id: 'rings', label: 'Rings' },
     { id: 'bracelets', label: 'Bracelets' },
+    { id: 'chains', label: 'Chains' },
+    { id: 'pendants', label: 'Pendants' },
   ];
 
   return (
