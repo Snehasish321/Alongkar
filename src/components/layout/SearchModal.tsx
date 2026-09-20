@@ -97,7 +97,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose, onSel
                       <button
                         onClick={() => {
                           onClose();
-                          navigate(`/shop?search=${encodeURIComponent(query)}`);
+                          navigate('/shop');
                         }}
                         className="text-gold font-semibold flex items-center gap-1 hover:underline"
                       >
