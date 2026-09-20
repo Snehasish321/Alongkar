@@ -18,7 +18,7 @@ export const Footer: React.FC = () => {
   };
 
   return (
-    <footer className="bg-espresso text-ivory-pearl pt-16 pb-8 border-t border-gold/20">
+    <footer className="bg-[#40000D] text-ivory-pearl pt-16 pb-8 border-t border-gold/20">
       {/* Brand Trust Badges Banner */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 mb-12 border-b border-gold/15">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
@@ -73,7 +73,7 @@ export const Footer: React.FC = () => {
                   onChange={(e) => setNewsletterEmail(e.target.value)}
                   placeholder="Enter your email address"
                   required
-                  className="bg-espresso-charcoal text-xs text-ivory-pearl placeholder:text-gray-500 px-3 py-2.5 rounded-brand border border-gold/20 focus:outline-none focus:border-gold flex-1"
+                  className="bg-[#2A0008] text-xs text-ivory-pearl placeholder:text-gray-500 px-3 py-2.5 rounded-brand border border-gold/20 focus:outline-none focus:border-gold flex-1"
                 />
                 <Button type="submit" variant="gold" size="sm" className="px-4">
                   <ArrowRight size={14} />
@@ -125,13 +125,13 @@ export const Footer: React.FC = () => {
             <div>
               <h4 className="text-[11px] uppercase tracking-[0.2em] text-gold font-bold mb-2">Follow Us</h4>
               <div className="flex gap-3 text-gray-300">
-                <a href="#" className="p-2 rounded-full bg-espresso-charcoal hover:text-gold hover:bg-gold/20 transition-colors" aria-label="Instagram">
+                <a href="#" className="p-2 rounded-full bg-[#2A0008] hover:text-gold hover:bg-gold/20 transition-colors" aria-label="Instagram">
                   <InstagramIcon size={16} />
                 </a>
-                <a href="#" className="p-2 rounded-full bg-espresso-charcoal hover:text-gold hover:bg-gold/20 transition-colors" aria-label="Facebook">
+                <a href="#" className="p-2 rounded-full bg-[#2A0008] hover:text-gold hover:bg-gold/20 transition-colors" aria-label="Facebook">
                   <FacebookIcon size={16} />
                 </a>
-                <a href="#" className="p-2 rounded-full bg-espresso-charcoal hover:text-gold hover:bg-gold/20 transition-colors" aria-label="Mail">
+                <a href="#" className="p-2 rounded-full bg-[#2A0008] hover:text-gold hover:bg-gold/20 transition-colors" aria-label="Mail">
                   <Mail size={16} />
                 </a>
               </div>

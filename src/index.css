@@ -17,6 +17,17 @@
   --color-burgundy: #7A3035;
   --color-burgundy-muted: #8F3D43;
 
+  /* Alongkar brand identity */
+  --color-ak-burgundy: #40000D;
+  --color-ak-burgundy-deep: #2A0008;
+  --color-ak-burgundy-light: #5A0015;
+  --color-ak-gold: #E8C98A;
+  --color-ak-gold-warm: #C9A45D;
+  --color-ak-gold-light: #F0D9A8;
+  --color-ak-gold-dark: #B5983F;
+  --color-ak-ivory: #F8F1E3;
+  --color-ak-ivory-muted: #E9DDC8;
+
   --font-serif: "Playfair Display", Georgia, serif;
   --font-sans: "Inter", system-ui, sans-serif;
 
@@ -67,9 +78,84 @@
   animation: shimmer 4s infinite linear;
 }
 
+/* Alongkar champagne-gold shimmer for hero */
+.text-ak-gold-shimmer {
+  background: linear-gradient(
+    90deg,
+    #C9A45D 0%,
+    #F8F1E3 25%,
+    #E8C98A 50%,
+    #F8F1E3 75%,
+    #C9A45D 100%
+  );
+  background-size: 200% auto;
+  color: #000;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer 5s infinite linear;
+}
+
 @keyframes shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
+}
+
+/* Hero background ornamental texture */
+.hero-ak-bg {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 40%, rgba(90, 0, 21, 0.35) 0%, transparent 70%),
+    radial-gradient(ellipse 50% 40% at 80% 20%, rgba(232, 201, 138, 0.04) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 50% at 20% 80%, rgba(232, 201, 138, 0.03) 0%, transparent 60%),
+    linear-gradient(180deg, #40000D 0%, #2A0008 100%);
+}
+
+/* Subtle gold ornamental line for hero */
+.hero-ornament::before,
+.hero-ornament::after {
+  content: '';
+  position: absolute;
+  width: 120px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(232, 201, 138, 0.3), transparent);
+  left: 50%;
+  transform: translateX(-50%);
+}
+.hero-ornament::before {
+  top: 0;
+}
+.hero-ornament::after {
+  bottom: 0;
+}
+
+/* Hero CTA button styles */
+.btn-ak-gold {
+  background: linear-gradient(135deg, #E8C98A 0%, #C9A45D 100%);
+  color: #40000D;
+  font-weight: 600;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  border: 1px solid rgba(232, 201, 138, 0.5);
+  transition: all 0.3s ease;
+}
+.btn-ak-gold:hover {
+  background: linear-gradient(135deg, #F0D9A8 0%, #E8C98A 100%);
+  box-shadow: 0 4px 20px rgba(232, 201, 138, 0.3);
+}
+
+.btn-ak-outline {
+  background: transparent;
+  color: #F8F1E3;
+  border: 1px solid rgba(232, 201, 138, 0.35);
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  transition: all 0.3s ease;
+}
+.btn-ak-outline:hover {
+  background: rgba(232, 201, 138, 0.1);
+  border-color: rgba(232, 201, 138, 0.6);
+  color: #E8C98A;
 }
 
 /* Hide scrollbar for clean horizontal scrollers */

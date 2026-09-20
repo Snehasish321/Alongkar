@@ -27,6 +27,22 @@ export default {
           DEFAULT: '#7A3035',
           muted: '#8F3D43',
         },
+        // Alongkar brand identity colors
+        'ak-burgundy': {
+          DEFAULT: '#40000D',
+          deep: '#2A0008',
+          light: '#5A0015',
+        },
+        'ak-gold': {
+          DEFAULT: '#E8C98A',
+          warm: '#C9A45D',
+          light: '#F0D9A8',
+          dark: '#B5983F',
+        },
+        'ak-ivory': {
+          DEFAULT: '#F8F1E3',
+          muted: '#E9DDC8',
+        },
       },
       fontFamily: {
         serif: ['"Playfair Display"', 'Georgia', 'serif'],

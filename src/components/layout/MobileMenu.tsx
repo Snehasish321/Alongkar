@@ -49,18 +49,18 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
           >
             {/* Header */}
             <div>
-              <div className="p-5 border-b border-gold/20 flex items-center justify-between bg-ivory-soft/50">
-                <div className="flex flex-col">
-                  <span className="font-serif text-xl font-bold tracking-[0.2em] text-espresso">
-                    ALONGKAR
-                  </span>
-                  <span className="text-[9px] uppercase tracking-widest text-gold font-medium">
-                    City Gold Jewellery
-                  </span>
-                </div>
+              <div className="p-5 flex items-center justify-between" style={{ backgroundColor: '#2A0008', borderBottom: '1px solid rgba(232, 201, 138, 0.15)' }}>
+                <Link to="/" onClick={onClose} className="flex items-center">
+                  <img
+                    src="/alongkar-logo.png"
+                    alt="Alongkar — City Gold Jewellery"
+                    className="h-9 object-contain"
+                    style={{ maxWidth: '140px' }}
+                  />
+                </Link>
                 <button
                   onClick={onClose}
-                  className="p-2 text-espresso hover:text-gold transition-colors rounded-full"
+                  className="p-2 text-[#F8F1E3] hover:text-[#E8C98A] transition-colors rounded-full"
                 >
                   <X size={20} />
                 </button>
