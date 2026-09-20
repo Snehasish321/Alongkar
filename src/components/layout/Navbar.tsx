@@ -16,7 +16,6 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMobileMenu }) => {
   const { scrolled } = useScrollPosition(30);
   const location = useLocation();
-  const isHomePage = location.pathname === '/';
   const { totalItems, setIsCartOpen } = useCart();
   const { wishlist, setIsWishlistOpen } = useWishlist();
   const { isSignedIn, openAuthModal } = useAlongkarAuth();

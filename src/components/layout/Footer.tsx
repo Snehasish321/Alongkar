@@ -125,13 +125,13 @@ export const Footer: React.FC = () => {
             <div>
               <h4 className="text-[11px] uppercase tracking-[0.2em] text-gold font-bold mb-2">Follow Us</h4>
               <div className="flex gap-3 text-gray-300">
-                <a href="#" className="p-2 rounded-full bg-[#2A0008] hover:text-gold hover:bg-gold/20 transition-colors" aria-label="Instagram">
+                <a href="https://www.instagram.com/alongkar.official/" className="p-3 rounded-full bg-[#2A0008] hover:text-gold hover:bg-gold/20 transition-colors" aria-label="Instagram">
                   <InstagramIcon size={16} />
                 </a>
-                <a href="#" className="p-2 rounded-full bg-[#2A0008] hover:text-gold hover:bg-gold/20 transition-colors" aria-label="Facebook">
+                <a href="#" className="p-3 rounded-full bg-[#2A0008] hover:text-gold hover:bg-gold/20 transition-colors" aria-label="Facebook">
                   <FacebookIcon size={16} />
                 </a>
-                <a href="#" className="p-2 rounded-full bg-[#2A0008] hover:text-gold hover:bg-gold/20 transition-colors" aria-label="Mail">
+                <a href="#" className="p-3 rounded-full bg-[#2A0008] hover:text-gold hover:bg-gold/20 transition-colors" aria-label="Mail">
                   <Mail size={16} />
                 </a>
               </div>
