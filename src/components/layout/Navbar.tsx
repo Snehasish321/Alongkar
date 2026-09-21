@@ -5,8 +5,7 @@ import { motion } from 'framer-motion';
 import { useScrollPosition } from '../../hooks/useScrollPosition';
 import { useCart } from '../../context/CartContext';
 import { useWishlist } from '../../context/WishlistContext';
-import { UserButton } from '@clerk/clerk-react';
-import { useAlongkarAuth } from '../../context/AuthContext';
+import { SignInButton, SignUpButton, Show, UserButton } from '@clerk/react';
 
 interface NavbarProps {
   onOpenSearch: () => void;
@@ -18,7 +17,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMobileMenu }
   const location = useLocation();
   const { totalItems, setIsCartOpen } = useCart();
   const { wishlist, setIsWishlistOpen } = useWishlist();
-  const { isSignedIn, openAuthModal } = useAlongkarAuth();
 
   const navLinks = [
     { name: 'Home', path: '/' },
@@ -133,8 +131,27 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMobileMenu }
               <span>Search</span>
             </button>
 
-            {/* Auth Button / User Account Button */}
-            {isSignedIn ? (
+            {/* Auth Controls */}
+            <Show when="signed-out">
+              <SignInButton mode="modal">
+                <button
+                  className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider px-3 py-1.5 rounded-full transition-all text-[#F8F1E3]/85 hover:text-[#E8C98A] border border-[#F8F1E3]/15 hover:border-[#E8C98A]/40"
+                  aria-label="Sign In"
+                >
+                  <User size={14} />
+                  <span className="hidden sm:inline">Sign In</span>
+                </button>
+              </SignInButton>
+              <SignUpButton mode="modal">
+                <button
+                  className="hidden md:flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider px-3.5 py-1.5 rounded-full transition-all bg-[#E8C98A] text-[#2A0008] hover:bg-[#F3DEB2] shadow-sm font-sans"
+                  aria-label="Sign Up"
+                >
+                  <span>Sign Up</span>
+                </button>
+              </SignUpButton>
+            </Show>
+            <Show when="signed-in">
               <div className="flex items-center">
                 <UserButton
                   appearance={{
@@ -144,16 +161,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMobileMenu }
                   }}
                 />
               </div>
-            ) : (
-              <button
-                onClick={() => openAuthModal()}
-                className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider px-3 py-1.5 rounded-full transition-all text-[#F8F1E3]/85 hover:text-[#E8C98A] border border-[#F8F1E3]/15 hover:border-[#E8C98A]/40"
-                aria-label="Sign In"
-              >
-                <User size={14} />
-                <span className="hidden sm:inline">Sign In</span>
-              </button>
-            )}
+            </Show>
+
 
             {/* Wishlist Button */}
             <button

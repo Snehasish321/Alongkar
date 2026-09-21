@@ -8,21 +8,19 @@ import { Badge } from '../ui/Badge';
 import { useCart } from '../../context/CartContext';
 import { useWishlist } from '../../context/WishlistContext';
 
-import { useAlongkarAuth } from '../../context/AuthContext';
-
 interface ProductCardProps {
   product: Product;
   onQuickView: (product: Product) => void;
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }) => {
+
   const [isHovered, setIsHovered] = useState(false);
   const [added, setAdded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [hoverImageError, setHoverImageError] = useState(false);
   const { addToCart } = useCart();
   const { wishlist, toggleWishlist } = useWishlist();
-  const { executeActionWithAuth } = useAlongkarAuth();
 
   const fallbackImage = 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?q=80&w=800&auto=format&fit=crop';
   const displayImage = imageError ? fallbackImage : (product.image || fallbackImage);
@@ -32,25 +30,16 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
 
   const handleAdd = (e: React.MouseEvent) => {
     e.stopPropagation();
-    executeActionWithAuth(
-      () => {
-        addToCart(product);
-        setAdded(true);
-        setTimeout(() => setAdded(false), 2000);
-      },
-      { type: 'cart', product }
-    );
+    addToCart(product);
+    setAdded(true);
+    setTimeout(() => setAdded(false), 2000);
   };
 
   const handleWishlist = (e: React.MouseEvent) => {
     e.stopPropagation();
-    executeActionWithAuth(
-      () => {
-        toggleWishlist(product);
-      },
-      { type: 'wishlist', product }
-    );
+    toggleWishlist(product);
   };
+
 
   return (
     <motion.div

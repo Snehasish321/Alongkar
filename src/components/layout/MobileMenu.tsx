@@ -4,9 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, ChevronRight, Phone, Mail } from 'lucide-react';
 import { categoriesData } from '../../data/categories';
 import { InstagramIcon, FacebookIcon } from '../ui/SocialIcons';
-
-import { UserButton } from '@clerk/clerk-react';
-import { useAlongkarAuth } from '../../context/AuthContext';
+import { SignInButton, SignUpButton, Show, UserButton } from '@clerk/react';
 import { User } from 'lucide-react';
 
 interface MobileMenuProps {
@@ -16,7 +14,6 @@ interface MobileMenuProps {
 
 export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
   const location = useLocation();
-  const { isSignedIn, openAuthModal } = useAlongkarAuth();
 
   const mainLinks = [
     { name: 'Home', path: '/' },
@@ -68,26 +65,37 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
 
               {/* Mobile Account Section */}
               <div className="px-5 pt-4 pb-2 border-b border-gold/15">
-                {isSignedIn ? (
+                <Show when="signed-in">
                   <div className="flex items-center justify-between p-3 bg-gold/10 rounded-brand border border-gold/20">
                     <span className="text-xs font-semibold uppercase tracking-wider text-espresso">
                       Your Account
                     </span>
                     <UserButton />
                   </div>
-                ) : (
-                  <button
-                    onClick={() => {
-                      onClose();
-                      openAuthModal();
-                    }}
-                    className="w-full py-3 px-4 bg-espresso text-ivory-pearl rounded-brand text-xs font-semibold uppercase tracking-wider flex items-center justify-center gap-2 shadow-md hover:bg-gold hover:text-espresso transition-all"
-                  >
-                    <User size={16} />
-                    <span>Sign In to Alongkar</span>
-                  </button>
-                )}
+                </Show>
+                <Show when="signed-out">
+                  <div className="flex gap-2">
+                    <SignInButton mode="modal">
+                      <button
+                        onClick={onClose}
+                        className="flex-1 py-3 px-3 bg-espresso text-ivory-pearl rounded-brand text-xs font-semibold uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md hover:bg-gold hover:text-espresso transition-all"
+                      >
+                        <User size={14} />
+                        <span>Sign In</span>
+                      </button>
+                    </SignInButton>
+                    <SignUpButton mode="modal">
+                      <button
+                        onClick={onClose}
+                        className="flex-1 py-3 px-3 bg-[#E8C98A] text-[#2A0008] font-semibold rounded-brand text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 shadow-md hover:bg-[#F3DEB2] transition-all"
+                      >
+                        <span>Sign Up</span>
+                      </button>
+                    </SignUpButton>
+                  </div>
+                </Show>
               </div>
+
 
               {/* Links */}
               <nav className="p-5 space-y-1">
