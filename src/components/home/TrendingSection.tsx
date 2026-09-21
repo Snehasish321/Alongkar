@@ -4,7 +4,7 @@ import { ProductCard } from '../products/ProductCard';
 import { SectionHeading } from '../ui/SectionHeading';
 import type { Product } from '../../types';
 import { Link } from 'react-router-dom';
-import { Button } from '../ui/Button';
+import { ArrowRight, Sparkles } from 'lucide-react';
 
 interface TrendingSectionProps {
   onQuickView: (product: Product) => void;
@@ -18,7 +18,7 @@ export const TrendingSection: React.FC<TrendingSectionProps> = ({ onQuickView })
     : productsData.filter((p) => p.category === activeTab).slice(0, 8);
 
   const tabs = [
-    { id: 'all', label: 'All Trending' },
+    { id: 'all', label: 'All Masterpieces' },
     { id: 'necklaces', label: 'Necklaces' },
     { id: 'earrings', label: 'Earrings' },
     { id: 'rings', label: 'Rings' },
@@ -28,28 +28,32 @@ export const TrendingSection: React.FC<TrendingSectionProps> = ({ onQuickView })
   ];
 
   return (
-    <section className="py-16 sm:py-24 bg-ivory-pearl border-y border-gold/15">
+    <section className="py-20 sm:py-28 bg-[#FFFDF8] border-y border-[#E8C98A]/20 relative">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <SectionHeading
-          title="Trending Now"
-          subtitle="Most Loved Adornments Of The Season"
+          title="Trending Atelier Pieces"
+          subtitle="Most Coveted 24K Micron City Gold Creations of the Season"
         />
 
         {/* Category Tabs */}
-        <div className="flex items-center justify-center gap-2 sm:gap-4 overflow-x-auto no-scrollbar pb-6 mb-8">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`px-4 py-2 text-xs uppercase tracking-widest font-medium rounded-full transition-all duration-300 whitespace-nowrap ${
-                activeTab === tab.id
-                  ? 'bg-espresso text-ivory-pearl shadow-soft border border-espresso'
-                  : 'bg-ivory text-espresso hover:bg-gold/15 border border-gold/20'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+        <div className="flex items-center justify-center gap-2 sm:gap-3 overflow-x-auto no-scrollbar pb-6 mb-10 pt-2">
+          {tabs.map((tab) => {
+            const isSelected = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`px-4 sm:px-5 py-2 sm:py-2.5 text-[11px] uppercase tracking-[0.2em] font-medium rounded-full transition-all duration-300 whitespace-nowrap cursor-pointer ${
+                  isSelected
+                    ? 'bg-[#2A0008] text-[#E8C98A] shadow-[0_4px_16px_rgba(42,0,8,0.25)] border border-[#E8C98A]/50 font-semibold'
+                    : 'bg-white text-[#211A17] hover:border-[#E8C98A] border border-[#B08D57]/20 shadow-xs'
+                }`}
+              >
+                {isSelected && <Sparkles size={11} className="inline mr-1.5 text-[#E8C98A]" />}
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
         </div>
 
         {/* Products Grid */}
@@ -59,11 +63,13 @@ export const TrendingSection: React.FC<TrendingSectionProps> = ({ onQuickView })
           ))}
         </div>
 
-        <div className="text-center mt-12">
+        {/* View All CTA */}
+        <div className="text-center mt-14">
           <Link to="/shop">
-            <Button variant="outline" size="lg" className="border-espresso/30">
-              VIEW ALL PRODUCTS
-            </Button>
+            <button className="inline-flex items-center gap-2 px-8 py-3.5 rounded-md border-2 border-[#2A0008] text-[#2A0008] hover:bg-[#2A0008] hover:text-[#F8F1E3] transition-all duration-300 text-xs uppercase tracking-[0.22em] font-semibold cursor-pointer shadow-sm group">
+              <span>EXPLORE ALL {productsData.length} CREATIONS</span>
+              <ArrowRight size={15} className="group-hover:translate-x-1 transition-transform" />
+            </button>
           </Link>
         </div>
       </div>

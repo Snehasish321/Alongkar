@@ -166,3 +166,42 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Luxury Glassmorphism & High-Fashion Accents */
+.glass-luxury {
+  background: rgba(253, 251, 247, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(214, 184, 120, 0.22);
+}
+
+.glass-luxury-dark {
+  background: rgba(27, 2, 7, 0.78);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(232, 201, 138, 0.15);
+}
+
+.ambient-gold-glow {
+  box-shadow: 0 0 50px -10px rgba(214, 184, 120, 0.25);
+}
+
+.text-gold-leaf {
+  background: linear-gradient(135deg, #ECCF96 0%, #D4AF37 35%, #FFF6DD 50%, #C59B27 75%, #ECCF96 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmer 6s infinite linear;
+}
+
+.luxury-card {
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.luxury-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 20px 40px -15px rgba(42, 0, 8, 0.12), 0 0 25px rgba(214, 184, 120, 0.15);
+  border-color: rgba(201, 164, 93, 0.45);
+}
+
