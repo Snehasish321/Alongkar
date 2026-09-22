@@ -118,3 +118,4 @@ export const WishlistDrawer: React.FC = () => {
     </AnimatePresence>
   );
 };
+
