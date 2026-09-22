@@ -1,0 +1,153 @@
+name: CI & PR Preview Deployment
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+  deployments: write
+  statuses: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # -------------------------------------------------------------
+  # Job 1: CI Quality Checks (Lint, Typecheck, Build)
+  # -------------------------------------------------------------
+  ci-checks:
+    name: Code Quality & Build Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: |
+          npm ci || npm install
+
+      - name: Run Linter (oxlint)
+        run: npm run lint
+
+      - name: Run Type Check (tsc)
+        run: npx tsc -b
+
+      - name: Build Application
+        env:
+          VITE_CLERK_PUBLISHABLE_KEY: ${{ secrets.VITE_CLERK_PUBLISHABLE_KEY || 'pk_test_ci_placeholder_key_alongkar' }}
+        run: npm run build
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-dist-${{ github.event.pull_request.number || github.sha }}
+          path: dist/
+          retention-days: 7
+
+  # -------------------------------------------------------------
+  # Job 2: PR Temporary Preview Deployment
+  # -------------------------------------------------------------
+  preview-deployment:
+    name: Temporary Preview Deployment
+    needs: [ci-checks]
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    continue-on-error: true # Ensure preview failure NEVER blocks the PR merge
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: |
+          npm ci || npm install
+
+      - name: Check Vercel Credentials
+        id: check-secrets
+        run: |
+          if [ -n "${{ secrets.VERCEL_TOKEN }}" ]; then
+            echo "has_vercel_secrets=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_vercel_secrets=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Deploy Preview to Vercel
+        if: steps.check-secrets.outputs.has_vercel_secrets == 'true'
+        id: deploy-vercel
+        uses: amondnet/vercel-action@v25
+        continue-on-error: true
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          vercel-args: '--env VITE_CLERK_PUBLISHABLE_KEY=${{ secrets.VITE_CLERK_PUBLISHABLE_KEY }}'
+          scope: ${{ secrets.VERCEL_ORG_ID }}
+
+      - name: Post or Update PR Preview Comment
+        uses: actions/github-script@v7
+        continue-on-error: true
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = context.payload.pull_request.number;
+            const repo = context.repo;
+            const marker = '<!-- ALONGKAR_PREVIEW_COMMENT -->';
+            const hasVercelSecrets = '${{ steps.check-secrets.outputs.has_vercel_secrets }}' === 'true';
+            const previewUrl = '${{ steps.deploy-vercel.outputs.preview-url }}';
+            const commitSha = context.payload.pull_request.head.sha.substring(0, 7);
+
+            let bodyContent = `${marker}\n### 🚀 Alongkar CI / PR Deployment\n\n`;
+
+            if (previewUrl && previewUrl !== '') {
+              bodyContent += `✅ **Temporary Preview is live!**\n\n`;
+              bodyContent += `🔗 **Preview URL**: [${previewUrl}](${previewUrl})\n\n`;
+              bodyContent += `| Detail | Status |\n| :--- | :--- |\n`;
+              bodyContent += `| **Commit** | \`${commitSha}\` |\n`;
+              bodyContent += `| **Deployment** | Vercel Preview |\n`;
+              bodyContent += `| **Build Status** | Passing |\n\n`;
+              bodyContent += `_Built with continuous integration for PR #${prNumber}._`;
+            } else if (!hasVercelSecrets) {
+              bodyContent += `⚡ **CI Checks Passed**: All lint, TypeScript, and build checks completed successfully for commit \`${commitSha}\`.\n\n`;
+              bodyContent += `> 💡 **Notice**: Vercel preview deployment token (\`VERCEL_TOKEN\`) is not configured in repository secrets yet. Once added, temporary preview URLs will automatically be posted here for every PR without blocking merges.\n\n`;
+              bodyContent += `📦 **Build Artifact**: A build artifact has been packaged and uploaded to this workflow run.`;
+            } else {
+              bodyContent += `⚠️ **Deployment Notice**: Build passed, but preview deployment encountered a non-blocking issue. Please check the workflow run logs.`;
+            }
+
+            const { data: comments } = await github.rest.issues.listComments({
+              ...repo,
+              issue_number: prNumber,
+            });
+
+            const existingComment = comments.find(c => c.body && c.body.includes(marker));
+
+            if (existingComment) {
+              await github.rest.issues.updateComment({
+                ...repo,
+                comment_id: existingComment.id,
+                body: bodyContent
+              });
+            } else {
+              await github.rest.issues.createComment({
+                ...repo,
+                issue_number: prNumber,
+                body: bodyContent
+              });
+            }

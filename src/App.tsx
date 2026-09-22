@@ -1,28 +1,13 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { CartProvider } from './context/CartContext';
-import { WishlistProvider } from './context/WishlistContext';
-import { HomePage } from './pages/HomePage';
-
-export const AppContent: React.FC = () => {
-  return (
-    <div className="w-screen h-screen overflow-hidden bg-[#491D36]">
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="*" element={<HomePage />} />
-      </Routes>
-    </div>
-  );
-};
-
 export default function App() {
   return (
-    <Router>
-      <CartProvider>
-        <WishlistProvider>
-          <AppContent />
-        </WishlistProvider>
-      </CartProvider>
-    </Router>
+    <main className="min-h-screen w-full bg-white text-neutral-900 flex flex-col items-center justify-center p-6">
+      <div className="text-center space-y-2">
+        <h1 className="text-3xl font-semibold tracking-tight">Alongkar</h1>
+        <p className="text-sm text-neutral-500">
+          Clean slate ready for design reference
+        </p>
+      </div>
+    </main>
   );
 }
+

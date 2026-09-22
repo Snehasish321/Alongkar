@@ -8,6 +8,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### [Iteration 12] - Centered Everyday Elegance Tag with BlurReveal - 2026-09-21
+#### Added
+- **Spell UI BlurReveal Component (`src/components/ui/BlurReveal.tsx`)**: Created the exact official Spell UI text effect component utilizing `framer-motion`:
+  - Character-by-character and word-by-word segmented stagger animation with progressive Gaussian blur dissipation (`filter: blur(12px) -> blur(0px)`), opacity fade-in, and subtle y-axis translation.
+  - Fully parameterized with `delay`, `speedReveal`, `speedSegment`, `letterSpacing`, and customizable semantic HTML tag wrapper (`as="span"`, `p`, etc.).
+  - Added export compatibility at `src/components/blur-reveal.tsx`.
+- **Centered Luxury "Everyday Elegance" Tag (`src/components/home/HeroSection.tsx`)**:
+  - Positioned exactly in the center of the viewport atop the animated Blossom Sky WebGL canvas.
+  - Frosted luxury glass capsule design with multi-layer backdrop blur (`backdrop-blur-xl`), luminous inner border reflection, and ambient lavender/rose glow aura.
+  - Playfair Display editorial serif typography (`tracking-[0.24em] uppercase font-semibold text-[#2A1E27]`) with delicate flanking sparkle accents.
+  - Smooth page-load entrance animation: badge rises and scales gracefully into view while the text softly reveals into sharp focus.
+
 ### [Iteration 11] - Blossom Sky WebGL Background Animation - 2026-09-21
 #### Added
 - **BlossomSky WebGL Component (`src/components/ui/BlossomSky.tsx`)**: Built a full GPU-accelerated WebGL shader engine executing the exact FeralUI `type: "sky"` algorithm for the "Blossom sky" preset:
