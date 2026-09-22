@@ -9,8 +9,6 @@ import { Button } from '../ui/Button';
 import { useCart } from '../../context/CartContext';
 import { useWishlist } from '../../context/WishlistContext';
 
-import { useAlongkarAuth } from '../../context/AuthContext';
-
 interface QuickViewModalProps {
   product: Product | null;
   onClose: () => void;
@@ -22,7 +20,6 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ product, onClose
   const [imageErrors, setImageErrors] = useState<{ [idx: number]: boolean }>({});
   const { addToCart } = useCart();
   const { wishlist, toggleWishlist } = useWishlist();
-  const { executeActionWithAuth } = useAlongkarAuth();
 
   if (!product) return null;
 
@@ -35,24 +32,15 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ product, onClose
   };
 
   const handleAddToCart = () => {
-    executeActionWithAuth(
-      () => {
-        addToCart(product);
-        setAdded(true);
-        setTimeout(() => setAdded(false), 2000);
-      },
-      { type: 'cart', product }
-    );
+    addToCart(product);
+    setAdded(true);
+    setTimeout(() => setAdded(false), 2000);
   };
 
   const handleToggleWishlist = () => {
-    executeActionWithAuth(
-      () => {
-        toggleWishlist(product);
-      },
-      { type: 'wishlist', product }
-    );
+    toggleWishlist(product);
   };
+
 
   return (
     <AnimatePresence>
