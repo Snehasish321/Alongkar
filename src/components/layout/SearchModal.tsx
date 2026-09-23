@@ -46,6 +46,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose, onSel
             exit={{ opacity: 0, scale: 0.95, y: -20 }}
             transition={{ type: 'spring', damping: 25, stiffness: 250 }}
             className="fixed top-12 sm:top-20 z-50 w-full max-w-2xl bg-ivory rounded-brand shadow-2xl border border-gold/30 overflow-hidden"
+            data-lenis-prevent
           >
             {/* Input Bar */}
             <div className="p-4 sm:p-5 border-b border-gold/20 flex items-center gap-3 bg-ivory-pearl">

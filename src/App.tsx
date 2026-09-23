@@ -1,13 +1,56 @@
-export default function App() {
-  return (
-    <main className="min-h-screen w-full bg-white text-neutral-900 flex flex-col items-center justify-center p-6">
-      <div className="text-center space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Alongkar</h1>
-        <p className="text-sm text-neutral-500">
-          Clean slate ready for design reference
-        </p>
-      </div>
-    </main>
-  );
+import React, { useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { ReactLenis, useLenis } from 'lenis/react';
+import { CartProvider } from './context/CartContext';
+import { WishlistProvider } from './context/WishlistContext';
+import { HomePage } from './pages/HomePage';
+
+function ScrollToTopOnNavigate() {
+  const location = useLocation();
+  const lenis = useLenis();
+
+  useEffect(() => {
+    if (lenis) {
+      lenis.scrollTo(0, { immediate: true });
+    } else {
+      window.scrollTo(0, 0);
+    }
+  }, [location.pathname, lenis]);
+
+  return null;
 }
 
+export const AppContent: React.FC = () => {
+  return (
+    <>
+      <ScrollToTopOnNavigate />
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="*" element={<HomePage />} />
+      </Routes>
+    </>
+  );
+};
+
+export default function App() {
+  return (
+    <ReactLenis
+      root
+      options={{
+        lerp: 0.09,
+        duration: 1.2,
+        smoothWheel: true,
+        syncTouch: false,
+        autoRaf: true,
+      }}
+    >
+      <Router>
+        <CartProvider>
+          <WishlistProvider>
+            <AppContent />
+          </WishlistProvider>
+        </CartProvider>
+      </Router>
+    </ReactLenis>
+  );
+}

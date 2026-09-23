@@ -44,7 +44,7 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ product, onClose
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 sm:p-6">
+      <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 sm:p-6" data-lenis-prevent>
         {/* Backdrop */}
         <motion.div
           initial={{ opacity: 0 }}

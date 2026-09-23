@@ -1,11 +1,10 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Search, Heart, ShoppingBag, Menu, User, Sparkles } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Search, ShoppingBag, Menu, User, Heart } from 'lucide-react';
 import { useScrollPosition } from '../../hooks/useScrollPosition';
 import { useCart } from '../../context/CartContext';
 import { useWishlist } from '../../context/WishlistContext';
-import { SignInButton, SignUpButton, Show, UserButton } from '@clerk/react';
+import { SignInButton, Show, UserButton } from '@clerk/react';
 
 interface NavbarProps {
   onOpenSearch: () => void;
@@ -13,195 +12,170 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMobileMenu }) => {
-  const { scrolled } = useScrollPosition(25);
+  const { scrolled } = useScrollPosition(10);
   const location = useLocation();
   const { totalItems, setIsCartOpen } = useCart();
   const { wishlist, setIsWishlistOpen } = useWishlist();
 
   const navLinks = [
     { name: 'Home', path: '/' },
-    { name: 'Shop All', path: '/shop' },
-    { name: 'Collections', path: '/collections' },
-    { name: 'Heritage', path: '/about' },
-    { name: 'Concierge', path: '/contact' },
+    { name: 'Shop By Category', path: '/categories' },
+    { name: 'All Products', path: '/shop' },
+    { name: 'Best Seller', path: '/best-sellers' },
+    { name: 'Return & Exchange', path: '/returns' },
+    { name: 'Pre-Order Updates', path: '/pre-orders' },
+    { name: 'Contact Us', path: '/contact' },
+    { name: 'Track Order', path: '/track' },
   ];
 
   return (
     <header
-      className={`sticky top-0 z-40 transition-all duration-500 ${
-        scrolled
-          ? 'bg-[#1C0106]/92 backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.45)] py-2.5'
-          : 'bg-[#2A0008]/96 backdrop-blur-md py-3.5'
+      className={`sticky top-0 z-40 bg-white/95 backdrop-blur-md transition-all duration-300 border-b border-neutral-200/80 ${
+        scrolled ? 'py-3 shadow-xs' : 'py-4'
       }`}
-      style={{
-        borderBottom: scrolled
-          ? '1px solid rgba(232, 201, 138, 0.2)'
-          : '1px solid rgba(232, 201, 138, 0.1)',
-      }}
     >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between">
-
-          {/* Left: Mobile Hamburger & Search / Desktop Brand Logo */}
-          <div className="flex items-center gap-1.5 lg:gap-0">
-            {/* Mobile Hamburger Menu Toggle */}
+      <div className="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid grid-cols-2 lg:grid-cols-12 items-center">
+          
+          {/* Mobile Left: Menu & Search */}
+          <div className="flex items-center gap-2 lg:hidden">
             <button
               onClick={onOpenMobileMenu}
-              className="lg:hidden p-2 text-[#F8F1E3] hover:text-[#E8C98A] transition-colors rounded-full hover:bg-white/5 cursor-pointer"
-              aria-label="Open Mobile Navigation Menu"
+              className="p-1.5 text-neutral-900 hover:text-black transition-colors rounded-md hover:bg-neutral-100 cursor-pointer"
+              aria-label="Open Navigation Menu"
             >
-              <Menu size={22} />
+              <Menu size={22} strokeWidth={1.75} />
             </button>
-
-            {/* Mobile Search */}
             <button
               onClick={onOpenSearch}
-              className="lg:hidden p-2 text-[#F8F1E3] hover:text-[#E8C98A] transition-colors rounded-full hover:bg-white/5 cursor-pointer"
-              aria-label="Search Catalog"
+              className="p-1.5 text-neutral-800 hover:text-black transition-colors rounded-md hover:bg-neutral-100 cursor-pointer"
+              aria-label="Search"
             >
-              <Search size={19} />
+              <Search size={20} strokeWidth={1.75} />
             </button>
-
-            {/* Brand Logo — Desktop: left-aligned with nav */}
-            <Link to="/" className="hidden lg:flex items-center group">
-              <motion.div
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
-                className="relative flex items-center"
-              >
-                <img
-                  src="/alongkar-logo.png"
-                  alt="Alongkar — Haute Jewellery"
-                  className={`transition-all duration-300 object-contain drop-shadow-[0_2px_12px_rgba(232,201,138,0.2)] ${
-                    scrolled ? 'h-9' : 'h-11'
-                  }`}
-                  style={{ maxWidth: '185px' }}
-                />
-              </motion.div>
-            </Link>
           </div>
 
-          {/* Center: Mobile Logo */}
-          <Link to="/" className="lg:hidden flex items-center justify-center">
-            <img
-              src="/alongkar-logo.png"
-              alt="Alongkar"
-              className="h-9 object-contain drop-shadow-sm"
-              style={{ maxWidth: '150px' }}
-            />
-          </Link>
-
-          {/* Desktop Navigation Links with Gold Glow Hover */}
-          <nav className="hidden lg:flex items-center space-x-8">
+          {/* Desktop Left: Clean Navigation Links */}
+          <nav className="hidden lg:flex lg:col-span-5 items-center flex-wrap gap-x-5 xl:gap-x-6">
             {navLinks.map((link) => {
               const isActive = location.pathname === link.path;
               return (
                 <Link
                   key={link.name}
                   to={link.path}
-                  className={`text-[11px] uppercase tracking-[0.24em] font-medium transition-all duration-300 relative py-1.5 ${
+                  className={`text-[12.5px] xl:text-[13px] tracking-[0.02em] font-normal transition-colors duration-150 py-1 ${
                     isActive
-                      ? 'text-[#E8C98A] font-semibold drop-shadow-[0_0_8px_rgba(232,201,138,0.4)]'
-                      : 'text-[#F8F1E3]/85 hover:text-[#E8C98A]'
+                      ? 'text-black font-semibold'
+                      : 'text-neutral-700 hover:text-black'
                   }`}
                 >
                   {link.name}
-                  {isActive && (
-                    <motion.div
-                      layoutId="activeNavIndicator"
-                      className="absolute bottom-0 left-0 right-0 h-[1.5px] rounded-full"
-                      style={{
-                        background: 'linear-gradient(90deg, transparent, #E8C98A, transparent)',
-                      }}
-                    />
-                  )}
                 </Link>
               );
             })}
           </nav>
 
-          {/* User Actions: Search Pill, Clerk Auth, Wishlist, Cart Drawer */}
-          <div className="flex items-center space-x-2 sm:space-x-3">
-            {/* Desktop Search Button */}
+          {/* Center: Brand Logo */}
+          <div className="lg:col-span-2 flex items-center justify-end lg:justify-center">
+            <Link to="/" className="flex items-center group">
+              <div className="flex flex-col items-center">
+                <span className="font-sans font-black text-xl sm:text-2xl tracking-[0.2em] uppercase text-black leading-none group-hover:opacity-80 transition-opacity">
+                  ALONGKAR
+                </span>
+                <span className="text-[8px] tracking-[0.36em] uppercase text-neutral-400 font-semibold mt-1">
+                  ATELIER
+                </span>
+              </div>
+            </Link>
+          </div>
+
+          {/* Right: Search, Clerk Account, Cart */}
+          <div className="hidden lg:flex lg:col-span-5 items-center justify-end space-x-5">
+            {/* Search Trigger */}
             <button
               onClick={onOpenSearch}
-              className="hidden lg:flex items-center gap-2.5 text-[11px] uppercase tracking-widest px-3.5 py-1.5 rounded-full transition-all text-[#F8F1E3]/80 hover:text-[#E8C98A] bg-white/[0.04] border border-[#E8C98A]/20 hover:border-[#E8C98A]/50 hover:bg-[#E8C98A]/10 cursor-pointer shadow-sm"
+              className="p-1.5 text-neutral-800 hover:text-black transition-colors rounded-full hover:bg-neutral-100 cursor-pointer"
+              aria-label="Search Products"
             >
-              <Search size={13} className="text-[#E8C98A]" />
-              <span className="font-light">Search Atelier</span>
-              <kbd className="text-[9px] bg-black/40 text-[#E8C98A]/70 px-1.5 py-0.5 rounded border border-[#E8C98A]/20">⌘K</kbd>
+              <Search size={19} strokeWidth={1.8} />
             </button>
 
-            {/* Auth Controls */}
-            <Show when="signed-out">
-              <SignInButton mode="modal">
-                <button
-                  className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-widest px-3 py-1.5 rounded-full transition-all text-[#F8F1E3]/85 hover:text-[#E8C98A] border border-white/15 hover:border-[#E8C98A]/40 hover:bg-white/5 cursor-pointer"
-                  aria-label="Sign In"
-                >
-                  <User size={13} />
-                  <span className="hidden sm:inline">Sign In</span>
-                </button>
-              </SignInButton>
-              <SignUpButton mode="modal">
-                <button
-                  className="hidden md:flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider px-3.5 py-1.5 rounded-full transition-all bg-gradient-to-r from-[#E8C98A] to-[#C9A45D] text-[#1C0106] hover:brightness-110 shadow-[0_2px_12px_rgba(232,201,138,0.25)] cursor-pointer"
-                  aria-label="Sign Up"
-                >
-                  <Sparkles size={12} />
-                  <span>Join VIP</span>
-                </button>
-              </SignUpButton>
-            </Show>
-            <Show when="signed-in">
-              <div className="flex items-center pl-1">
+            {/* Clerk Authentication / Profile Button */}
+            <div className="flex items-center">
+              <Show when="signed-in">
                 <UserButton
                   appearance={{
                     elements: {
-                      avatarBox: 'w-8 h-8 rounded-full border border-[#E8C98A]/50 shadow-md',
+                      avatarBox: 'w-7 h-7 ring-1 ring-neutral-300',
                     },
                   }}
                 />
-              </div>
-            </Show>
+              </Show>
+              <Show when="signed-out">
+                <SignInButton mode="modal">
+                  <button
+                    className="p-1.5 text-neutral-800 hover:text-black transition-colors rounded-full hover:bg-neutral-100 cursor-pointer"
+                    aria-label="Sign In"
+                  >
+                    <User size={19} strokeWidth={1.8} />
+                  </button>
+                </SignInButton>
+              </Show>
+            </div>
 
             {/* Wishlist Button */}
             <button
               onClick={() => setIsWishlistOpen(true)}
-              className="relative p-2 text-[#F8F1E3]/90 hover:text-[#E8C98A] transition-colors rounded-full hover:bg-white/5 cursor-pointer"
-              aria-label="Wishlist"
+              className="relative p-1.5 text-neutral-800 hover:text-black transition-colors rounded-full hover:bg-neutral-100 cursor-pointer"
+              aria-label="View Wishlist"
             >
-              <Heart size={19} />
+              <Heart size={19} strokeWidth={1.8} />
               {wishlist.length > 0 && (
-                <motion.span
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-[#E8C98A] text-[#1C0106] text-[10px] font-bold flex items-center justify-center rounded-full shadow-[0_0_8px_rgba(232,201,138,0.6)]"
-                >
+                <span className="absolute -top-1 -right-1 bg-[#D4AF37] text-black text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
                   {wishlist.length}
-                </motion.span>
+                </span>
               )}
             </button>
 
-            {/* Shopping Bag Button */}
+            {/* Cart Button with Numeric Badge */}
             <button
               onClick={() => setIsCartOpen(true)}
-              className="relative p-2 text-[#F8F1E3]/90 hover:text-[#E8C98A] transition-colors rounded-full hover:bg-white/5 cursor-pointer"
-              aria-label="Shopping Bag"
+              className="relative p-1.5 text-neutral-900 hover:text-black transition-transform active:scale-95 cursor-pointer"
+              aria-label="Shopping Cart"
             >
-              <ShoppingBag size={20} />
-              {totalItems > 0 && (
-                <motion.span
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-[#E8C98A] text-[#1C0106] font-bold text-[10px] flex items-center justify-center rounded-full shadow-[0_0_8px_rgba(232,201,138,0.6)]"
-                >
-                  {totalItems}
-                </motion.span>
-              )}
+              <ShoppingBag size={20} strokeWidth={1.8} />
+              <span className="absolute -top-1 -right-1 bg-black text-white text-[10px] font-semibold w-4 h-4 rounded-full flex items-center justify-center">
+                {totalItems}
+              </span>
             </button>
           </div>
+
+          {/* Mobile Right: Wishlist & Cart */}
+          <div className="flex items-center justify-end lg:hidden col-start-2 gap-2">
+            <button
+              onClick={() => setIsWishlistOpen(true)}
+              className="relative p-1.5 text-neutral-900 cursor-pointer"
+              aria-label="View Wishlist"
+            >
+              <Heart size={20} strokeWidth={1.8} />
+              {wishlist.length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-[#D4AF37] text-black text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                  {wishlist.length}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setIsCartOpen(true)}
+              className="relative p-1.5 text-neutral-900 cursor-pointer"
+              aria-label="Shopping Cart"
+            >
+              <ShoppingBag size={21} strokeWidth={1.8} />
+              <span className="absolute -top-1 -right-1 bg-black text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                {totalItems}
+              </span>
+            </button>
+          </div>
+
         </div>
       </div>
     </header>

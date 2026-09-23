@@ -30,6 +30,7 @@ export const WishlistDrawer: React.FC = () => {
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
             className="fixed top-0 right-0 bottom-0 w-full sm:w-[400px] bg-ivory text-espresso z-50 flex flex-col justify-between shadow-2xl border-l border-gold/20"
+            data-lenis-prevent
           >
             {/* Header */}
             <div className="p-5 border-b border-gold/20 flex items-center justify-between bg-ivory-pearl">
