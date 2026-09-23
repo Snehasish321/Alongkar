@@ -45,8 +45,11 @@ export default {
         },
       },
       fontFamily: {
-        serif: ['"Playfair Display"', 'Georgia', 'serif'],
-        sans: ['"Inter"', 'system-ui', 'sans-serif'],
+        sans: ['"Geist"', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'sans-serif'],
+        serif: ['"Geist"', '-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', 'sans-serif'],
+        mono: ['"Geist Mono"', 'monospace'],
+        geist: ['"Geist"', 'sans-serif'],
+        'geist-mono': ['"Geist Mono"', 'monospace'],
       },
       boxShadow: {
         'soft': '0 4px 20px -2px rgba(33, 26, 23, 0.05)',
