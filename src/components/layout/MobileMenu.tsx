@@ -47,18 +47,17 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
           >
             <div>
               {/* Header */}
-              <div className="p-5 flex items-center justify-between border-b border-neutral-100">
-                <Link to="/" onClick={onClose} className="flex flex-col">
-                  <span className="font-bold text-lg tracking-[0.16em] uppercase text-black">
-                    ALONGKAR
-                  </span>
-                  <span className="text-[7.5px] tracking-[0.3em] uppercase text-neutral-400">
-                    ATELIER
-                  </span>
+              <div className="p-4 sm:p-5 flex items-center justify-between border-b border-[#E8C98A]/20 bg-[#32060E] text-[#F8F1E3]">
+                <Link to="/" onClick={onClose} className="flex items-center">
+                  <img
+                    src="/alongkar-logo.png"
+                    alt="Alongkar Atelier"
+                    className="h-7 w-auto object-contain"
+                  />
                 </Link>
                 <button
                   onClick={onClose}
-                  className="p-1.5 text-neutral-500 hover:text-black transition-colors rounded-md hover:bg-neutral-100 cursor-pointer"
+                  className="p-1.5 text-[#F8F1E3]/80 hover:text-[#E8C98A] transition-colors rounded-md hover:bg-white/10 cursor-pointer"
                   aria-label="Close menu"
                 >
                   <X size={20} />
@@ -76,12 +75,12 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
                       onClick={onClose}
                       className={`flex items-center justify-between px-3 py-2.5 rounded-md text-sm tracking-wide transition-colors ${
                         isActive
-                          ? 'bg-neutral-100 font-semibold text-black'
-                          : 'text-neutral-700 hover:bg-neutral-50 hover:text-black'
+                          ? 'bg-[#32060E]/10 font-semibold text-[#40000D]'
+                          : 'text-neutral-700 hover:bg-neutral-50 hover:text-[#40000D]'
                       }`}
                     >
                       <span>{link.name}</span>
-                      <ChevronRight size={14} className="text-neutral-400" />
+                      <ChevronRight size={14} className={isActive ? 'text-[#40000D]' : 'text-neutral-400'} />
                     </Link>
                   );
                 })}
@@ -101,7 +100,7 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
                   <SignInButton mode="modal">
                     <button
                       onClick={onClose}
-                      className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-black text-white text-xs font-semibold uppercase tracking-wider rounded-md hover:bg-neutral-800 transition-colors"
+                      className="w-full flex items-center justify-center gap-2 py-2.5 px-4 bg-[#32060E] text-[#F8F1E3] text-xs font-semibold uppercase tracking-wider rounded-md hover:bg-[#200207] border border-[#E8C98A]/30 transition-colors cursor-pointer"
                     >
                       <User size={15} />
                       <span>Sign In / Register</span>

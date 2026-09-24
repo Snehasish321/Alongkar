@@ -30,25 +30,25 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMobileMenu }
 
   return (
     <header
-      className={`sticky top-0 z-40 bg-white/95 backdrop-blur-md transition-all duration-300 border-b border-neutral-200/80 ${
-        scrolled ? 'py-3 shadow-xs' : 'py-4'
+      className={`sticky top-0 z-40 bg-[#32060E]/95 backdrop-blur-md transition-all duration-300 border-b border-[#E8C98A]/25 text-[#F8F1E3] shadow-xs ${
+        scrolled ? 'py-2.5 shadow-md' : 'py-3.5'
       }`}
     >
       <div className="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-2 lg:grid-cols-12 items-center">
+        <div className="grid grid-cols-3 lg:grid-cols-12 items-center">
           
           {/* Mobile Left: Menu & Search */}
           <div className="flex items-center gap-2 lg:hidden">
             <button
               onClick={onOpenMobileMenu}
-              className="p-1.5 text-neutral-900 hover:text-black transition-colors rounded-md hover:bg-neutral-100 cursor-pointer"
+              className="p-1.5 text-[#F8F1E3] hover:text-[#E8C98A] transition-colors rounded-md hover:bg-white/10 cursor-pointer"
               aria-label="Open Navigation Menu"
             >
               <Menu size={22} strokeWidth={1.75} />
             </button>
             <button
               onClick={onOpenSearch}
-              className="p-1.5 text-neutral-800 hover:text-black transition-colors rounded-md hover:bg-neutral-100 cursor-pointer"
+              className="p-1.5 text-[#F8F1E3]/90 hover:text-[#E8C98A] transition-colors rounded-md hover:bg-white/10 cursor-pointer"
               aria-label="Search"
             >
               <Search size={20} strokeWidth={1.75} />
@@ -63,10 +63,10 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMobileMenu }
                 <Link
                   key={link.name}
                   to={link.path}
-                  className={`text-[12.5px] xl:text-[13px] tracking-[0.02em] font-normal transition-colors duration-150 py-1 ${
+                  className={`text-[12.5px] xl:text-[13px] tracking-[0.025em] transition-colors duration-150 py-1 ${
                     isActive
-                      ? 'text-black font-semibold'
-                      : 'text-neutral-700 hover:text-black'
+                      ? 'text-[#E8C98A] font-semibold'
+                      : 'text-[#F8F1E3]/80 hover:text-[#E8C98A]'
                   }`}
                 >
                   {link.name}
@@ -76,16 +76,13 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMobileMenu }
           </nav>
 
           {/* Center: Brand Logo */}
-          <div className="lg:col-span-2 flex items-center justify-end lg:justify-center">
-            <Link to="/" className="flex items-center group">
-              <div className="flex flex-col items-center">
-                <span className="font-sans font-black text-xl sm:text-2xl tracking-[0.2em] uppercase text-black leading-none group-hover:opacity-80 transition-opacity">
-                  ALONGKAR
-                </span>
-                <span className="text-[8px] tracking-[0.36em] uppercase text-neutral-400 font-semibold mt-1">
-                  ATELIER
-                </span>
-              </div>
+          <div className="lg:col-span-2 flex items-center justify-center">
+            <Link to="/" className="flex items-center justify-center group py-0.5">
+              <img
+                src="/alongkar-logo.png"
+                alt="Alongkar Atelier"
+                className="h-9 sm:h-10 md:h-12 lg:h-14 xl:h-16 w-auto object-contain transition-transform duration-300 group-hover:scale-105"
+              />
             </Link>
           </div>
 
@@ -94,7 +91,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMobileMenu }
             {/* Search Trigger */}
             <button
               onClick={onOpenSearch}
-              className="p-1.5 text-neutral-800 hover:text-black transition-colors rounded-full hover:bg-neutral-100 cursor-pointer"
+              className="p-1.5 text-[#F8F1E3]/90 hover:text-[#E8C98A] transition-colors rounded-full hover:bg-white/10 cursor-pointer"
               aria-label="Search Products"
             >
               <Search size={19} strokeWidth={1.8} />
@@ -106,7 +103,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMobileMenu }
                 <UserButton
                   appearance={{
                     elements: {
-                      avatarBox: 'w-7 h-7 ring-1 ring-neutral-300',
+                      avatarBox: 'w-7 h-7 ring-1 ring-[#E8C98A]/60',
                     },
                   }}
                 />
@@ -114,7 +111,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMobileMenu }
               <Show when="signed-out">
                 <SignInButton mode="modal">
                   <button
-                    className="p-1.5 text-neutral-800 hover:text-black transition-colors rounded-full hover:bg-neutral-100 cursor-pointer"
+                    className="p-1.5 text-[#F8F1E3]/90 hover:text-[#E8C98A] transition-colors rounded-full hover:bg-white/10 cursor-pointer"
                     aria-label="Sign In"
                   >
                     <User size={19} strokeWidth={1.8} />
@@ -126,12 +123,12 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMobileMenu }
             {/* Wishlist Button */}
             <button
               onClick={() => setIsWishlistOpen(true)}
-              className="relative p-1.5 text-neutral-800 hover:text-black transition-colors rounded-full hover:bg-neutral-100 cursor-pointer"
+              className="relative p-1.5 text-[#F8F1E3]/90 hover:text-[#E8C98A] transition-colors rounded-full hover:bg-white/10 cursor-pointer"
               aria-label="View Wishlist"
             >
               <Heart size={19} strokeWidth={1.8} />
               {wishlist.length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-[#D4AF37] text-black text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                <span className="absolute -top-1 -right-1 bg-[#E8C98A] text-[#2A0008] text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-xs">
                   {wishlist.length}
                 </span>
               )}
@@ -140,37 +137,37 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMobileMenu }
             {/* Cart Button with Numeric Badge */}
             <button
               onClick={() => setIsCartOpen(true)}
-              className="relative p-1.5 text-neutral-900 hover:text-black transition-transform active:scale-95 cursor-pointer"
+              className="relative p-1.5 text-[#F8F1E3] hover:text-[#E8C98A] transition-transform active:scale-95 cursor-pointer rounded-full hover:bg-white/10"
               aria-label="Shopping Cart"
             >
               <ShoppingBag size={20} strokeWidth={1.8} />
-              <span className="absolute -top-1 -right-1 bg-black text-white text-[10px] font-semibold w-4 h-4 rounded-full flex items-center justify-center">
+              <span className="absolute -top-1 -right-1 bg-[#E8C98A] text-[#2A0008] text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-xs">
                 {totalItems}
               </span>
             </button>
           </div>
 
           {/* Mobile Right: Wishlist & Cart */}
-          <div className="flex items-center justify-end lg:hidden col-start-2 gap-2">
+          <div className="flex items-center justify-end lg:hidden gap-2">
             <button
               onClick={() => setIsWishlistOpen(true)}
-              className="relative p-1.5 text-neutral-900 cursor-pointer"
+              className="relative p-1.5 text-[#F8F1E3] hover:text-[#E8C98A] cursor-pointer"
               aria-label="View Wishlist"
             >
               <Heart size={20} strokeWidth={1.8} />
               {wishlist.length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-[#D4AF37] text-black text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+                <span className="absolute -top-1 -right-1 bg-[#E8C98A] text-[#2A0008] text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-xs">
                   {wishlist.length}
                 </span>
               )}
             </button>
             <button
               onClick={() => setIsCartOpen(true)}
-              className="relative p-1.5 text-neutral-900 cursor-pointer"
+              className="relative p-1.5 text-[#F8F1E3] hover:text-[#E8C98A] cursor-pointer"
               aria-label="Shopping Cart"
             >
               <ShoppingBag size={21} strokeWidth={1.8} />
-              <span className="absolute -top-1 -right-1 bg-black text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
+              <span className="absolute -top-1 -right-1 bg-[#E8C98A] text-[#2A0008] text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-xs">
                 {totalItems}
               </span>
             </button>
