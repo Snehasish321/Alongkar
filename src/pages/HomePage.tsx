@@ -9,7 +9,6 @@ import { CategorySection } from '../components/home/CategorySection';
 import { FeaturedGrid } from '../components/home/FeaturedGrid';
 import { ShopWithConfidence } from '../components/home/ShopWithConfidence';
 import { AlongkarStorySection } from '../components/home/AlongkarStorySection';
-import { CustomerStoriesSection } from '../components/home/CustomerStoriesSection';
 import { SocialGallerySection } from '../components/home/SocialGallerySection';
 import { Footer } from '../components/layout/Footer';
 import { SearchModal } from '../components/layout/SearchModal';
@@ -50,6 +49,22 @@ const showcaseItems = [
     originalPrice: 1599,
     image: 'https://images.unsplash.com/photo-1605100804763-247f67b3557e?q=80&w=800&auto=format&fit=crop',
     link: '/product/prod-rg-4',
+  },
+  {
+    title: 'Ananya Kundan Passa & Jhumka Set',
+    badge: 'LIMITED' as const,
+    price: 1699,
+    originalPrice: 3299,
+    image: 'https://images.unsplash.com/photo-1635767798638-3e25273a8236?q=80&w=800&auto=format&fit=crop',
+    link: '/product/prod-er-3',
+  },
+  {
+    title: 'Swarna Hansa Filigree Choker',
+    badge: 'NEW' as const,
+    price: 3299,
+    originalPrice: 5999,
+    image: 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?q=80&w=800&auto=format&fit=crop',
+    link: '/product/prod-nk-2',
   },
 ];
 
@@ -101,9 +116,6 @@ export const HomePage: React.FC = () => {
           products={trendingProducts}
         />
 
-        {/* Purchase Reassurance & Trust Grid (COD, Exchange, 24K Micron Gold, Express Shipping) */}
-        <ShopWithConfidence />
-
         {/* Royal Bengali Craft Story & Karigar Heritage */}
         <AlongkarStorySection />
 
@@ -114,11 +126,11 @@ export const HomePage: React.FC = () => {
           products={statementProducts}
         />
 
-        {/* Verified Patron Testimonials */}
-        <CustomerStoriesSection />
-
         {/* Social Instagram Lookbook & Community Grid */}
-        <SocialGallerySection />
+        {/* <SocialGallerySection /> */}
+
+        {/* Purchase Reassurance & Trust Grid (COD, Exchange, 24K Micron Gold, Express Shipping) */}
+        {/* <ShopWithConfidence /> */}
       </main>
 
       {/* High-End Editorial Footer with Newsletter */}

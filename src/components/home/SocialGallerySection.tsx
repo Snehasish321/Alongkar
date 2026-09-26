@@ -26,7 +26,7 @@ export const SocialGallerySection: React.FC = () => {
     },
     {
       id: 4,
-      image: 'https://images.unsplash.com/photo-1611591475143-be232935ee37?q=80&w=600&auto=format&fit=crop',
+      image: 'https://images.unsplash.com/photo-1590548784585-643d2b9f2925?q=80&w=600&auto=format&fit=crop',
       likes: 1840,
       handle: '@alongkar_jewels',
     },
