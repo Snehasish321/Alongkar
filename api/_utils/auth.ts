@@ -175,3 +175,113 @@ export async function getAuthenticatedUser(req: any, bodyData?: any) {
     return null;
   }
 }
+
+export interface AdminAuthResult {
+  authorized: boolean;
+  status: number;
+  error?: string;
+  user?: any;
+  clerkUserId?: string;
+  email?: string | null;
+}
+
+/**
+ * Validates that the incoming request is from an authenticated Clerk user
+ * with explicit administrator privileges (role === 'admin' in Clerk public or private metadata).
+ *
+ * Returns:
+ * - { authorized: false, status: 401, error: '...' } when not authenticated
+ * - { authorized: false, status: 403, error: '...' } when authenticated but non-admin
+ * - { authorized: true, status: 200, user, clerkUserId } when authorized as admin
+ */
+export async function requireAdmin(req: any, bodyData?: any): Promise<AdminAuthResult> {
+  try {
+    const webRequest = await createWebRequest(req, bodyData);
+    const requestState = await clerkClient.authenticateRequest(webRequest, {
+      publishableKey,
+      secretKey,
+    });
+
+    if (!requestState.isAuthenticated) {
+      return {
+        authorized: false,
+        status: 401,
+        error: 'Unauthorized: Valid authenticated session required',
+      };
+    }
+
+    const auth = requestState.toAuth();
+    const clerkUserId = auth.userId;
+
+    if (!clerkUserId) {
+      return {
+        authorized: false,
+        status: 401,
+        error: 'Unauthorized: Missing user identifier in session',
+      };
+    }
+
+    // Check role in sessionClaims if configured in JWT template
+    const sessionClaims = auth.sessionClaims as any;
+    let role =
+      sessionClaims?.publicMetadata?.role ||
+      sessionClaims?.metadata?.role ||
+      sessionClaims?.role;
+
+    let userEmail: string | null = null;
+
+    // If role is not directly in claims, query Clerk API for the user
+    if (role !== 'admin') {
+      try {
+        const clerkUser = await clerkClient.users.getUser(clerkUserId);
+        role =
+          (clerkUser.publicMetadata as any)?.role ||
+          (clerkUser.privateMetadata as any)?.role;
+        userEmail = clerkUser.emailAddresses?.[0]?.emailAddress || null;
+      } catch (err) {
+        console.error('Error fetching Clerk user details for admin verification:', err);
+      }
+    }
+
+    if (role !== 'admin') {
+      return {
+        authorized: false,
+        status: 403,
+        error: 'Forbidden: Administrator privileges required to manage products',
+        clerkUserId,
+      };
+    }
+
+    // Ensure corresponding User record exists in PostgreSQL
+    let user = await prisma.user.findUnique({
+      where: { clerkUserId },
+    });
+
+    if (!user) {
+      user = await prisma.user.upsert({
+        where: { clerkUserId },
+        update: {},
+        create: {
+          clerkUserId,
+          email: userEmail,
+        },
+      });
+    }
+
+    return {
+      authorized: true,
+      status: 200,
+      user,
+      clerkUserId,
+      email: user.email || userEmail,
+    };
+  } catch (error) {
+    console.error('Admin authorization error in requireAdmin:', error);
+    return {
+      authorized: false,
+      status: 500,
+      error: 'Internal authorization error',
+    };
+  }
+}
+

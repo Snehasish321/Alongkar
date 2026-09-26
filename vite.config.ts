@@ -19,6 +19,10 @@ function apiDevServerPlugin(): Plugin {
             const { default: handler } = await server.ssrLoadModule('/api/cart.ts');
             return await handler(req, res);
           }
+          if (pathname.startsWith('/api/products')) {
+            const { default: handler } = await server.ssrLoadModule('/api/products.ts');
+            return await handler(req, res);
+          }
           if (pathname === '/api/wishlist' || pathname === '/api/wishlist/') {
             const { default: handler } = await server.ssrLoadModule('/api/wishlist.ts');
             return await handler(req, res);
