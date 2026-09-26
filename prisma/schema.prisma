@@ -35,6 +35,7 @@ model CartItem {
   cartId    String
   cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
   productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   quantity  Int      @default(1)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -56,7 +57,37 @@ model WishlistItem {
   wishlistId String
   wishlist   Wishlist @relation(fields: [wishlistId], references: [id], onDelete: Cascade)
   productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   createdAt  DateTime @default(now())
 
   @@unique([wishlistId, productId])
 }
+
+model Product {
+  id              String         @id @default(cuid())
+  name            String
+  slug            String         @unique
+  category        String
+  collectionId    String?
+  price           Float
+  originalPrice   Float
+  discountPercent Int            @default(0)
+  rating          Float          @default(0)
+  reviewCount     Int            @default(0)
+  isNew           Boolean        @default(false)
+  isBestSeller    Boolean        @default(false)
+  isTrending      Boolean        @default(false)
+  image           String
+  hoverImage      String
+  description     String
+  finish          String
+  baseMaterial    String
+  stoneType       String?
+  warranty        String
+  inStock         Boolean        @default(true)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  cartItems       CartItem[]
+  wishlistItems   WishlistItem[]
+}
+
