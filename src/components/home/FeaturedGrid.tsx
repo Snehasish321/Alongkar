@@ -1,6 +1,8 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { Heart } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
+import { useWishlist } from '../../context/WishlistContext';
 import { formatPrice } from '../../lib/utils';
 import type { Product } from '../../types';
 
@@ -8,14 +10,20 @@ interface FeaturedGridProps {
   title: string;
   viewAllLink?: string;
   products: Product[];
+  showWishlist?: boolean;
 }
 
 export const FeaturedGrid: React.FC<FeaturedGridProps> = ({
   title,
   viewAllLink = '/shop',
   products,
+  showWishlist,
 }) => {
   const { addToCart } = useCart();
+  const { wishlist, toggleWishlist, isInWishlist } = useWishlist();
+
+  // Target only the Trending Masterworks section
+  const isWishlistEnabled = showWishlist ?? title === 'Trending Masterworks';
 
   return (
     <section className="w-full max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
@@ -35,13 +43,27 @@ export const FeaturedGrid: React.FC<FeaturedGridProps> = ({
       {/* 4-Item Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
         {products.slice(0, 4).map((product) => {
-          const discount = product.discountPercent || (product.originalPrice ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100) : 0);
+          const discount =
+            product.discountPercent ||
+            (product.originalPrice
+              ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
+              : 0);
+
+          const isLiked = isInWishlist
+            ? isInWishlist(product.id)
+            : wishlist.some((p) => p.id === product.id);
+
+          const handleWishlistClick = (e: React.MouseEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleWishlist(product);
+          };
 
           return (
             <div key={product.id} className="group flex flex-col">
               {/* Image Container */}
               <div className="relative aspect-square w-full rounded-xl sm:rounded-2xl overflow-hidden bg-neutral-100 mb-3">
-                <Link to={`/product/${product.id}`} className="block w-full h-full">
+                <Link to={`/product/${product.slug || product.id}`} className="block w-full h-full">
                   <img
                     src={product.image}
                     alt={product.name}
@@ -57,6 +79,21 @@ export const FeaturedGrid: React.FC<FeaturedGridProps> = ({
                     />
                   )}
                 </Link>
+
+                {/* Wishlist Button - Only on Trending Masterworks */}
+                {isWishlistEnabled && (
+                  <button
+                    onClick={handleWishlistClick}
+                    className={`absolute top-3 right-3 z-10 p-2 rounded-full backdrop-blur-xs transition-all duration-200 cursor-pointer shadow-xs ${
+                      isLiked
+                        ? 'bg-[#5A0015] text-[#E8C98A] shadow-md scale-105'
+                        : 'bg-white/90 text-neutral-800 hover:bg-white hover:text-[#5A0015] hover:scale-105'
+                    }`}
+                    aria-label={isLiked ? 'Remove from wishlist' : 'Add to wishlist'}
+                  >
+                    <Heart size={15} className={isLiked ? 'fill-[#E8C98A]' : ''} />
+                  </button>
+                )}
 
                 {/* Subtle SALE Tag */}
                 {discount > 0 && (
@@ -75,7 +112,7 @@ export const FeaturedGrid: React.FC<FeaturedGridProps> = ({
               </div>
 
               {/* Product Info */}
-              <Link to={`/product/${product.id}`} className="flex flex-col flex-1">
+              <Link to={`/product/${product.slug || product.id}`} className="flex flex-col flex-1">
                 <h3 className="text-xs sm:text-sm font-medium text-neutral-800 line-clamp-1 group-hover:text-black transition-colors">
                   {product.name}
                 </h3>

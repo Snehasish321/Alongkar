@@ -35,7 +35,7 @@ export const Footer: React.FC = () => {
               <img
                 src="/alongkar-logo.png"
                 alt="Alongkar — Haute Jewellery"
-                className="h-10 w-auto object-contain block drop-shadow"
+                className="h-14 sm:h-16 w-auto object-contain block drop-shadow"
               />
             </Link>
             <p className="text-xs text-[#FDF8F0]/90 leading-relaxed max-w-sm font-normal drop-shadow-sm">
@@ -125,16 +125,9 @@ export const Footer: React.FC = () => {
           </div>
         </div>
 
-        {/* Bottom Bar: Copyright & Assured Payments */}
-        <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-[11px] text-[#2A123B] font-semibold gap-4">
+        {/* Bottom Bar: Copyright */}
+        <div className="pt-8 flex items-center justify-center text-center text-[11px] text-[#2A123B] font-semibold">
           <p>© {new Date().getFullYear()} ALONGKAR Haute Joaillerie. All Rights Reserved.</p>
-          <div className="flex items-center gap-2.5 text-xs">
-            <span className="border border-[#7A5E9E]/30 px-2 py-0.5 rounded text-[9px] text-[#3D1E4E] font-mono bg-white/50 backdrop-blur-sm shadow-sm">100% ENCRYPTED</span>
-            <span className="border border-[#7A5E9E]/30 px-2 py-0.5 rounded text-[9px] text-[#3D1E4E] font-mono bg-white/50 backdrop-blur-sm shadow-sm">UPI</span>
-            <span className="border border-[#7A5E9E]/30 px-2 py-0.5 rounded text-[9px] text-[#3D1E4E] font-mono bg-white/50 backdrop-blur-sm shadow-sm">VISA</span>
-            <span className="border border-[#7A5E9E]/30 px-2 py-0.5 rounded text-[9px] text-[#3D1E4E] font-mono bg-white/50 backdrop-blur-sm shadow-sm">MASTERCARD</span>
-            <span className="border border-[#7A5E9E]/30 px-2 py-0.5 rounded text-[9px] text-[#3D1E4E] font-mono bg-white/50 backdrop-blur-sm shadow-sm">COD AVAILABLE</span>
-          </div>
         </div>
       </div>
     </div>
