@@ -1,10 +1,12 @@
 import React from 'react';
 import { Award, Sparkles, Heart, CheckCircle2 } from 'lucide-react';
 import { SectionHeading } from '../components/ui/SectionHeading';
+import { StorefrontLayout } from '../components/layout/StorefrontLayout';
 
 export const AboutPage: React.FC = () => {
   return (
-    <main className="py-12 sm:py-20 bg-ivory">
+    <StorefrontLayout>
+      <main className="py-12 sm:py-20 bg-ivory">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-16">
         {/* Hero Banner */}
         <div className="relative rounded-brand overflow-hidden bg-espresso text-ivory-pearl p-8 sm:p-16 text-center border border-gold/30 shadow-elevated">
@@ -102,5 +104,6 @@ export const AboutPage: React.FC = () => {
         </div>
       </div>
     </main>
+    </StorefrontLayout>
   );
 };

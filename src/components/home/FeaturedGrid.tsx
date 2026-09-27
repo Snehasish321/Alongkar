@@ -63,7 +63,7 @@ export const FeaturedGrid: React.FC<FeaturedGridProps> = ({
             <div key={product.id} className="group flex flex-col">
               {/* Image Container */}
               <div className="relative aspect-square w-full rounded-xl sm:rounded-2xl overflow-hidden bg-neutral-100 mb-3">
-                <Link to={`/product/${product.id}`} className="block w-full h-full">
+                <Link to={`/product/${product.slug || product.id}`} className="block w-full h-full">
                   <img
                     src={product.image}
                     alt={product.name}
@@ -112,7 +112,7 @@ export const FeaturedGrid: React.FC<FeaturedGridProps> = ({
               </div>
 
               {/* Product Info */}
-              <Link to={`/product/${product.id}`} className="flex flex-col flex-1">
+              <Link to={`/product/${product.slug || product.id}`} className="flex flex-col flex-1">
                 <h3 className="text-xs sm:text-sm font-medium text-neutral-800 line-clamp-1 group-hover:text-black transition-colors">
                   {product.name}
                 </h3>

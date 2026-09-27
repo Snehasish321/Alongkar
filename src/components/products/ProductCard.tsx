@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Heart, Eye, ShoppingBag, Check, Sparkles } from 'lucide-react';
 import type { Product } from '../../types';
@@ -9,7 +10,7 @@ import { useWishlist } from '../../context/WishlistContext';
 
 interface ProductCardProps {
   product: Product;
-  onQuickView: (product: Product) => void;
+  onQuickView?: (product: Product) => void;
 }
 
 export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }) => {
@@ -17,8 +18,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
   const [added, setAdded] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [hoverImageError, setHoverImageError] = useState(false);
+  const navigate = useNavigate();
   const { addToCart } = useCart();
   const { wishlist, toggleWishlist } = useWishlist();
+
+  const productUrl = `/product/${product.slug || product.id}`;
 
   const fallbackImage = 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?q=80&w=800&auto=format&fit=crop';
   const displayImage = imageError ? fallbackImage : (product.image || fallbackImage);
@@ -27,6 +31,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
   const isLiked = wishlist.some((p) => p.id === product.id);
 
   const handleAdd = (e: React.MouseEvent) => {
+    e.preventDefault();
     e.stopPropagation();
     addToCart(product);
     setAdded(true);
@@ -34,8 +39,19 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
   };
 
   const handleWishlist = (e: React.MouseEvent) => {
+    e.preventDefault();
     e.stopPropagation();
     toggleWishlist(product);
+  };
+
+  const handleQuickView = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (onQuickView) {
+      onQuickView(product);
+    } else {
+      navigate(productUrl);
+    }
   };
 
   return (
@@ -49,7 +65,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
       onMouseLeave={() => setIsHovered(false)}
     >
       {/* Visual Frame Container */}
-      <div className="relative aspect-[4/5] bg-[#FAF7F2] overflow-hidden cursor-pointer">
+      <div className="relative aspect-[4/5] bg-[#FAF7F2] overflow-hidden">
         {/* Luxury Badges */}
         <div className="absolute top-3 left-3 z-20 flex flex-col gap-1.5 pointer-events-none">
           {product.isBestSeller && (
@@ -83,8 +99,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
           <Heart size={15} className={isLiked ? 'fill-[#E8C98A]' : ''} />
         </button>
 
-        {/* Dual High-Resolution Image Presentation */}
-        <div onClick={() => onQuickView(product)} className="w-full h-full relative">
+        {/* Dual High-Resolution Image Presentation Linking to /product/:slug */}
+        <Link to={productUrl} className="w-full h-full block relative cursor-pointer">
           <img
             src={displayImage}
             alt={product.name}
@@ -105,12 +121,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
           />
           {/* Subtle warm luxury vignette */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-        </div>
+        </Link>
 
         {/* Floating Frosted Action Bar on Hover */}
         <div className="absolute inset-x-3 bottom-3 z-20 opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-300 flex gap-2">
           <button
-            onClick={() => onQuickView(product)}
+            onClick={handleQuickView}
             className="flex-1 py-2 px-2.5 bg-white/95 backdrop-blur-md text-[#2A0008] hover:bg-[#2A0008] hover:text-[#E8C98A] text-[11px] font-semibold uppercase tracking-wider rounded-lg flex items-center justify-center gap-1.5 transition-all duration-300 shadow-lg border border-[#E8C98A]/30 cursor-pointer"
           >
             <Eye size={13} />
@@ -129,15 +145,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
             <StarRating rating={product.rating} size={11} reviewCount={product.reviewCount} />
           </div>
 
-          <h3
-            onClick={() => onQuickView(product)}
-            className="font-serif text-sm font-semibold text-[#211A17] line-clamp-1 hover:text-[#8C6C38] cursor-pointer transition-colors"
-          >
-            {product.name}
-          </h3>
+          <Link to={productUrl} className="block">
+            <h3 className="font-serif text-sm font-semibold text-[#211A17] line-clamp-1 hover:text-[#8C6C38] cursor-pointer transition-colors">
+              {product.name}
+            </h3>
+          </Link>
 
           <p className="text-[11px] text-gray-500 line-clamp-1 mt-0.5 font-light">
-            {product.details.finish || '24K Micron Gold Plated'}
+            {product.details?.finish || product.finish || '24K Micron Gold Plated'}
           </p>
         </div>
 

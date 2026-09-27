@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { createClerkClient } from '@clerk/backend';
-import prisma from '../../src/lib/prisma';
+import prisma from '../../src/lib/prisma.ts';
 
 const publishableKey =
   process.env.CLERK_PUBLISHABLE_KEY ||

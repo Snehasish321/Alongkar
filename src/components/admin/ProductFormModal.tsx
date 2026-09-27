@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Sparkles, Image as ImageIcon, Loader2, AlertCircle } from 'lucide-react';
+import { X, Sparkles, Loader2, AlertCircle } from 'lucide-react';
 import type { Product } from '../../types';
+import { ProductImageUploader } from './ProductImageUploader';
 
 interface ProductFormModalProps {
   isOpen: boolean;
@@ -528,71 +529,25 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
             </h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[#EDE4D5]/90 font-medium mb-1.5">
-                  Primary Image URL <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="url"
-                  value={formData.image}
-                  onChange={(e) => setFormData({ ...formData, image: e.target.value })}
-                  placeholder="https://images.unsplash.com/..."
-                  className={`w-full px-3.5 py-2.5 rounded-xl bg-black/40 border ${
-                    formErrors.image ? 'border-red-500' : 'border-white/15'
-                  } focus:outline-none focus:border-[#D6B878] text-white text-[11px]`}
-                />
-                {formErrors.image && (
-                  <p className="text-[10px] text-red-400 mt-1">{formErrors.image}</p>
-                )}
-                {formData.image && (
-                  <div className="mt-2 flex items-center gap-2 p-2 bg-black/30 rounded-lg border border-white/10">
-                    <img
-                      src={formData.image}
-                      alt="Primary preview"
-                      className="w-12 h-12 object-cover rounded bg-black"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = 'https://placehold.co/100x100?text=Invalid';
-                      }}
-                    />
-                    <span className="text-[10px] text-white/50 truncate flex items-center gap-1">
-                      <ImageIcon className="w-3 h-3 text-[#D6B878]" /> Primary Preview
-                    </span>
-                  </div>
-                )}
-              </div>
+              <ProductImageUploader
+                label="Primary Product Image"
+                sublabel="Primary catalog & card showcase"
+                value={formData.image}
+                onChange={(url) => setFormData((prev) => ({ ...prev, image: url }))}
+                error={formErrors.image}
+                disabled={isLoading}
+                required
+              />
 
-              <div>
-                <label className="block text-[#EDE4D5]/90 font-medium mb-1.5">
-                  Hover Image URL <span className="text-red-400">*</span>
-                </label>
-                <input
-                  type="url"
-                  value={formData.hoverImage}
-                  onChange={(e) => setFormData({ ...formData, hoverImage: e.target.value })}
-                  placeholder="https://images.unsplash.com/..."
-                  className={`w-full px-3.5 py-2.5 rounded-xl bg-black/40 border ${
-                    formErrors.hoverImage ? 'border-red-500' : 'border-white/15'
-                  } focus:outline-none focus:border-[#D6B878] text-white text-[11px]`}
-                />
-                {formErrors.hoverImage && (
-                  <p className="text-[10px] text-red-400 mt-1">{formErrors.hoverImage}</p>
-                )}
-                {formData.hoverImage && (
-                  <div className="mt-2 flex items-center gap-2 p-2 bg-black/30 rounded-lg border border-white/10">
-                    <img
-                      src={formData.hoverImage}
-                      alt="Hover preview"
-                      className="w-12 h-12 object-cover rounded bg-black"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = 'https://placehold.co/100x100?text=Invalid';
-                      }}
-                    />
-                    <span className="text-[10px] text-white/50 truncate flex items-center gap-1">
-                      <ImageIcon className="w-3 h-3 text-[#D6B878]" /> Hover Preview
-                    </span>
-                  </div>
-                )}
-              </div>
+              <ProductImageUploader
+                label="Hover Showcase Image"
+                sublabel="Secondary interactive hover reveal"
+                value={formData.hoverImage}
+                onChange={(url) => setFormData((prev) => ({ ...prev, hoverImage: url }))}
+                error={formErrors.hoverImage}
+                disabled={isLoading}
+                required
+              />
             </div>
           </div>
         </form>

@@ -27,6 +27,10 @@ function apiDevServerPlugin(): Plugin {
             const { default: handler } = await server.ssrLoadModule('/api/wishlist.ts');
             return await handler(req, res);
           }
+          if (pathname.startsWith('/api/uploads') || pathname === '/api/upload' || pathname === '/api/upload/') {
+            const { default: handler } = await server.ssrLoadModule('/api/uploads/product-image.ts');
+            return await handler(req, res);
+          }
           next();
         } catch (error) {
           console.error(`Error handling ${req.url}:`, error);

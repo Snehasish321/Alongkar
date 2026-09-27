@@ -14,6 +14,8 @@
     "@clerk/react": "^6.16.1",
     "@gsap/react": "^2.1.2",
     "@prisma/client": "^6.19.3",
+    "busboy": "^1.6.0",
+    "cloudinary": "^2.11.0",
     "clsx": "^2.1.1",
     "framer-motion": "^13.4.0",
     "geist": "^1.7.2",
@@ -29,6 +31,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
     "@tailwindcss/vite": "^4.3.3",
+    "@types/busboy": "^1.5.4",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",

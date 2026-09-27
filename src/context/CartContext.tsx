@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { useAuth } from '@clerk/react';
 import type { Product, CartItem } from '../types';
-import { productsData } from '../data/products';
+import { fetchProductById, fetchProducts } from '../services/productApi';
 
 interface CartContextType {
   cart: CartItem[];
@@ -16,28 +16,79 @@ interface CartContextType {
   lastAddedProduct: Product | null;
 }
 
+const LOCAL_STORAGE_KEY = 'alongkar_cart_items_v2';
+
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { isSignedIn, isLoaded, getToken } = useAuth();
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [cart, setCart] = useState<CartItem[]>(() => {
+    try {
+      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((item) => item?.product?.id && typeof item?.quantity === 'number');
+        }
+      }
+    } catch {
+      // Ignore localStorage parse errors
+    }
+    return [];
+  });
+
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [lastAddedProduct, setLastAddedProduct] = useState<Product | null>(null);
 
-  // Helper to map API items ({ productId, quantity }) to frontend CartItem[]
-  const mapServerItemsToCart = useCallback((serverItems: Array<{ productId: string; quantity: number }>): CartItem[] => {
-    const result: CartItem[] = [];
-    for (const item of serverItems) {
-      const product = productsData.find((p) => p.id === item.productId);
-      if (product) {
-        result.push({
-          product,
-          quantity: item.quantity,
-        });
-      }
+  // Sync state to localStorage for offline / guest persistence
+  useEffect(() => {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cart));
+    } catch {
+      // Ignore storage limit errors
     }
-    return result;
-  }, []);
+  }, [cart]);
+
+  // Helper to map API server items ({ productId, quantity }) to frontend CartItem[]
+  const mapServerItemsToCart = useCallback(
+    async (
+      serverItems: Array<{ productId: string; quantity: number }>
+    ): Promise<CartItem[]> => {
+      if (!serverItems || serverItems.length === 0) return [];
+
+      const productMap = new Map<string, Product>();
+
+      try {
+        const allDbProducts = await fetchProducts();
+        allDbProducts.forEach((p) => {
+          productMap.set(p.id, p);
+        });
+      } catch {
+        // Fallback: individually fetch missing products
+        await Promise.all(
+          serverItems.map(async (item) => {
+            try {
+              const prod = await fetchProductById(item.productId);
+              if (prod) productMap.set(prod.id, prod);
+            } catch {}
+          })
+        );
+      }
+
+      const result: CartItem[] = [];
+      for (const item of serverItems) {
+        const product = productMap.get(item.productId);
+        if (product) {
+          result.push({
+            product,
+            quantity: item.quantity,
+          });
+        }
+      }
+      return result;
+    },
+    []
+  );
 
   // Fetch cart from server when signed in
   useEffect(() => {
@@ -62,8 +113,10 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         const data = await res.json();
         if (!isCancelled && data.items) {
-          const mapped = mapServerItemsToCart(data.items);
-          setCart(mapped);
+          const mapped = await mapServerItemsToCart(data.items);
+          if (!isCancelled) {
+            setCart(mapped);
+          }
         }
       } catch (err) {
         console.error('Failed to load cart from server:', err);
@@ -81,6 +134,23 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setLastAddedProduct(product);
     setIsCartOpen(true);
 
+    const safeQty = Math.max(1, Math.floor(quantity));
+
+    // Update local state immediately
+    setCart((prevCart) => {
+      const existingIndex = prevCart.findIndex((item) => item.product.id === product.id);
+      if (existingIndex > -1) {
+        const updated = [...prevCart];
+        updated[existingIndex] = {
+          ...updated[existingIndex],
+          quantity: updated[existingIndex].quantity + safeQty,
+        };
+        return updated;
+      }
+      return [...prevCart, { product, quantity: safeQty }];
+    });
+
+    // If signed in, sync with server
     if (isSignedIn) {
       try {
         const token = await getToken();
@@ -91,14 +161,14 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               'Content-Type': 'application/json',
               Authorization: `Bearer ${token}`,
             },
-            body: JSON.stringify({ productId: product.id, quantity }),
+            body: JSON.stringify({ productId: product.id, quantity: safeQty }),
           });
 
           if (res.ok) {
             const data = await res.json();
             if (data.items) {
-              setCart(mapServerItemsToCart(data.items));
-              return;
+              const mapped = await mapServerItemsToCart(data.items);
+              setCart(mapped);
             }
           }
         }
@@ -106,20 +176,13 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.error('Failed to sync cart add with server:', err);
       }
     }
-
-    // Fallback or Signed-out guest in-memory state
-    setCart((prevCart) => {
-      const existingIndex = prevCart.findIndex((item) => item.product.id === product.id);
-      if (existingIndex > -1) {
-        const updated = [...prevCart];
-        updated[existingIndex].quantity += quantity;
-        return updated;
-      }
-      return [...prevCart, { product, quantity }];
-    });
   };
 
   const removeFromCart = async (productId: string) => {
+    // Update local state immediately
+    setCart((prevCart) => prevCart.filter((item) => item.product.id !== productId));
+
+    // If signed in, sync with server
     if (isSignedIn) {
       try {
         const token = await getToken();
@@ -136,8 +199,8 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           if (res.ok) {
             const data = await res.json();
             if (data.items) {
-              setCart(mapServerItemsToCart(data.items));
-              return;
+              const mapped = await mapServerItemsToCart(data.items);
+              setCart(mapped);
             }
           }
         }
@@ -145,9 +208,6 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.error('Failed to sync cart remove with server:', err);
       }
     }
-
-    // Fallback or Signed-out guest in-memory state
-    setCart((prevCart) => prevCart.filter((item) => item.product.id !== productId));
   };
 
   const updateQuantity = async (productId: string, quantity: number) => {
@@ -156,6 +216,16 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return;
     }
 
+    const safeQty = Math.floor(quantity);
+
+    // Update local state immediately
+    setCart((prevCart) =>
+      prevCart.map((item) =>
+        item.product.id === productId ? { ...item, quantity: safeQty } : item
+      )
+    );
+
+    // If signed in, sync with server
     if (isSignedIn) {
       try {
         const token = await getToken();
@@ -166,14 +236,14 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               'Content-Type': 'application/json',
               Authorization: `Bearer ${token}`,
             },
-            body: JSON.stringify({ productId, quantity }),
+            body: JSON.stringify({ productId, quantity: safeQty }),
           });
 
           if (res.ok) {
             const data = await res.json();
             if (data.items) {
-              setCart(mapServerItemsToCart(data.items));
-              return;
+              const mapped = await mapServerItemsToCart(data.items);
+              setCart(mapped);
             }
           }
         }
@@ -181,22 +251,21 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.error('Failed to sync cart update with server:', err);
       }
     }
-
-    // Fallback or Signed-out guest in-memory state
-    setCart((prevCart) =>
-      prevCart.map((item) =>
-        item.product.id === productId ? { ...item, quantity } : item
-      )
-    );
   };
 
   const clearCart = async () => {
-    if (isSignedIn && cart.length > 0) {
+    const itemsToClear = [...cart];
+    setCart([]);
+    try {
+      localStorage.removeItem(LOCAL_STORAGE_KEY);
+    } catch {}
+
+    if (isSignedIn && itemsToClear.length > 0) {
       try {
         const token = await getToken();
         if (token) {
           await Promise.all(
-            cart.map((item) =>
+            itemsToClear.map((item) =>
               fetch('/api/cart', {
                 method: 'DELETE',
                 headers: {
@@ -212,7 +281,6 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.error('Failed to clear cart on server:', err);
       }
     }
-    setCart([]);
   };
 
   const totalItems = cart.reduce((acc, item) => acc + item.quantity, 0);

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 import { useAuth } from '@clerk/react';
 import type { Product } from '../types';
-import { productsData } from '../data/products';
+import { fetchProductById, fetchProducts } from '../services/productApi';
 
 interface WishlistContextType {
   wishlist: Product[];
@@ -11,24 +11,72 @@ interface WishlistContextType {
   setIsWishlistOpen: (open: boolean) => void;
 }
 
+const LOCAL_STORAGE_KEY = 'alongkar_wishlist_items_v2';
+
 const WishlistContext = createContext<WishlistContextType | undefined>(undefined);
 
 export const WishlistProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { isSignedIn, isLoaded, getToken } = useAuth();
-  const [wishlist, setWishlist] = useState<Product[]>([]);
+  const [wishlist, setWishlist] = useState<Product[]>(() => {
+    try {
+      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((p) => p && p.id);
+        }
+      }
+    } catch {
+      // Ignore localStorage parse errors
+    }
+    return [];
+  });
+
   const [isWishlistOpen, setIsWishlistOpen] = useState(false);
 
-  // Helper to map API items ({ productId }) to frontend Product[]
-  const mapServerItemsToWishlist = useCallback((serverItems: Array<{ productId: string }>): Product[] => {
-    const result: Product[] = [];
-    for (const item of serverItems) {
-      const product = productsData.find((p) => p.id === item.productId);
-      if (product) {
-        result.push(product);
-      }
+  // Sync state to localStorage for offline / guest persistence
+  useEffect(() => {
+    try {
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(wishlist));
+    } catch {
+      // Ignore storage limit errors
     }
-    return result;
-  }, []);
+  }, [wishlist]);
+
+  // Helper to map API server items ({ productId }) to frontend Product[]
+  const mapServerItemsToWishlist = useCallback(
+    async (serverItems: Array<{ productId: string }>): Promise<Product[]> => {
+      if (!serverItems || serverItems.length === 0) return [];
+
+      const productMap = new Map<string, Product>();
+
+      try {
+        const allDbProducts = await fetchProducts();
+        allDbProducts.forEach((p) => {
+          productMap.set(p.id, p);
+        });
+      } catch {
+        await Promise.all(
+          serverItems.map(async (item) => {
+            try {
+              const prod = await fetchProductById(item.productId);
+              if (prod) productMap.set(prod.id, prod);
+            } catch {}
+          })
+        );
+      }
+
+      const result: Product[] = [];
+      for (const item of serverItems) {
+        const product = productMap.get(item.productId);
+        if (product) {
+          result.push(product);
+        }
+      }
+      return result;
+    },
+    []
+  );
 
   // Fetch wishlist from server when signed in
   useEffect(() => {
@@ -53,8 +101,10 @@ export const WishlistProvider: React.FC<{ children: ReactNode }> = ({ children }
 
         const data = await res.json();
         if (!isCancelled && data.items) {
-          const mapped = mapServerItemsToWishlist(data.items);
-          setWishlist(mapped);
+          const mapped = await mapServerItemsToWishlist(data.items);
+          if (!isCancelled) {
+            setWishlist(mapped);
+          }
         }
       } catch (err) {
         console.error('Failed to load wishlist from server:', err);
@@ -71,6 +121,15 @@ export const WishlistProvider: React.FC<{ children: ReactNode }> = ({ children }
   const toggleWishlist = async (product: Product) => {
     const exists = wishlist.some((p) => p.id === product.id);
 
+    // Update local state immediately
+    setWishlist((prev) => {
+      if (exists) {
+        return prev.filter((p) => p.id !== product.id);
+      }
+      return [...prev, product];
+    });
+
+    // If signed in, sync with server
     if (isSignedIn) {
       try {
         const token = await getToken();
@@ -88,8 +147,8 @@ export const WishlistProvider: React.FC<{ children: ReactNode }> = ({ children }
           if (res.ok) {
             const data = await res.json();
             if (data.items) {
-              setWishlist(mapServerItemsToWishlist(data.items));
-              return;
+              const mapped = await mapServerItemsToWishlist(data.items);
+              setWishlist(mapped);
             }
           }
         }
@@ -97,14 +156,6 @@ export const WishlistProvider: React.FC<{ children: ReactNode }> = ({ children }
         console.error('Failed to sync wishlist toggle with server:', err);
       }
     }
-
-    // Fallback or Signed-out guest in-memory state
-    setWishlist((prev) => {
-      if (exists) {
-        return prev.filter((p) => p.id !== product.id);
-      }
-      return [...prev, product];
-    });
   };
 
   const isInWishlist = (productId: string) => {

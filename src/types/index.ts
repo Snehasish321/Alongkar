@@ -2,8 +2,8 @@ export interface Product {
   id: string;
   name: string;
   slug: string;
-  category: 'earrings' | 'necklaces' | 'rings' | 'bracelets' | 'chains' | 'pendants';
-  collectionId?: 'everyday-elegance' | 'festive-glow' | 'the-minimalist' | 'statement';
+  category: 'earrings' | 'necklaces' | 'rings' | 'bracelets' | 'chains' | 'pendants' | string;
+  collectionId?: 'everyday-elegance' | 'festive-glow' | 'the-minimalist' | 'statement' | string | null;
   price: number;
   originalPrice: number;
   discountPercent: number;
@@ -15,6 +15,10 @@ export interface Product {
   image: string;
   hoverImage: string;
   description: string;
+  finish?: string;
+  baseMaterial?: string;
+  stoneType?: string | null;
+  warranty?: string;
   details: {
     finish: string;
     baseMaterial: string;
@@ -22,6 +26,8 @@ export interface Product {
     warranty: string;
   };
   inStock: boolean;
+  createdAt?: string | Date;
+  updatedAt?: string | Date;
 }
 
 export interface Category {
