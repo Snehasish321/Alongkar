@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { fetchProducts } from '../services/productApi';
 import { ProductCard } from '../components/products/ProductCard';
 import { StorefrontLayout } from '../components/layout/StorefrontLayout';
 import type { Product } from '../types';
-import { Filter, X, Loader2, AlertCircle, RefreshCw, ShoppingBag } from 'lucide-react';
+import { Filter, X, Loader2, AlertCircle, RefreshCw, ShoppingBag, ArrowRight } from 'lucide-react';
 import { SectionHeading } from '../components/ui/SectionHeading';
 
 interface ShopPageProps {
@@ -186,6 +186,30 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onQuickView }) => {
                 ))}
               </div>
             </>
+          )}
+
+          {/* Custom Jewellery Sourcing CTA Banner */}
+          {!isLoading && !error && (
+            <div className="mt-16 p-6 sm:p-8 bg-ivory-pearl rounded-brand border border-gold/25 shadow-soft flex flex-col md:flex-row items-center justify-between gap-6">
+              <div className="space-y-1.5 text-center md:text-left">
+                <span className="text-[11px] uppercase tracking-[0.2em] text-gold font-bold">
+                  Bespoke Sourcing Atelier
+                </span>
+                <h3 className="font-serif text-lg sm:text-xl font-bold text-espresso">
+                  Can&apos;t find your dream jewellery design?
+                </h3>
+                <p className="text-xs text-gray-500 max-w-xl">
+                  Send us an inspiration image and your requirements. Our Kolkata goldsmith atelier will try to source a matching piece for you.
+                </p>
+              </div>
+              <Link
+                to="/request-jewellery"
+                className="shrink-0 px-6 py-3 bg-espresso text-ivory-pearl text-xs font-semibold uppercase tracking-wider rounded-brand hover:bg-espresso-charcoal transition-all border border-espresso cursor-pointer flex items-center gap-2"
+              >
+                <span>Request Custom Jewellery</span>
+                <ArrowRight size={14} />
+              </Link>
+            </div>
           )}
         </div>
       </main>

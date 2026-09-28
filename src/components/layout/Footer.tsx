@@ -89,6 +89,7 @@ export const Footer: React.FC = () => {
           <div className="space-y-3">
             <h4 className="text-xs uppercase tracking-[0.22em] text-[#FFE3C7] font-extrabold drop-shadow-sm">VIP Concierge</h4>
             <ul className="space-y-2 text-xs text-[#FDF8F0]/90 font-normal">
+              <li><Link to="/request-jewellery" className="hover:text-[#FFE3C7] transition-colors">Request Custom Jewellery</Link></li>
               <li><Link to="/contact" className="hover:text-[#FFE3C7] transition-colors">Bespoke Inquiries</Link></li>
               <li><Link to="/track-order" className="hover:text-[#FFE3C7] transition-colors">Track Shipment</Link></li>
               <li><Link to="/faqs" className="hover:text-[#FFE3C7] transition-colors">Jewellery Care Guide</Link></li>

@@ -16,6 +16,7 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
     { name: 'Home', path: '/' },
     { name: 'Shop By Category', path: '/categories' },
     { name: 'All Products', path: '/shop' },
+    { name: 'Request Jewellery', path: '/request-jewellery' },
     { name: 'Best Seller', path: '/best-sellers' },
     { name: 'Return & Exchange', path: '/returns' },
     { name: 'Pre-Order Updates', path: '/pre-orders' },
