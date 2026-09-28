@@ -17,8 +17,9 @@ model User {
   email       String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
-  cart        Cart?
-  wishlist    Wishlist?
+  cart              Cart?
+  wishlist          Wishlist?
+  jewelleryRequests JewelleryRequest[]
 }
 
 model Cart {
@@ -90,4 +91,48 @@ model Product {
   cartItems       CartItem[]
   wishlistItems   WishlistItem[]
 }
+
+enum RequestStatus {
+  PENDING
+  UNDER_REVIEW
+  QUOTE_SENT
+  ADVANCE_PENDING
+  ADVANCE_PAID
+  SOURCING
+  PRODUCT_RECEIVED
+  BALANCE_PENDING
+  BALANCE_PAID
+  SHIPPED
+  DELIVERED
+  COMPLETED
+  NOT_SOURCEABLE
+  CANCELLED
+  CLOSED
+}
+
+model JewelleryRequest {
+  id                     String        @id @default(cuid())
+  requestNumber          String        @unique
+  userId                 String
+  user                   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  inspirationImageUrl    String
+  jewelleryType          String
+  description            String
+  budget                 Decimal?      @db.Decimal(10, 2)
+  quantity               Int           @default(1)
+  phone                  String
+  additionalRequirements String?
+  status                 RequestStatus @default(PENDING)
+  quotedPrice            Decimal?      @db.Decimal(10, 2)
+  advanceAmount          Decimal?      @db.Decimal(10, 2)
+  remainingAmount        Decimal?      @db.Decimal(10, 2)
+  adminNote              String?
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+
 
