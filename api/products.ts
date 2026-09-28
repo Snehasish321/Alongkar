@@ -1,5 +1,5 @@
-import prisma from '../src/lib/prisma.ts';
-import { requireAdmin, getRequestBody, respond } from './_utils/auth.ts';
+import prisma from '../src/lib/prisma.js';
+import { requireAdmin, getRequestBody, respond } from './_utils/auth.js';
 import { Prisma } from '@prisma/client';
 
 export interface ValidationError {

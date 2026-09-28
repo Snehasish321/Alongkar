@@ -1,1 +1,1 @@
-export { default } from './uploads/product-image.ts';
+export { default } from './uploads/product-image.js';
