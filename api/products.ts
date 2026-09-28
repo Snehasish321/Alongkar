@@ -685,6 +685,6 @@ export default async function handler(req: any, res?: any) {
     return respond(res, 405, { error: `Method ${method} Not Allowed` });
   } catch (error) {
     console.error('Product API unhandled error:', error);
-    return respond(res, 500, { error: 'Internal Server Error' });
+    return respond(res, 500, { error: error instanceof Error ? error.message : String(error) });
   }
 }
