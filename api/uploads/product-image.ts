@@ -1,6 +1,6 @@
-import { requireAdmin, respond } from '../_utils/auth.ts';
-import { parseMultipartForm } from '../_utils/multipart.ts';
-import { cloudinary, isCloudinaryConfigured } from '../_utils/cloudinary.ts';
+import { requireAdmin, respond } from '../_utils/auth.js';
+import { parseMultipartForm } from '../_utils/multipart.js';
+import { cloudinary, isCloudinaryConfigured } from '../_utils/cloudinary.js';
 import type { UploadApiResponse } from 'cloudinary';
 
 /**

@@ -1,5 +1,5 @@
-import prisma from '../src/lib/prisma';
-import { getAuthenticatedUser, getRequestBody, respond } from './_utils/auth';
+import prisma from '../src/lib/prisma.js';
+import { getAuthenticatedUser, getRequestBody, respond } from './_utils/auth.js';
 
 export default async function handler(req: any, res?: any) {
   const method = (req.method || 'GET').toUpperCase();
