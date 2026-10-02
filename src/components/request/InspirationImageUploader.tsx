@@ -1,16 +1,16 @@
 import React, { useState, useRef } from 'react';
 import { useAuth } from '@clerk/react';
 import {
-  UploadCloud,
-  Loader2,
-  AlertCircle,
-  RefreshCw,
-  Trash2,
-  CheckCircle2,
-  ExternalLink,
+  Upload,
+  Loader,
+  Alert,
+  Refresh,
+  Trash,
+  TickCircle,
+  LinkSquare,
   Sparkles,
   Ban,
-} from 'lucide-react';
+} from 'reicon-react';
 
 interface InspirationImageUploaderProps {
   value: string;
@@ -184,7 +184,7 @@ export const InspirationImageUploader: React.FC<InspirationImageUploaderProps> =
         </label>
         {value && !isUploading && (
           <span className="text-[11px] text-emerald-700 font-medium flex items-center gap-1">
-            <CheckCircle2 size={12} /> Image Attached
+            <TickCircle size={12} /> Image Attached
           </span>
         )}
       </div>
@@ -215,14 +215,14 @@ export const InspirationImageUploader: React.FC<InspirationImageUploaderProps> =
             />
             {isUploading && (
               <div className="absolute inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center">
-                <Loader2 className="w-5 h-5 text-gold animate-spin" />
+                <Loader className="w-5 h-5 text-gold animate-spin" />
               </div>
             )}
           </div>
 
           <div className="flex-1 min-w-0 space-y-1 text-center sm:text-left">
             <div className="flex items-center justify-center sm:justify-start gap-1.5 text-xs text-emerald-800 font-semibold">
-              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+              <TickCircle className="w-3.5 h-3.5 shrink-0" />
               <span>Inspiration Photo Attached</span>
             </div>
             {uploadedFileInfo && (
@@ -238,7 +238,7 @@ export const InspirationImageUploader: React.FC<InspirationImageUploaderProps> =
                 className="text-[11px] text-gold hover:underline inline-flex items-center gap-1 font-medium"
               >
                 <span>View full size</span>
-                <ExternalLink size={10} />
+                <LinkSquare size={10} />
               </a>
             </div>
           </div>
@@ -252,9 +252,9 @@ export const InspirationImageUploader: React.FC<InspirationImageUploaderProps> =
               title="Replace image"
             >
               {isUploading ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-gold" />
+                <Loader className="w-3.5 h-3.5 animate-spin text-gold" />
               ) : (
-                <RefreshCw className="w-3.5 h-3.5 text-gold" />
+                <Refresh className="w-3.5 h-3.5 text-gold" />
               )}
               <span>Replace</span>
             </button>
@@ -266,7 +266,7 @@ export const InspirationImageUploader: React.FC<InspirationImageUploaderProps> =
               title="Remove image"
               aria-label="Remove image"
             >
-              <Trash2 className="w-3.5 h-3.5" />
+              <Trash className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
@@ -294,7 +294,7 @@ export const InspirationImageUploader: React.FC<InspirationImageUploaderProps> =
         >
           {isUploading ? (
             <div className="flex flex-col items-center gap-2 py-2">
-              <Loader2 className="w-7 h-7 text-gold animate-spin" />
+              <Loader className="w-7 h-7 text-gold animate-spin" />
               <p className="text-xs font-semibold text-espresso">
                 Uploading to Alongkar Cloudinary CDN...
               </p>
@@ -319,7 +319,7 @@ export const InspirationImageUploader: React.FC<InspirationImageUploaderProps> =
           ) : (
             <div className="flex flex-col items-center gap-2.5">
               <div className="w-11 h-11 rounded-full bg-gold/15 border border-gold/30 flex items-center justify-center text-gold transition-transform hover:scale-105">
-                <UploadCloud className="w-6 h-6" />
+                <Upload className="w-6 h-6" />
               </div>
               <div className="space-y-1">
                 <p className="text-xs font-medium text-espresso">
@@ -345,7 +345,7 @@ export const InspirationImageUploader: React.FC<InspirationImageUploaderProps> =
       {uploadError && (
         <div className="p-3 rounded-brand bg-red-50 border border-burgundy/30 text-burgundy text-xs flex items-center justify-between gap-2 mt-1">
           <div className="flex items-center gap-1.5 flex-1">
-            <AlertCircle className="w-4 h-4 shrink-0" />
+            <Alert className="w-4 h-4 shrink-0" />
             <span>{uploadError}</span>
           </div>
           <button
@@ -361,7 +361,7 @@ export const InspirationImageUploader: React.FC<InspirationImageUploaderProps> =
       {/* Validation Error (when not uploading error) */}
       {error && !uploadError && (
         <p className="text-xs text-burgundy flex items-center gap-1 font-medium mt-1">
-          <AlertCircle size={13} className="shrink-0" />
+          <Alert size={13} className="shrink-0" />
           <span>{error}</span>
         </p>
       )}

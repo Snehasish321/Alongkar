@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Sparkles, ArrowLeft, Clock } from 'lucide-react';
+import { Sparkles, ArrowLeft, Clock } from 'reicon-react';
 import { Button } from '../components/ui/Button';
 import { StorefrontLayout } from '../components/layout/StorefrontLayout';
 

@@ -1,11 +1,11 @@
 import React from 'react';
-import { Sparkles, Hammer, ShieldCheck, HeartHandshake } from 'lucide-react';
+import { Sparkles, Wand2, ShieldCheck, HeartHandshake } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export const AlongkarStorySection: React.FC = () => {
   const craftPillars = [
     {
-      icon: Hammer,
+      icon: Wand2,
       title: 'Handcrafted Filigree Core',
       desc: 'Forged by third-generation Bengali artisans utilizing authentic hand-chased brass molds.',
     },
@@ -49,7 +49,7 @@ export const AlongkarStorySection: React.FC = () => {
               />
               <div className="absolute inset-0 bg-gradient-to-t from-[#2A0008]/70 via-transparent to-transparent" />
 
-              {/* Bottom Quote Overlay on Photo */}
+              {/* Bottom QuoteDown Overlay on Photo */}
               <div className="absolute bottom-6 inset-x-6 text-white">
                 <p className="font-serif italic text-sm text-[#F8F1E3] leading-snug">
                   "Every piece is born in Kolkata's historic lanes, shaped by hands carrying century-old secrets."

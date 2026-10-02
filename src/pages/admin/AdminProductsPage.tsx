@@ -4,21 +4,22 @@ import {
   Plus,
   Search,
   Filter,
-  Gem,
-  CheckCircle2,
-  XCircle,
+  Diamonds,
+  TickCircle,
+  XCircle2,
   Edit2,
-  Trash2,
-  RefreshCw,
+  Trash,
+  Refresh,
   Sparkles,
-  AlertCircle,
-  TrendingUp,
-  Award,
+  Alert,
+  TrendUp,
+  Trophy,
   Package,
-} from 'lucide-react';
+} from 'reicon-react';
 import type { Product } from '../../types';
 import { ProductFormModal } from '../../components/admin/ProductFormModal';
 import { DeleteConfirmModal } from '../../components/admin/DeleteConfirmModal';
+import { clearProductApiCache } from '../../services/productApi';
 
 export const AdminProductsPage: React.FC = () => {
   const { getToken } = useAuth();
@@ -156,6 +157,7 @@ export const AdminProductsPage: React.FC = () => {
       }
 
       setIsFormModalOpen(false);
+      clearProductApiCache();
       await fetchProducts();
     } catch (err: any) {
       console.error('Error submitting product form:', err);
@@ -191,6 +193,7 @@ export const AdminProductsPage: React.FC = () => {
       showToast(`🗑️ Product "${productToDelete.name}" deleted from database.`);
       setIsDeleteModalOpen(false);
       setProductToDelete(null);
+      clearProductApiCache();
       await fetchProducts();
     } catch (err: any) {
       console.error('Error deleting product:', err);
@@ -234,7 +237,7 @@ export const AdminProductsPage: React.FC = () => {
             title="Refresh Products"
             aria-label="Refresh Products"
           >
-            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            <Refresh className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
           </button>
           <button
             onClick={() => {
@@ -265,7 +268,7 @@ export const AdminProductsPage: React.FC = () => {
         <div className="p-4 rounded-2xl bg-[#140B1A] border border-white/10 space-y-1">
           <div className="flex items-center justify-between text-white/50 text-[11px]">
             <span>In Stock</span>
-            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            <TickCircle className="w-4 h-4 text-emerald-400" />
           </div>
           <p className="font-serif text-2xl font-bold text-emerald-400">{stats.inStockCount}</p>
           <p className="text-[10px] text-white/40">Ready for order fulfillment</p>
@@ -274,7 +277,7 @@ export const AdminProductsPage: React.FC = () => {
         <div className="p-4 rounded-2xl bg-[#140B1A] border border-white/10 space-y-1">
           <div className="flex items-center justify-between text-white/50 text-[11px]">
             <span>Bestsellers</span>
-            <Award className="w-4 h-4 text-amber-400" />
+            <Trophy className="w-4 h-4 text-amber-400" />
           </div>
           <p className="font-serif text-2xl font-bold text-amber-300">{stats.bestSellersCount}</p>
           <p className="text-[10px] text-white/40">Flagged for premier showcase</p>
@@ -283,7 +286,7 @@ export const AdminProductsPage: React.FC = () => {
         <div className="p-4 rounded-2xl bg-[#140B1A] border border-white/10 space-y-1">
           <div className="flex items-center justify-between text-white/50 text-[11px]">
             <span>Trending</span>
-            <TrendingUp className="w-4 h-4 text-purple-400" />
+            <TrendUp className="w-4 h-4 text-purple-400" />
           </div>
           <p className="font-serif text-2xl font-bold text-purple-300">{stats.trendingCount}</p>
           <p className="text-[10px] text-white/40">Viral & festive pieces</p>
@@ -339,7 +342,7 @@ export const AdminProductsPage: React.FC = () => {
       {error && (
         <div className="p-4 rounded-2xl bg-red-950/60 border border-red-500/40 text-red-200 text-xs flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+            <Alert className="w-4 h-4 text-red-400 shrink-0" />
             <span>{error}</span>
           </div>
           <button
@@ -380,7 +383,7 @@ export const AdminProductsPage: React.FC = () => {
                 <tr>
                   <td colSpan={7} className="py-16 text-center text-white/40">
                     <div className="flex flex-col items-center justify-center gap-2">
-                      <Gem className="w-10 h-10 text-white/20" />
+                      <Diamonds className="w-10 h-10 text-white/20" />
                       <p className="text-sm font-semibold text-white/70">No products found</p>
                       <p className="text-xs text-white/40">
                         Try changing your search query or category filter.
@@ -452,12 +455,12 @@ export const AdminProductsPage: React.FC = () => {
                     <td className="py-3.5 px-4">
                       {product.inStock ? (
                         <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400">
-                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <TickCircle className="w-3.5 h-3.5" />
                           <span>In Stock</span>
                         </span>
                       ) : (
                         <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-400">
-                          <XCircle className="w-3.5 h-3.5" />
+                          <XCircle2 className="w-3.5 h-3.5" />
                           <span>Out of Stock</span>
                         </span>
                       )}
@@ -518,7 +521,7 @@ export const AdminProductsPage: React.FC = () => {
                           title="Delete Product"
                           aria-label={`Delete ${product.name}`}
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Trash className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </td>

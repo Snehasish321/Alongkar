@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Mail, Phone, MapPin, Clock, Send, CheckCircle2 } from 'lucide-react';
+import { Sms, Phone, Map, Clock, Send, TickCircle } from 'reicon-react';
 import { SectionHeading } from '../components/ui/SectionHeading';
 import { Button } from '../components/ui/Button';
 import { StorefrontLayout } from '../components/layout/StorefrontLayout';
@@ -45,7 +45,7 @@ export const ContactPage: React.FC = () => {
 
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-gold/15 flex items-center justify-center text-gold">
-                      <Mail size={16} />
+                      <Sms size={16} />
                     </div>
                     <div>
                       <span className="block font-semibold">Email Concierge</span>
@@ -65,7 +65,7 @@ export const ContactPage: React.FC = () => {
 
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-gold/15 flex items-center justify-center text-gold">
-                      <MapPin size={16} />
+                      <Map size={16} />
                     </div>
                     <div>
                       <span className="block font-semibold">Flagship Experience Studio</span>
@@ -83,7 +83,7 @@ export const ContactPage: React.FC = () => {
 
               {submitted ? (
                 <div className="py-12 text-center space-y-3 bg-ivory rounded-brand border border-gold/20 p-6">
-                  <CheckCircle2 size={40} className="mx-auto text-gold" />
+                  <TickCircle size={40} className="mx-auto text-gold" />
                   <h4 className="font-serif text-lg font-bold text-espresso">Message Received!</h4>
                   <p className="text-xs text-gray-500">
                     Thank you for reaching out to ALONGKAR. Our customer care specialist will respond shortly.

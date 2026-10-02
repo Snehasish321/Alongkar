@@ -1,17 +1,17 @@
 import {
   Clock,
   Sparkles,
-  CheckCircle2,
-  PackageCheck,
+  TickCircle,
+  ShoppingBag,
   Truck,
-  XCircle,
-  AlertCircle,
-  type LucideIcon,
-} from 'lucide-react';
+  XCircle2,
+  Alert,
+  type IconComponent,
+} from 'reicon-react';
 
 export interface StatusBadgeInfo {
   label: string;
-  icon: LucideIcon;
+  icon: IconComponent;
   bgClass: string;
   dotClass: string;
 }
@@ -35,7 +35,7 @@ export const getStatusBadgeInfo = (status: string): StatusBadgeInfo => {
     case 'QUOTE_SENT':
       return {
         label: 'Quote Sent',
-        icon: CheckCircle2,
+        icon: TickCircle,
         bgClass: 'bg-purple-500/10 text-purple-800 border-purple-500/30',
         dotClass: 'bg-purple-500',
       };
@@ -49,7 +49,7 @@ export const getStatusBadgeInfo = (status: string): StatusBadgeInfo => {
     case 'ADVANCE_PAID':
       return {
         label: 'Advance Paid',
-        icon: CheckCircle2,
+        icon: TickCircle,
         bgClass: 'bg-emerald-500/10 text-emerald-800 border-emerald-500/30',
         dotClass: 'bg-emerald-500',
       };
@@ -64,7 +64,7 @@ export const getStatusBadgeInfo = (status: string): StatusBadgeInfo => {
     case 'PRODUCT_RECEIVED':
       return {
         label: 'Product Received',
-        icon: PackageCheck,
+        icon: ShoppingBag,
         bgClass: 'bg-teal-500/10 text-teal-800 border-teal-500/30',
         dotClass: 'bg-teal-500',
       };
@@ -78,14 +78,14 @@ export const getStatusBadgeInfo = (status: string): StatusBadgeInfo => {
     case 'BALANCE_PAID':
       return {
         label: 'Balance Paid',
-        icon: CheckCircle2,
+        icon: TickCircle,
         bgClass: 'bg-emerald-500/10 text-emerald-800 border-emerald-500/30',
         dotClass: 'bg-emerald-500',
       };
     case 'READY_TO_SHIP':
       return {
         label: 'Ready to Ship',
-        icon: PackageCheck,
+        icon: ShoppingBag,
         bgClass: 'bg-indigo-500/10 text-indigo-800 border-indigo-500/30',
         dotClass: 'bg-indigo-500',
       };
@@ -100,14 +100,14 @@ export const getStatusBadgeInfo = (status: string): StatusBadgeInfo => {
     case 'COMPLETED':
       return {
         label: 'Delivered',
-        icon: CheckCircle2,
+        icon: TickCircle,
         bgClass: 'bg-emerald-500/10 text-emerald-800 border-emerald-500/30',
         dotClass: 'bg-emerald-500',
       };
     case 'NOT_SOURCEABLE':
       return {
         label: 'Not Sourceable',
-        icon: XCircle,
+        icon: XCircle2,
         bgClass: 'bg-rose-500/10 text-rose-800 border-rose-500/30',
         dotClass: 'bg-rose-500',
       };
@@ -115,7 +115,7 @@ export const getStatusBadgeInfo = (status: string): StatusBadgeInfo => {
     case 'CLOSED':
       return {
         label: 'Cancelled',
-        icon: AlertCircle,
+        icon: Alert,
         bgClass: 'bg-gray-500/10 text-gray-700 border-gray-400/30',
         dotClass: 'bg-gray-500',
       };

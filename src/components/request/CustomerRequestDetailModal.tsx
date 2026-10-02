@@ -6,9 +6,9 @@ import {
   Phone,
   Layers,
   FileText,
-  ExternalLink,
+  LinkSquare,
   Link as LinkIcon,
-} from 'lucide-react';
+} from 'reicon-react';
 import { getStatusBadgeInfo } from '../../lib/jewellery-request-status';
 
 export interface CustomerJewelleryRequest {
@@ -218,7 +218,7 @@ export const CustomerRequestDetailModal: React.FC<CustomerRequestDetailModalProp
                     className="text-xs text-[#8C6C38] hover:text-[#40000D] font-semibold flex items-center gap-1 transition"
                   >
                     <span>Open Link</span>
-                    <ExternalLink size={12} />
+                    <LinkSquare size={12} />
                   </a>
                 )}
               </div>
@@ -254,7 +254,7 @@ export const CustomerRequestDetailModal: React.FC<CustomerRequestDetailModalProp
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#40000D] text-[#FFE3C7] text-xs font-semibold hover:bg-[#5A0015] transition shadow-xs"
                     >
                       <span>View Full Inspiration</span>
-                      <ExternalLink size={12} />
+                      <LinkSquare size={12} />
                     </a>
                   )}
                 </div>

@@ -4,18 +4,18 @@ import { useUser, SignInButton } from '@clerk/react';
 import {
   Sparkles,
   Send,
-  CheckCircle2,
-  AlertCircle,
+  TickCircle,
+  Alert,
   Copy,
   Check,
-  RefreshCw,
+  Refresh,
   Search,
-  ShieldCheck,
+  ShieldTick,
   Clock,
-  Gem,
+  Diamonds,
   Link2,
   X,
-} from 'lucide-react';
+} from 'reicon-react';
 import { StorefrontLayout } from '../components/layout/StorefrontLayout';
 import { SectionHeading } from '../components/ui/SectionHeading';
 import { Button } from '../components/ui/Button';
@@ -273,7 +273,7 @@ export const RequestJewelleryPage: React.FC = () => {
           {submittedRequest ? (
             <div className="bg-ivory-pearl rounded-brand border border-gold/30 shadow-elevated p-6 sm:p-10 max-w-2xl mx-auto text-center space-y-6">
               <div className="w-16 h-16 rounded-full bg-[#E8C98A]/20 border border-[#E8C98A]/40 flex items-center justify-center mx-auto text-gold">
-                <CheckCircle2 size={36} className="text-[#8C6C38]" />
+                <TickCircle size={36} className="text-[#8C6C38]" />
               </div>
 
               <div className="space-y-2">
@@ -337,7 +337,7 @@ export const RequestJewelleryPage: React.FC = () => {
                   onClick={handleResetForm}
                   className="w-full sm:w-auto gap-2"
                 >
-                  <RefreshCw size={14} />
+                  <Refresh size={14} />
                   <span>SUBMIT ANOTHER REQUEST</span>
                 </Button>
               </div>
@@ -364,13 +364,13 @@ export const RequestJewelleryPage: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 border-t border-white/10 mt-6 text-xs text-[#F8F1E3]/90">
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 rounded-full bg-[#E8C98A]/20 flex items-center justify-center text-[#E8C98A] shrink-0">
-                      <Gem size={12} />
+                      <Diamonds size={12} />
                     </div>
                     <span>No Obligation Sourcing</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 rounded-full bg-[#E8C98A]/20 flex items-center justify-center text-[#E8C98A] shrink-0">
-                      <ShieldCheck size={12} />
+                      <ShieldTick size={12} />
                     </div>
                     <span>Authentic Micron City-Gold</span>
                   </div>
@@ -386,7 +386,7 @@ export const RequestJewelleryPage: React.FC = () => {
               {/* General Error Banner */}
               {errors.general && (
                 <div className="p-4 rounded-brand bg-red-50 border border-burgundy/30 text-burgundy flex items-start gap-3">
-                  <AlertCircle size={18} className="shrink-0 mt-0.5" />
+                  <Alert size={18} className="shrink-0 mt-0.5" />
                   <div className="flex-1 text-xs">
                     <p className="font-semibold">{errors.general}</p>
                     {authError && (
@@ -436,7 +436,7 @@ export const RequestJewelleryPage: React.FC = () => {
                       </select>
                       {errors.jewelleryType && (
                         <p className="text-xs text-burgundy flex items-center gap-1 font-medium">
-                          <AlertCircle size={13} /> {errors.jewelleryType}
+                          <Alert size={13} /> {errors.jewelleryType}
                         </p>
                       )}
                     </div>
@@ -467,7 +467,7 @@ export const RequestJewelleryPage: React.FC = () => {
                       />
                       {errors.quantity && (
                         <p className="text-xs text-burgundy flex items-center gap-1 font-medium">
-                          <AlertCircle size={13} /> {errors.quantity}
+                          <Alert size={13} /> {errors.quantity}
                         </p>
                       )}
                     </div>
@@ -492,7 +492,7 @@ export const RequestJewelleryPage: React.FC = () => {
                     {/* General Inspiration Error */}
                     {errors.inspiration && (
                       <div className="p-3 rounded-brand bg-red-50 border border-burgundy/30 text-burgundy text-xs flex items-center gap-2">
-                        <AlertCircle size={14} className="shrink-0" />
+                        <Alert size={14} className="shrink-0" />
                         <span>{errors.inspiration}</span>
                       </div>
                     )}
@@ -508,7 +508,7 @@ export const RequestJewelleryPage: React.FC = () => {
                         </label>
                         {hasLink && !hasImage && !errors.inspirationLink && (
                           <span className="text-[11px] text-emerald-700 font-medium flex items-center gap-1">
-                            <CheckCircle2 size={12} /> Link Attached
+                            <TickCircle size={12} /> Link Attached
                           </span>
                         )}
                       </div>
@@ -557,7 +557,7 @@ export const RequestJewelleryPage: React.FC = () => {
                         </p>
                       ) : errors.inspirationLink ? (
                         <p className="text-xs text-burgundy flex items-center gap-1 font-medium">
-                          <AlertCircle size={13} className="shrink-0" />
+                          <Alert size={13} className="shrink-0" />
                           <span>{errors.inspirationLink}</span>
                         </p>
                       ) : (
@@ -617,7 +617,7 @@ export const RequestJewelleryPage: React.FC = () => {
                     />
                     {errors.description && (
                       <p className="text-xs text-burgundy flex items-center gap-1 font-medium">
-                        <AlertCircle size={13} /> {errors.description}
+                        <Alert size={13} /> {errors.description}
                       </p>
                     )}
                   </div>
@@ -650,7 +650,7 @@ export const RequestJewelleryPage: React.FC = () => {
                       </p>
                       {errors.phone && (
                         <p className="text-xs text-burgundy flex items-center gap-1 font-medium">
-                          <AlertCircle size={13} /> {errors.phone}
+                          <Alert size={13} /> {errors.phone}
                         </p>
                       )}
                     </div>
@@ -680,7 +680,7 @@ export const RequestJewelleryPage: React.FC = () => {
                       </p>
                       {errors.budget && (
                         <p className="text-xs text-burgundy flex items-center gap-1 font-medium">
-                          <AlertCircle size={13} /> {errors.budget}
+                          <Alert size={13} /> {errors.budget}
                         </p>
                       )}
                     </div>
@@ -733,12 +733,12 @@ export const RequestJewelleryPage: React.FC = () => {
                     >
                       {isSubmitting ? (
                         <>
-                          <RefreshCw size={16} className="animate-spin" />
+                          <Refresh size={16} className="animate-spin" />
                           <span>SUBMITTING REQUEST...</span>
                         </>
                       ) : isImageUploading ? (
                         <>
-                          <RefreshCw size={16} className="animate-spin" />
+                          <Refresh size={16} className="animate-spin" />
                           <span>UPLOADING IMAGE...</span>
                         </>
                       ) : (

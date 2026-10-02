@@ -4,17 +4,17 @@ import {
   Heart,
   ShoppingBag,
   Check,
-  ShieldCheck,
+  ShieldTick,
   Truck,
   Sparkles,
   ArrowLeft,
-  Loader2,
-  AlertCircle,
-  Gem,
-  RotateCcw,
+  Loader,
+  Alert,
+  Diamonds,
+  RotateLeft,
   Minus,
   Plus,
-} from 'lucide-react';
+} from 'reicon-react';
 import { fetchProductByIdOrSlug, fetchProducts } from '../services/productApi';
 import type { Product } from '../types';
 import { formatPrice } from '../lib/utils';
@@ -144,7 +144,7 @@ export const ProductDetailPage: React.FC = () => {
           {/* Loading State */}
           {isLoading && (
             <div className="py-24 text-center bg-[#FAF7F2] rounded-2xl border border-[#E8C98A]/20 p-8 space-y-4">
-              <Loader2 size={40} className="mx-auto text-[#B08D57] animate-spin" />
+              <Loader size={40} className="mx-auto text-[#B08D57] animate-spin" />
               <h3 className="font-serif text-xl font-semibold text-[#211A17]">
                 Retrieving Product Details
               </h3>
@@ -158,7 +158,7 @@ export const ProductDetailPage: React.FC = () => {
           {!isLoading && error && (
             <div className="py-20 text-center bg-[#FAF7F2] rounded-2xl border border-red-200 p-8 space-y-4 max-w-2xl mx-auto">
               <div className="w-14 h-14 rounded-full bg-red-50 text-red-700 flex items-center justify-center mx-auto">
-                <AlertCircle size={28} />
+                <Alert size={28} />
               </div>
               <h2 className="font-serif text-2xl font-bold text-red-950">
                 Unable to Load Product
@@ -185,7 +185,7 @@ export const ProductDetailPage: React.FC = () => {
           {!isLoading && !error && (notFound || !product) && (
             <div className="py-20 text-center bg-[#FAF7F2] rounded-2xl border border-[#E8C98A]/30 p-8 sm:p-12 space-y-6 max-w-2xl mx-auto">
               <div className="w-16 h-16 rounded-full bg-[#E8C98A]/20 text-[#8C6C38] flex items-center justify-center mx-auto">
-                <Gem size={32} />
+                <Diamonds size={32} />
               </div>
               <div className="space-y-2">
                 <span className="text-[11px] uppercase tracking-[0.25em] text-[#B08D57] font-bold">
@@ -463,7 +463,7 @@ export const ProductDetailPage: React.FC = () => {
                   {/* Trust Reassurance Badges */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-4 border-t border-[#E8C98A]/20 text-[11px] text-gray-600 font-medium">
                     <div className="flex items-center gap-2">
-                      <ShieldCheck size={16} className="text-[#8C6C38] shrink-0" />
+                      <ShieldTick size={16} className="text-[#8C6C38] shrink-0" />
                       <span>24K Micron Gold</span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -471,7 +471,7 @@ export const ProductDetailPage: React.FC = () => {
                       <span>Express Shipping</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <RotateCcw size={16} className="text-[#8C6C38] shrink-0" />
+                      <RotateLeft size={16} className="text-[#8C6C38] shrink-0" />
                       <span>Easy 7-Day Exchange</span>
                     </div>
                   </div>

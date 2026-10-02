@@ -1,5 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
-import { AlertTriangle, RotateCcw, Home } from 'lucide-react';
+import { Warning, RotateLeft, Home } from 'reicon-react';
 
 interface Props {
   children: ReactNode;
@@ -35,7 +35,7 @@ export class ErrorBoundary extends Component<Props, State> {
         <div className="min-h-screen flex items-center justify-center bg-ivory text-espresso px-4 py-12">
           <div className="max-w-md w-full text-center space-y-6 bg-white p-8 rounded-2xl shadow-xl border border-gold/20">
             <div className="w-16 h-16 bg-burgundy/10 text-burgundy rounded-full flex items-center justify-center mx-auto">
-              <AlertTriangle size={32} />
+              <Warning size={32} />
             </div>
             <div className="space-y-2">
               <h2 className="font-serif text-2xl font-bold text-espresso">
@@ -57,7 +57,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 onClick={() => window.location.reload()}
                 className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-gold text-espresso font-semibold rounded-full text-xs uppercase tracking-wider hover:bg-gold-champagne transition-all shadow-md"
               >
-                <RotateCcw size={14} />
+                <RotateLeft size={14} />
                 Reload Page
               </button>
               <button

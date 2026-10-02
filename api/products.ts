@@ -1,6 +1,14 @@
 import prisma from '../src/lib/prisma.js';
 import { requireAdmin, getRequestBody, respond } from './_utils/auth.js';
 import { Prisma } from '@prisma/client';
+import {
+  cacheGet,
+  cacheSet,
+  invalidateProducts,
+  invalidateProductKeys,
+  CacheKey,
+  TTL,
+} from './_utils/cache.js';
 
 export interface ValidationError {
   field: string;
@@ -465,13 +473,33 @@ export default async function handler(req: any, res?: any) {
     const body = await getRequestBody(req);
 
     // ==========================================
-    // GET: Retrieve All Products or Single Product
+    // GET: Retrieve All Products or Single Product (Cached L1 + L2)
     // ==========================================
     if (method === 'GET') {
       const { id, slug, raw } = extractIdentifier(req, body);
 
       // Single Product Lookup
       if (id || slug || raw) {
+        const cacheKey = id
+          ? CacheKey.productId(id)
+          : slug
+            ? CacheKey.productSlug(slug)
+            : CacheKey.productRaw(raw!);
+
+        const cached = await cacheGet<any>(cacheKey);
+        if (cached.hit && cached.data) {
+          return respond(
+            res,
+            200,
+            { product: cached.data },
+            {
+              'X-Cache': 'HIT',
+              'X-Cache-Source': cached.source,
+              'Cache-Control': 'public, s-maxage=600, stale-while-revalidate=1200',
+            }
+          );
+        }
+
         let product = null;
 
         if (id && !slug) {
@@ -493,9 +521,24 @@ export default async function handler(req: any, res?: any) {
           });
         }
 
-        return respond(res, 200, {
-          product: formatProductResponse(product),
-        });
+        const formatted = formatProductResponse(product);
+
+        // Cache single product (under id, slug, and raw if available for instant future hits)
+        if (product.id) await cacheSet(CacheKey.productId(product.id), formatted, TTL.PRODUCT_ONE);
+        if (product.slug) await cacheSet(CacheKey.productSlug(product.slug), formatted, TTL.PRODUCT_ONE);
+        if (raw && raw !== product.id && raw !== product.slug) {
+          await cacheSet(CacheKey.productRaw(raw), formatted, TTL.PRODUCT_ONE);
+        }
+
+        return respond(
+          res,
+          200,
+          { product: formatted },
+          {
+            'X-Cache': 'MISS',
+            'Cache-Control': 'public, s-maxage=600, stale-while-revalidate=1200',
+          }
+        );
       }
 
       // Query parameter category / collection filtering if provided
@@ -513,6 +556,21 @@ export default async function handler(req: any, res?: any) {
         } catch {}
       }
 
+      const listCacheKey = CacheKey.productsList(categoryFilter, collectionFilter);
+      const cachedList = await cacheGet<{ products: any[]; count: number }>(listCacheKey);
+      if (cachedList.hit && cachedList.data) {
+        return respond(
+          res,
+          200,
+          cachedList.data,
+          {
+            'X-Cache': 'HIT',
+            'X-Cache-Source': cachedList.source,
+            'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+          }
+        );
+      }
+
       const whereClause: any = {};
       if (categoryFilter) whereClause.category = categoryFilter;
       if (collectionFilter) whereClause.collectionId = collectionFilter;
@@ -523,10 +581,23 @@ export default async function handler(req: any, res?: any) {
         orderBy: { createdAt: 'desc' },
       });
 
-      return respond(res, 200, {
+      const responseData = {
         products: products.map(formatProductResponse),
         count: products.length,
-      });
+      };
+
+      // Store in L1 + L2 Cache
+      await cacheSet(listCacheKey, responseData, TTL.PRODUCTS_ALL);
+
+      return respond(
+        res,
+        200,
+        responseData,
+        {
+          'X-Cache': 'MISS',
+          'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+        }
+      );
     }
 
     // ==========================================
@@ -556,6 +627,9 @@ export default async function handler(req: any, res?: any) {
         const createdProduct = await prisma.product.create({
           data,
         });
+
+        // Invalidate product caches across L1 & L2
+        await invalidateProducts();
 
         return respond(res, 201, {
           message: 'Product created successfully',
@@ -623,6 +697,13 @@ export default async function handler(req: any, res?: any) {
           data: updateData,
         });
 
+        // Invalidate product catalog and specific item keys
+        await invalidateProducts();
+        await invalidateProductKeys(existingProduct.id, existingProduct.slug);
+        if (updatedProduct.id || updatedProduct.slug) {
+          await invalidateProductKeys(updatedProduct.id, updatedProduct.slug);
+        }
+
         return respond(res, 200, {
           message: 'Product updated successfully',
           product: formatProductResponse(updatedProduct),
@@ -670,6 +751,10 @@ export default async function handler(req: any, res?: any) {
         const deletedProduct = await prisma.product.delete({
           where: { id: existingProduct.id },
         });
+
+        // Invalidate product catalog and specific item keys
+        await invalidateProducts();
+        await invalidateProductKeys(existingProduct.id, existingProduct.slug);
 
         return respond(res, 200, {
           message: 'Product deleted successfully',

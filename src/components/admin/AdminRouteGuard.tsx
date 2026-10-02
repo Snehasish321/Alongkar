@@ -1,6 +1,6 @@
 import React from 'react';
 import { useUser, SignInButton } from '@clerk/react';
-import { ShieldAlert, LogIn, Lock, ArrowLeft } from 'lucide-react';
+import { ShieldAlert, Login, Lock, ArrowLeft } from 'reicon-react';
 import { Link } from 'react-router-dom';
 
 interface AdminRouteGuardProps {
@@ -37,7 +37,7 @@ export const AdminRouteGuard: React.FC<AdminRouteGuardProps> = ({ children }) =>
           <div className="space-y-4">
             <SignInButton mode="modal">
               <button className="w-full py-3 px-6 rounded-xl bg-gradient-to-r from-[#B08D57] to-[#D6B878] text-[#211A17] font-semibold text-sm hover:brightness-110 transition shadow-lg flex items-center justify-center gap-2 cursor-pointer">
-                <LogIn className="w-4 h-4" />
+                <Login className="w-4 h-4" />
                 <span>Sign In to Admin Console</span>
               </button>
             </SignInButton>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Award, Sparkles, Heart, CheckCircle2 } from 'lucide-react';
+import { Trophy, Sparkles, Heart, TickCircle } from 'reicon-react';
 import { SectionHeading } from '../components/ui/SectionHeading';
 import { StorefrontLayout } from '../components/layout/StorefrontLayout';
 
@@ -48,7 +48,7 @@ export const AboutPage: React.FC = () => {
 
             <div className="p-8 bg-ivory-pearl rounded-brand border border-gold/20 shadow-soft text-center space-y-3">
               <div className="w-12 h-12 bg-gold/15 rounded-full flex items-center justify-center mx-auto text-gold">
-                <Award size={24} />
+                <Trophy size={24} />
               </div>
               <h3 className="font-serif text-lg font-bold text-espresso">24K Micron Gold Plating</h3>
               <p className="text-xs text-espresso-light leading-relaxed font-light">
@@ -78,25 +78,25 @@ export const AboutPage: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 text-xs text-espresso">
             <div className="p-4 bg-ivory rounded-brand border border-gold/10 space-y-2">
               <div className="flex items-center gap-2 font-bold text-gold">
-                <CheckCircle2 size={16} /> 1. Alloy Casting
+                <TickCircle size={16} /> 1. Alloy Casting
               </div>
               <p className="text-gray-500">Skin-friendly, lead-free and nickel-free brass alloy foundations.</p>
             </div>
             <div className="p-4 bg-ivory rounded-brand border border-gold/10 space-y-2">
               <div className="flex items-center gap-2 font-bold text-gold">
-                <CheckCircle2 size={16} /> 2. Hand Carving
+                <TickCircle size={16} /> 2. Hand Carving
               </div>
               <p className="text-gray-500">Meticulous stone setting & detailed filigree carving by artisans.</p>
             </div>
             <div className="p-4 bg-ivory rounded-brand border border-gold/10 space-y-2">
               <div className="flex items-center gap-2 font-bold text-gold">
-                <CheckCircle2 size={16} /> 3. Micron Coating
+                <TickCircle size={16} /> 3. Micron Coating
               </div>
               <p className="text-gray-500">Multi-layer 24K gold electroplating for long-lasting radiant shine.</p>
             </div>
             <div className="p-4 bg-ivory rounded-brand border border-gold/10 space-y-2">
               <div className="flex items-center gap-2 font-bold text-gold">
-                <CheckCircle2 size={16} /> 4. Velvet Packaging
+                <TickCircle size={16} /> 4. Velvet Packaging
               </div>
               <p className="text-gray-500">Inspected for smooth edges and packed in signature protective box.</p>
             </div>
