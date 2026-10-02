@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Mail, ArrowRight, Sparkles, Check } from 'lucide-react';
+import { Sms, ArrowRight, Check } from 'reicon-react';
 import { InstagramIcon, FacebookIcon } from '../ui/SocialIcons';
 import { SkyBackground } from '../ui/SkyBackground';
 
@@ -44,7 +44,6 @@ export const Footer: React.FC = () => {
 
             <form onSubmit={handleSubscribe} className="pt-2 max-w-sm">
               <label htmlFor="footer-newsletter" className="flex items-center gap-1.5 text-[11px] uppercase tracking-[0.2em] text-[#FFE3C7] font-bold mb-2.5 drop-shadow-sm">
-                <Sparkles size={11} className="text-[#FFE3C7]" />
                 <span>Join The VIP Alongkar Circle</span>
               </label>
               <div className="flex gap-2">
@@ -119,7 +118,7 @@ export const Footer: React.FC = () => {
                   <FacebookIcon size={15} />
                 </a>
                 <a href="mailto:care@alongkar.com" className="p-2.5 rounded-full bg-black/25 backdrop-blur-sm hover:text-[#3D1E4E] hover:bg-[#FFE3C7] transition-all border border-[#FFE3C7]/30 shadow-sm" aria-label="Email Concierge">
-                  <Mail size={15} />
+                  <Sms size={15} />
                 </a>
               </div>
             </div>

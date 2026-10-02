@@ -2,18 +2,18 @@ import React, { useState } from 'react';
 import { NavLink, Link, Outlet, useLocation } from 'react-router-dom';
 import { useUser, useClerk } from '@clerk/react';
 import {
-  Gem,
+  Diamonds,
   ShoppingBag,
   Users,
-  BarChart3,
+  Chart3,
   Settings,
-  ExternalLink,
-  LogOut,
+  LinkSquare,
+  Logout,
   Menu,
   X,
   Sparkles,
-  ShieldCheck,
-} from 'lucide-react';
+  ShieldTick,
+} from 'reicon-react';
 
 export const AdminLayout: React.FC = () => {
   const { user } = useUser();
@@ -25,7 +25,7 @@ export const AdminLayout: React.FC = () => {
     {
       name: 'Products',
       path: '/admin/products',
-      icon: Gem,
+      icon: Diamonds,
       active: location.pathname === '/admin' || location.pathname === '/admin/products',
     },
     {
@@ -51,7 +51,7 @@ export const AdminLayout: React.FC = () => {
     {
       name: 'Analytics',
       path: '#',
-      icon: BarChart3,
+      icon: Chart3,
       disabled: true,
       badge: 'Coming Soon',
     },
@@ -104,7 +104,7 @@ export const AdminLayout: React.FC = () => {
               />
               <div className="flex flex-col">
                 <span className="text-[10px] uppercase font-bold tracking-widest text-[#D6B878] flex items-center gap-1">
-                  <ShieldCheck className="w-3 h-3 text-[#D6B878]" /> Atelier Admin
+                  <ShieldTick className="w-3 h-3 text-[#D6B878]" /> Atelier Admin
                 </span>
                 <span className="text-[9px] text-white/40">Database Management</span>
               </div>
@@ -176,7 +176,7 @@ export const AdminLayout: React.FC = () => {
             className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-medium text-[#EDE4D5]/80 hover:text-white transition border border-white/10"
           >
             <span className="flex items-center gap-2">
-              <ExternalLink className="w-3.5 h-3.5 text-[#D6B878]" />
+              <LinkSquare className="w-3.5 h-3.5 text-[#D6B878]" />
               <span>Live Storefront</span>
             </span>
             <span className="text-[10px] text-white/40 font-mono">alongkar.com</span>
@@ -207,7 +207,7 @@ export const AdminLayout: React.FC = () => {
               title="Sign Out"
               aria-label="Sign Out"
             >
-              <LogOut className="w-4 h-4" />
+              <Logout className="w-4 h-4" />
             </button>
           </div>
         </div>

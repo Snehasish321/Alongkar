@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, X, ArrowRight, Sparkles, Loader2 } from 'lucide-react';
+import { Search, X, ArrowRight, Sparkles, Loader } from 'reicon-react';
 import { useNavigate } from 'react-router-dom';
 import { fetchProducts } from '../../services/productApi';
 import type { Product } from '../../types';
@@ -82,7 +82,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose, onSel
             {/* Input Bar */}
             <div className="p-4 sm:p-5 border-b border-[#E8C98A]/20 flex items-center gap-3 bg-[#FAF7F2]">
               {isLoading ? (
-                <Loader2 size={22} className="text-[#B08D57] animate-spin flex-shrink-0" />
+                <Loader size={22} className="text-[#B08D57] animate-spin flex-shrink-0" />
               ) : (
                 <Search size={22} className="text-[#B08D57] flex-shrink-0" />
               )}

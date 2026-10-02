@@ -3,17 +3,17 @@ import { useAuth } from '@clerk/react';
 import {
   Search,
   Sparkles,
-  RefreshCw,
+  Refresh,
   Clock,
-  AlertCircle,
-  CheckCircle2,
-  XCircle,
+  Alert,
+  TickCircle,
+  XCircle2,
   Eye,
   Send,
-  Gem,
+  Diamonds,
   Inbox,
   Image as ImageIcon,
-} from 'lucide-react';
+} from 'reicon-react';
 import {
   JewelleryRequestDetailModal,
   type AdminJewelleryRequest,
@@ -119,13 +119,13 @@ export const AdminJewelleryRequestsPage: React.FC = () => {
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-purple-500/15 border border-purple-500/30 text-purple-300">
             <Send className="w-3 h-3 text-purple-400" />
-            Quote Sent
+            QuoteDown Sent
           </span>
         );
       case 'NOT_SOURCEABLE':
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-red-500/15 border border-red-500/30 text-red-300">
-            <XCircle className="w-3 h-3 text-red-400" />
+            <XCircle2 className="w-3 h-3 text-red-400" />
             Not Sourceable
           </span>
         );
@@ -138,14 +138,14 @@ export const AdminJewelleryRequestsPage: React.FC = () => {
       case 'COMPLETED':
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-emerald-500/15 border border-emerald-500/30 text-emerald-300">
-            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+            <TickCircle className="w-3 h-3 text-emerald-400" />
             {status.replace(/_/g, ' ')}
           </span>
         );
       case 'CANCELLED':
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-zinc-500/15 border border-zinc-500/30 text-zinc-400">
-            <XCircle className="w-3 h-3 text-zinc-400" />
+            <XCircle2 className="w-3 h-3 text-zinc-400" />
             Cancelled
           </span>
         );
@@ -231,7 +231,7 @@ export const AdminJewelleryRequestsPage: React.FC = () => {
     { key: 'ALL', label: 'All Requests', count: stats.total },
     { key: 'PENDING', label: 'Pending Review', count: stats.pending },
     { key: 'UNDER_REVIEW', label: 'Under Review', count: stats.underReview },
-    { key: 'QUOTE_SENT', label: 'Quote Sent', count: stats.quoteSent },
+    { key: 'QUOTE_SENT', label: 'QuoteDown Sent', count: stats.quoteSent },
     { key: 'NOT_SOURCEABLE', label: 'Not Sourceable', count: stats.notSourceable },
   ];
 
@@ -247,9 +247,9 @@ export const AdminJewelleryRequestsPage: React.FC = () => {
           }`}
         >
           {toastMessage.type === 'error' ? (
-            <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+            <Alert className="w-4 h-4 text-red-400 shrink-0" />
           ) : (
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <TickCircle className="w-4 h-4 text-emerald-400 shrink-0" />
           )}
           <span>{toastMessage.text}</span>
         </div>
@@ -282,7 +282,7 @@ export const AdminJewelleryRequestsPage: React.FC = () => {
           disabled={isLoading}
           className="self-start md:self-auto flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-xs font-semibold text-[#EDE4D5] border border-white/10 transition active:scale-95 disabled:opacity-50 cursor-pointer"
         >
-          <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin text-[#D6B878]' : ''}`} />
+          <Refresh className={`w-4 h-4 ${isLoading ? 'animate-spin text-[#D6B878]' : ''}`} />
           <span>Refresh Data</span>
         </button>
       </div>
@@ -293,7 +293,7 @@ export const AdminJewelleryRequestsPage: React.FC = () => {
           <p className="text-[11px] font-medium text-white/50 uppercase tracking-wider">Total Requests</p>
           <div className="flex items-baseline justify-between mt-2">
             <span className="text-2xl font-bold font-serif text-[#F8F4EC]">{stats.total}</span>
-            <Gem className="w-4 h-4 text-white/30" />
+            <Diamonds className="w-4 h-4 text-white/30" />
           </div>
         </div>
 
@@ -314,7 +314,7 @@ export const AdminJewelleryRequestsPage: React.FC = () => {
         </div>
 
         <div className="p-4 rounded-xl bg-[#180F20]/80 border border-purple-500/20 shadow-sm">
-          <p className="text-[11px] font-medium text-purple-300/70 uppercase tracking-wider">Quote Sent</p>
+          <p className="text-[11px] font-medium text-purple-300/70 uppercase tracking-wider">QuoteDown Sent</p>
           <div className="flex items-baseline justify-between mt-2">
             <span className="text-2xl font-bold font-serif text-purple-300">{stats.quoteSent}</span>
             <Send className="w-4 h-4 text-purple-400" />
@@ -325,7 +325,7 @@ export const AdminJewelleryRequestsPage: React.FC = () => {
           <p className="text-[11px] font-medium text-red-300/70 uppercase tracking-wider">Not Sourceable</p>
           <div className="flex items-baseline justify-between mt-2">
             <span className="text-2xl font-bold font-serif text-red-300">{stats.notSourceable}</span>
-            <XCircle className="w-4 h-4 text-red-400" />
+            <XCircle2 className="w-4 h-4 text-red-400" />
           </div>
         </div>
       </div>
@@ -375,7 +375,7 @@ export const AdminJewelleryRequestsPage: React.FC = () => {
       {error && (
         <div className="p-4 rounded-xl bg-red-950/40 border border-red-500/30 text-red-200 text-xs flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+            <Alert className="w-4 h-4 text-red-400 shrink-0" />
             <span>{error}</span>
           </div>
           <button
@@ -391,7 +391,7 @@ export const AdminJewelleryRequestsPage: React.FC = () => {
       <div className="bg-[#180F20] border border-white/10 rounded-2xl overflow-hidden shadow-xl">
         {isLoading ? (
           <div className="py-20 flex flex-col items-center justify-center gap-3">
-            <RefreshCw className="w-6 h-6 animate-spin text-[#D6B878]" />
+            <Refresh className="w-6 h-6 animate-spin text-[#D6B878]" />
             <p className="text-xs text-white/50 tracking-wider uppercase font-medium">
               Loading Jewellery Sourcing Requests...
             </p>

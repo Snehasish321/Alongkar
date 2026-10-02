@@ -1,5 +1,5 @@
 import React from 'react';
-import { Truck, ShieldCheck, RefreshCw, Award } from 'lucide-react';
+import { Truck, ShieldTick, Refresh, Trophy } from 'reicon-react';
 
 const confidencePillars = [
   {
@@ -9,19 +9,19 @@ const confidencePillars = [
     description: 'Pay securely at your doorstep with verified OTP-based dispatch on all PIN codes.',
   },
   {
-    icon: RefreshCw,
+    icon: Refresh,
     title: '7-DAY EASY EXCHANGE',
     subtitle: 'HASSLE-FREE PROCESS',
     description: 'Complimentary size or design exchanges with doorstep reverse pickup support.',
   },
   {
-    icon: Award,
+    icon: Trophy,
     title: '24K MICRON GOLD PLATING',
     subtitle: '6-MONTH POLISH WARRANTY',
     description: 'Authentic heirloom sheen with certified multi-layer anti-tarnish immersion bath.',
   },
   {
-    icon: ShieldCheck,
+    icon: ShieldTick,
     title: 'INSURED TRANSIT',
     subtitle: 'TAMPER-EVIDENT PACKAGING',
     description: 'Packaged in signature royal velvet coffrets with full transit protection.',

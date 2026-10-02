@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Heart, Eye, ShoppingBag, Check, Sparkles } from 'lucide-react';
+import { Heart, Eye, ShoppingBag, Check, Sparkles } from 'reicon-react';
 import type { Product } from '../../types';
 import { formatPrice } from '../../lib/utils';
 import { StarRating } from '../ui/StarRating';

@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Heart } from 'lucide-react';
+import { Heart } from 'reicon-react';
 import { SectionHeading } from '../ui/SectionHeading';
 import { InstagramIcon } from '../ui/SocialIcons';
 

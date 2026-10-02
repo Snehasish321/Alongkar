@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight } from 'reicon-react';
 import { Link } from 'react-router-dom';
 import type { Collection } from '../../types';
 

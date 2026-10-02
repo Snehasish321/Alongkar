@@ -8,14 +8,14 @@ import {
   User,
   Sparkles,
   ShoppingBag,
-  PackageSearch,
+  SearchNormal,
   HelpCircle,
-  RotateCcw,
+  RotateLeft,
   Clock,
   Package,
   Settings,
-  LogOut,
-} from 'lucide-react';
+  Logout,
+} from 'reicon-react';
 import { SignInButton, Show, useUser, useClerk } from '@clerk/react';
 
 interface MobileMenuProps {
@@ -41,9 +41,9 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
   ];
 
   const secondaryLinks = [
-    { name: 'Track Order', path: '/track', icon: PackageSearch },
+    { name: 'Track Order', path: '/track', icon: SearchNormal },
     { name: 'Pre-Order Updates', path: '/pre-orders', icon: Clock },
-    { name: 'Return & Exchange', path: '/returns', icon: RotateCcw },
+    { name: 'Return & Exchange', path: '/returns', icon: RotateLeft },
     { name: 'Contact Us', path: '/contact', icon: HelpCircle },
   ];
 
@@ -270,7 +270,7 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
                       }}
                       className="text-red-300 hover:text-red-200 transition-colors cursor-pointer flex items-center gap-1"
                     >
-                      <LogOut size={13} />
+                      <Logout size={13} />
                       <span>Sign Out</span>
                     </button>
                   </div>

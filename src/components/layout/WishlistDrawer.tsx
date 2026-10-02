@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Heart, ShoppingBag, Trash2 } from 'lucide-react';
+import { X, Heart, ShoppingBag, Trash } from 'reicon-react';
 import { useWishlist } from '../../context/WishlistContext';
 import { useCart } from '../../context/CartContext';
 import { formatPrice } from '../../lib/utils';
@@ -105,7 +105,7 @@ export const WishlistDrawer: React.FC = () => {
                           className="text-gray-400 hover:text-burgundy p-1 transition-colors"
                           aria-label="Remove from wishlist"
                         >
-                          <Trash2 size={14} />
+                          <Trash size={14} />
                         </button>
                       </div>
                     </div>

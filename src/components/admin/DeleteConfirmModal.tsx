@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertTriangle, Trash2, X, Loader2 } from 'lucide-react';
+import { Warning, Trash, X, Loader } from 'reicon-react';
 import type { Product } from '../../types';
 
 interface DeleteConfirmModalProps {
@@ -29,7 +29,7 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-red-950/60 border border-red-500/40 text-red-400 flex items-center justify-center shrink-0">
-              <AlertTriangle className="w-5 h-5" />
+              <Warning className="w-5 h-5" />
             </div>
             <div>
               <h3 className="font-serif text-lg font-bold text-[#F8F4EC]">
@@ -95,12 +95,12 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
           >
             {isLoading ? (
               <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <Loader className="w-3.5 h-3.5 animate-spin" />
                 <span>Deleting...</span>
               </>
             ) : (
               <>
-                <Trash2 className="w-3.5 h-3.5" />
+                <Trash className="w-3.5 h-3.5" />
                 <span>Delete Product</span>
               </>
             )}

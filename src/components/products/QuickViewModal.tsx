@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Heart, ShoppingBag, ShieldCheck, RefreshCw, Check } from 'lucide-react';
+import { X, Heart, ShoppingBag, ShieldTick, Refresh, Check } from 'reicon-react';
 import type { Product } from '../../types';
 import { formatPrice } from '../../lib/utils';
 import { StarRating } from '../ui/StarRating';
@@ -202,10 +202,10 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ product, onClose
 
                 <div className="flex items-center justify-around text-[11px] text-gray-500 pt-2 border-t border-gold/10">
                   <span className="flex items-center gap-1">
-                    <ShieldCheck size={14} className="text-gold" /> Quality Inspected
+                    <ShieldTick size={14} className="text-gold" /> Quality Inspected
                   </span>
                   <span className="flex items-center gap-1">
-                    <RefreshCw size={14} className="text-gold" /> 7-Day Replacement
+                    <Refresh size={14} className="text-gold" /> 7-Day Replacement
                   </span>
                 </div>
               </div>

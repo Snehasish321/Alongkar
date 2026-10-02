@@ -6,7 +6,7 @@ import { ProductCard } from '../components/products/ProductCard';
 import { SectionHeading } from '../components/ui/SectionHeading';
 import { StorefrontLayout } from '../components/layout/StorefrontLayout';
 import type { Product } from '../types';
-import { Loader2 } from 'lucide-react';
+import { Loader } from 'reicon-react';
 
 interface CollectionsPageProps {
   onQuickView?: (product: Product) => void;
@@ -58,7 +58,7 @@ export const CollectionsPage: React.FC<CollectionsPageProps> = ({ onQuickView })
           {/* Detailed Collection Showcases */}
           {isLoading ? (
             <div className="py-20 flex flex-col items-center justify-center gap-3">
-              <Loader2 className="w-8 h-8 animate-spin text-[#B08D57]" />
+              <Loader className="w-8 h-8 animate-spin text-[#B08D57]" />
               <p className="text-xs uppercase tracking-widest text-[#8C6C38] font-medium">
                 Loading Curated Collections...
               </p>
