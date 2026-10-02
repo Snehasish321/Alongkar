@@ -161,6 +161,22 @@
   scrollbar-width: none;
 }
 
+@keyframes heroFadeScale {
+  0% {
+    transform: scale(1.08);
+    filter: brightness(0.8);
+  }
+  100% {
+    transform: scale(1);
+    filter: brightness(0.94);
+  }
+}
+
+.animate-hero-fade-scale {
+  animation: heroFadeScale 2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, filter;
+}
+
 @keyframes marquee {
   0% { transform: translateX(0%); }
   100% { transform: translateX(-33.333333%); }

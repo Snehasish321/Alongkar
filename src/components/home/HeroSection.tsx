@@ -13,18 +13,15 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ startAnimation = true 
 
   return (
     <section className="relative w-full h-[calc(100vh-80px)] min-h-[580px] max-h-[960px] overflow-hidden bg-neutral-900 select-none">
-      {/* Editorial Hero Background Image with Subtle Cinematic Scale */}
-      <motion.img
+      {/* Editorial Hero Background Image with Subtle Cinematic Scale (CSS GPU Accelerated) */}
+      <img
         src="/hero-campaign.webp"
         srcSet="/hero-campaign-mobile.webp 768w, /hero-campaign-tablet.webp 1024w, /hero-campaign.webp 1376w"
         sizes="100vw"
         alt="Alongkar Luxury Campaign"
         width={1376}
         height={768}
-        className="w-full h-full object-cover object-center"
-        initial={{ scale: 1.12, filter: 'brightness(0.75)' }}
-        animate={{ scale: 1, filter: 'brightness(0.94)' }}
-        transition={{ duration: 1.8, ease: LUXURY_EASE }}
+        className="w-full h-full object-cover object-center animate-hero-fade-scale"
         loading="eager"
         fetchPriority="high"
         decoding="async"
@@ -47,12 +44,12 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ startAnimation = true 
           <div className="flex items-center gap-2 mb-2 sm:mb-3 overflow-hidden">
             <motion.span
               variants={{
-                hidden: { opacity: 0, x: -15, letterSpacing: '0.15em' },
+                hidden: { opacity: 0, x: -10, letterSpacing: '0.15em' },
                 visible: {
                   opacity: 1,
                   x: 0,
                   letterSpacing: '0.3em',
-                  transition: { duration: 0.8, delay: 0.2, ease: LUXURY_EASE },
+                  transition: { duration: 0.6, delay: 0.05, ease: LUXURY_EASE },
                 },
               }}
               className="text-[#D4AF37] text-[9px] sm:text-xs tracking-[0.3em] font-semibold uppercase block drop-shadow-xs"
@@ -65,7 +62,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ startAnimation = true 
                 visible: {
                   scaleX: 1,
                   opacity: 1,
-                  transition: { duration: 0.8, delay: 0.35, ease: LUXURY_EASE },
+                  transition: { duration: 0.6, delay: 0.1, ease: LUXURY_EASE },
                 },
               }}
               className="h-[1px] w-6 sm:w-10 bg-[#D4AF37]/70 origin-left hidden sm:inline-block"
@@ -76,12 +73,12 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ startAnimation = true 
           <div className="overflow-hidden py-0.5 sm:py-1">
             <motion.h1
               variants={{
-                hidden: { y: '115%', opacity: 0, rotate: 2 },
+                hidden: { y: '100%', opacity: 0.2, rotate: 1 },
                 visible: {
                   y: '0%',
                   opacity: 1,
                   rotate: 0,
-                  transition: { duration: 1.05, delay: 0.3, ease: LUXURY_EASE },
+                  transition: { duration: 0.8, delay: 0.08, ease: LUXURY_EASE },
                 },
               }}
               className="text-white font-extrabold text-3xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl tracking-[-0.03em] uppercase leading-[0.92] drop-shadow-md"
@@ -94,12 +91,12 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ startAnimation = true 
           <div className="overflow-hidden py-0.5 sm:py-1">
             <motion.span
               variants={{
-                hidden: { y: '115%', opacity: 0, rotate: 2 },
+                hidden: { y: '100%', opacity: 0.2, rotate: 1 },
                 visible: {
                   y: '0%',
                   opacity: 1,
                   rotate: 0,
-                  transition: { duration: 1.05, delay: 0.42, ease: LUXURY_EASE },
+                  transition: { duration: 0.8, delay: 0.16, ease: LUXURY_EASE },
                 },
               }}
               className="block text-white font-extrabold text-3xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl tracking-[-0.03em] uppercase leading-[0.92] drop-shadow-md"
@@ -123,19 +120,19 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ startAnimation = true 
                 visible: {
                   scaleX: 1,
                   opacity: 1,
-                  transition: { duration: 0.8, delay: 0.45, ease: LUXURY_EASE },
+                  transition: { duration: 0.6, delay: 0.1, ease: LUXURY_EASE },
                 },
               }}
               className="h-[1px] w-6 sm:w-10 bg-[#D4AF37]/70 origin-right hidden sm:inline-block"
             />
             <motion.span
               variants={{
-                hidden: { opacity: 0, x: 15, letterSpacing: '0.15em' },
+                hidden: { opacity: 0, x: 10, letterSpacing: '0.15em' },
                 visible: {
                   opacity: 1,
                   x: 0,
                   letterSpacing: '0.3em',
-                  transition: { duration: 0.8, delay: 0.3, ease: LUXURY_EASE },
+                  transition: { duration: 0.6, delay: 0.05, ease: LUXURY_EASE },
                 },
               }}
               className="text-[#D4AF37] text-[9px] sm:text-xs tracking-[0.3em] font-semibold uppercase block drop-shadow-xs"
@@ -148,12 +145,12 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ startAnimation = true 
           <div className="overflow-hidden py-0.5 sm:py-1">
             <motion.h2
               variants={{
-                hidden: { y: '115%', opacity: 0, rotate: -2 },
+                hidden: { y: '100%', opacity: 0.2, rotate: -1 },
                 visible: {
                   y: '0%',
                   opacity: 1,
                   rotate: 0,
-                  transition: { duration: 1.05, delay: 0.4, ease: LUXURY_EASE },
+                  transition: { duration: 0.8, delay: 0.12, ease: LUXURY_EASE },
                 },
               }}
               className="text-white font-extrabold text-3xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl tracking-[-0.03em] uppercase leading-[0.92] drop-shadow-md"
@@ -166,12 +163,12 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ startAnimation = true 
           <div className="overflow-hidden py-0.5 sm:py-1">
             <motion.span
               variants={{
-                hidden: { y: '115%', opacity: 0, rotate: -2 },
+                hidden: { y: '100%', opacity: 0.2, rotate: -1 },
                 visible: {
                   y: '0%',
                   opacity: 1,
                   rotate: 0,
-                  transition: { duration: 1.05, delay: 0.52, ease: LUXURY_EASE },
+                  transition: { duration: 0.8, delay: 0.2, ease: LUXURY_EASE },
                 },
               }}
               className="block text-white font-extrabold text-3xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl tracking-[-0.03em] uppercase leading-[0.92] drop-shadow-md"
@@ -184,9 +181,9 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ startAnimation = true 
 
       {/* Bottom Center: Minimalist Action (SHOP NOW) */}
       <motion.div
-        initial={{ opacity: 0, y: 25 }}
+        initial={{ opacity: 0, y: 15 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.85, delay: 0.85, ease: LUXURY_EASE }}
+        transition={{ duration: 0.7, delay: 0.35, ease: LUXURY_EASE }}
         className="absolute bottom-8 sm:bottom-12 inset-x-0 flex flex-col items-center justify-center z-20 pointer-events-auto"
       >
         <Link
