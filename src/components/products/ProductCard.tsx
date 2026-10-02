@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { Heart, Eye, ShoppingBag, Check, Sparkles } from 'lucide-react';
 import type { Product } from '../../types';
 import { formatPrice } from '../../lib/utils';
@@ -55,11 +54,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 15 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true }}
-      transition={{ duration: 0.5 }}
+    <div
       className="group bg-white rounded-xl overflow-hidden border border-[#E8C98A]/25 hover:border-[#C9A45D]/80 shadow-[0_4px_20px_rgba(0,0,0,0.03)] hover:shadow-[0_16px_36px_rgba(42,0,8,0.1),0_0_20px_rgba(232,201,138,0.15)] transition-all duration-500 flex flex-col justify-between relative"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -193,6 +188,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
           </button>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 };

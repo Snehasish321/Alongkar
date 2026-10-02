@@ -1,16 +1,11 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
 
 export interface HeroSectionProps {
   startAnimation?: boolean;
 }
 
-const LUXURY_EASE = [0.16, 1, 0.3, 1] as const;
-
-export const HeroSection: React.FC<HeroSectionProps> = ({ startAnimation = true }) => {
-  const animateState = startAnimation ? 'visible' : 'hidden';
-
+export const HeroSection: React.FC<HeroSectionProps> = () => {
   return (
     <section className="relative w-full h-[calc(100vh-80px)] min-h-[580px] max-h-[960px] overflow-hidden bg-neutral-900 select-none">
       {/* Editorial Hero Background Image with Subtle Cinematic Scale (CSS GPU Accelerated) */}
@@ -35,157 +30,58 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ startAnimation = true 
       <div className="absolute inset-0 flex items-center justify-between px-5 sm:px-10 md:px-14 lg:px-20 pointer-events-none z-10">
         
         {/* Left Headline: ROYAL HEIRLOOMS */}
-        <motion.div
-          initial="hidden"
-          animate={animateState}
-          className="max-w-[48%] sm:max-w-[45%] flex flex-col items-start"
-        >
+        <div className="max-w-[48%] sm:max-w-[45%] flex flex-col items-start">
           {/* Eyebrow with Expanding Gold Line */}
           <div className="flex items-center gap-2 mb-2 sm:mb-3 overflow-hidden">
-            <motion.span
-              variants={{
-                hidden: { opacity: 0, x: -10, letterSpacing: '0.15em' },
-                visible: {
-                  opacity: 1,
-                  x: 0,
-                  letterSpacing: '0.3em',
-                  transition: { duration: 0.6, delay: 0.05, ease: LUXURY_EASE },
-                },
-              }}
-              className="text-[#D4AF37] text-[9px] sm:text-xs tracking-[0.3em] font-semibold uppercase block drop-shadow-xs"
-            >
+            <span className="text-[#D4AF37] text-[9px] sm:text-xs tracking-[0.3em] font-semibold uppercase block drop-shadow-xs animate-hero-eyebrow-left">
               Haute City Gold
-            </motion.span>
-            <motion.span
-              variants={{
-                hidden: { scaleX: 0, opacity: 0 },
-                visible: {
-                  scaleX: 1,
-                  opacity: 1,
-                  transition: { duration: 0.6, delay: 0.1, ease: LUXURY_EASE },
-                },
-              }}
-              className="h-[1px] w-6 sm:w-10 bg-[#D4AF37]/70 origin-left hidden sm:inline-block"
-            />
+            </span>
+            <span className="h-[1px] w-6 sm:w-10 bg-[#D4AF37]/70 origin-left hidden sm:inline-block animate-hero-line-left" />
           </div>
 
           {/* Masked Line 1: ROYAL */}
           <div className="overflow-hidden py-0.5 sm:py-1">
-            <motion.h1
-              variants={{
-                hidden: { y: '100%', opacity: 0.2, rotate: 1 },
-                visible: {
-                  y: '0%',
-                  opacity: 1,
-                  rotate: 0,
-                  transition: { duration: 0.8, delay: 0.08, ease: LUXURY_EASE },
-                },
-              }}
-              className="text-white font-extrabold text-3xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl tracking-[-0.03em] uppercase leading-[0.92] drop-shadow-md"
-            >
+            <h1 className="text-white font-extrabold text-3xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl tracking-[-0.03em] uppercase leading-[0.92] drop-shadow-md animate-hero-title-1">
               ROYAL
-            </motion.h1>
+            </h1>
           </div>
 
           {/* Masked Line 2: HEIRLOOMS */}
           <div className="overflow-hidden py-0.5 sm:py-1">
-            <motion.span
-              variants={{
-                hidden: { y: '100%', opacity: 0.2, rotate: 1 },
-                visible: {
-                  y: '0%',
-                  opacity: 1,
-                  rotate: 0,
-                  transition: { duration: 0.8, delay: 0.16, ease: LUXURY_EASE },
-                },
-              }}
-              className="block text-white font-extrabold text-3xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl tracking-[-0.03em] uppercase leading-[0.92] drop-shadow-md"
-            >
+            <span className="block text-white font-extrabold text-3xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl tracking-[-0.03em] uppercase leading-[0.92] drop-shadow-md animate-hero-title-2">
               HEIRLOOMS
-            </motion.span>
+            </span>
           </div>
-        </motion.div>
+        </div>
 
         {/* Right Headline: TIMELESS RADIANCE */}
-        <motion.div
-          initial="hidden"
-          animate={animateState}
-          className="max-w-[48%] sm:max-w-[45%] flex flex-col items-end text-right"
-        >
+        <div className="max-w-[48%] sm:max-w-[45%] flex flex-col items-end text-right">
           {/* Eyebrow with Expanding Gold Line */}
           <div className="flex items-center justify-end gap-2 mb-2 sm:mb-3 overflow-hidden">
-            <motion.span
-              variants={{
-                hidden: { scaleX: 0, opacity: 0 },
-                visible: {
-                  scaleX: 1,
-                  opacity: 1,
-                  transition: { duration: 0.6, delay: 0.1, ease: LUXURY_EASE },
-                },
-              }}
-              className="h-[1px] w-6 sm:w-10 bg-[#D4AF37]/70 origin-right hidden sm:inline-block"
-            />
-            <motion.span
-              variants={{
-                hidden: { opacity: 0, x: 10, letterSpacing: '0.15em' },
-                visible: {
-                  opacity: 1,
-                  x: 0,
-                  letterSpacing: '0.3em',
-                  transition: { duration: 0.6, delay: 0.05, ease: LUXURY_EASE },
-                },
-              }}
-              className="text-[#D4AF37] text-[9px] sm:text-xs tracking-[0.3em] font-semibold uppercase block drop-shadow-xs"
-            >
+            <span className="h-[1px] w-6 sm:w-10 bg-[#D4AF37]/70 origin-right hidden sm:inline-block animate-hero-line-right" />
+            <span className="text-[#D4AF37] text-[9px] sm:text-xs tracking-[0.3em] font-semibold uppercase block drop-shadow-xs animate-hero-eyebrow-right">
               Bengal Mastercraft
-            </motion.span>
+            </span>
           </div>
 
           {/* Masked Line 1: TIMELESS */}
           <div className="overflow-hidden py-0.5 sm:py-1">
-            <motion.h2
-              variants={{
-                hidden: { y: '100%', opacity: 0.2, rotate: -1 },
-                visible: {
-                  y: '0%',
-                  opacity: 1,
-                  rotate: 0,
-                  transition: { duration: 0.8, delay: 0.12, ease: LUXURY_EASE },
-                },
-              }}
-              className="text-white font-extrabold text-3xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl tracking-[-0.03em] uppercase leading-[0.92] drop-shadow-md"
-            >
+            <h2 className="text-white font-extrabold text-3xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl tracking-[-0.03em] uppercase leading-[0.92] drop-shadow-md animate-hero-title-3">
               TIMELESS
-            </motion.h2>
+            </h2>
           </div>
 
           {/* Masked Line 2: RADIANCE */}
           <div className="overflow-hidden py-0.5 sm:py-1">
-            <motion.span
-              variants={{
-                hidden: { y: '100%', opacity: 0.2, rotate: -1 },
-                visible: {
-                  y: '0%',
-                  opacity: 1,
-                  rotate: 0,
-                  transition: { duration: 0.8, delay: 0.2, ease: LUXURY_EASE },
-                },
-              }}
-              className="block text-white font-extrabold text-3xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl tracking-[-0.03em] uppercase leading-[0.92] drop-shadow-md"
-            >
+            <span className="block text-white font-extrabold text-3xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl tracking-[-0.03em] uppercase leading-[0.92] drop-shadow-md animate-hero-title-4">
               RADIANCE
-            </motion.span>
+            </span>
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* Bottom Center: Minimalist Action (SHOP NOW) */}
-      <motion.div
-        initial={{ opacity: 0, y: 15 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.7, delay: 0.35, ease: LUXURY_EASE }}
-        className="absolute bottom-8 sm:bottom-12 inset-x-0 flex flex-col items-center justify-center z-20 pointer-events-auto"
-      >
+      <div className="absolute bottom-8 sm:bottom-12 inset-x-0 flex flex-col items-center justify-center z-20 pointer-events-auto animate-hero-action">
         <Link
           to="/shop"
           className="group relative inline-flex flex-col items-center text-white text-xs sm:text-sm tracking-[0.26em] uppercase font-semibold transition-transform duration-200 hover:scale-105 active:scale-95 drop-shadow-md"
@@ -193,7 +89,7 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ startAnimation = true 
           <span>SHOP NOW</span>
           <span className="w-full h-[1.5px] bg-[#D4AF37] scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-center mt-1" />
         </Link>
-      </motion.div>
+      </div>
 
       {/* WhatsApp Floating Action */}
       <a

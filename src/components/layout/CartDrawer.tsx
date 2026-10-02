@@ -1,5 +1,4 @@
 import React, { useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { X, Trash2, Plus, Minus, ShoppingBag, ShieldCheck, ArrowRight } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { formatPrice } from '../../lib/utils';
@@ -22,28 +21,21 @@ export const CartDrawer: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isCartOpen, setIsCartOpen]);
 
-  return (
-    <AnimatePresence>
-      {isCartOpen && (
-        <>
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setIsCartOpen(false)}
-            className="fixed inset-0 bg-espresso/60 backdrop-blur-sm z-50"
-          />
+  if (!isCartOpen) return null;
 
-          {/* Slide-over Drawer */}
-          <motion.aside
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed top-0 right-0 bottom-0 w-full sm:w-[420px] bg-ivory text-espresso z-50 flex flex-col justify-between shadow-2xl border-l border-gold/20"
-            data-lenis-prevent
-          >
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        onClick={() => setIsCartOpen(false)}
+        className="fixed inset-0 bg-espresso/60 backdrop-blur-sm z-50 animate-fade-in"
+      />
+
+      {/* Slide-over Drawer */}
+      <aside
+        className="fixed top-0 right-0 bottom-0 w-full sm:w-[420px] bg-ivory text-espresso z-50 flex flex-col justify-between shadow-2xl border-l border-gold/20 animate-drawer-slide-right"
+        data-lenis-prevent
+      >
             {/* Header */}
             <div className="p-5 border-b border-gold/20 flex items-center justify-between bg-ivory-pearl">
               <div className="flex items-center gap-2">
@@ -199,9 +191,7 @@ export const CartDrawer: React.FC = () => {
                 </div>
               </div>
             )}
-          </motion.aside>
+          </aside>
         </>
-      )}
-    </AnimatePresence>
   );
 };

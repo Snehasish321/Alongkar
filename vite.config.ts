@@ -77,7 +77,7 @@ export default defineConfig({
             if (id.includes('react-router-dom') || id.includes('react-dom') || id.includes('react/')) {
               return 'vendor-react';
             }
-            if (id.includes('framer-motion') || id.includes('lucide-react')) {
+            if (id.includes('lucide-react')) {
               return 'vendor-ui';
             }
             if (id.includes('lenis')) {

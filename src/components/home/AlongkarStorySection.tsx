@@ -1,5 +1,4 @@
 import React from 'react';
-import { motion } from 'framer-motion';
 import { Sparkles, Hammer, ShieldCheck, HeartHandshake } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -41,13 +40,7 @@ export const AlongkarStorySection: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center">
 
           {/* Left Column: Visual Archival Frame (5 cols) */}
-          <motion.div
-            initial={{ opacity: 0, x: -35 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.8 }}
-            className="lg:col-span-5 relative"
-          >
+          <div className="lg:col-span-5 relative">
             <div className="relative aspect-[4/5] rounded-xl overflow-hidden shadow-2xl border-2 border-[#D6B878]/30">
               <img
                 src="https://images.unsplash.com/photo-1535632787350-4e68ef0ac584?q=80&w=1000&auto=format&fit=crop"
@@ -74,16 +67,10 @@ export const AlongkarStorySection: React.FC = () => {
                 City Gold electroplating ensuring anti-tarnish lasting brilliance.
               </span>
             </div>
-          </motion.div>
+          </div>
 
           {/* Right Column: Editorial Narrative & Craft Pillars (7 cols) */}
-          <motion.div
-            initial={{ opacity: 0, x: 35 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.8 }}
-            className="lg:col-span-7 space-y-8"
-          >
+          <div className="lg:col-span-7 space-y-8">
             <div className="space-y-3">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#B08D57]/10 text-[#8C6C38] text-[11px] uppercase tracking-[0.25em] font-semibold border border-[#B08D57]/20">
                 <Sparkles size={12} />
@@ -142,7 +129,7 @@ export const AlongkarStorySection: React.FC = () => {
               </div>
             </div>
 
-          </motion.div>
+          </div>
         </div>
       </div>
     </section>
