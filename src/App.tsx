@@ -151,7 +151,6 @@ function DeferredLenis() {
 
     let isCancelled = false;
     let lenisInstance: { destroy: () => void } | null = null;
-    let idleId: number | undefined;
     let timerId: ReturnType<typeof setTimeout> | undefined;
 
     const initialize = async () => {
@@ -174,17 +173,11 @@ function DeferredLenis() {
       }
     };
 
-    if ('requestIdleCallback' in window) {
-      idleId = window.requestIdleCallback(initialize, { timeout: 2000 });
-    } else {
-      timerId = setTimeout(initialize, 1500);
-    }
+    // Deliberate 5000ms post-mount delay to ensure critical rendering and LCP are 100% complete
+    timerId = setTimeout(initialize, 5000);
 
     return () => {
       isCancelled = true;
-      if (idleId !== undefined && 'cancelIdleCallback' in window) {
-        window.cancelIdleCallback(idleId);
-      }
       if (timerId !== undefined) {
         clearTimeout(timerId);
       }
