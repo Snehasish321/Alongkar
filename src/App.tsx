@@ -9,10 +9,13 @@ import { ProductDetailPage } from './pages/ProductDetailPage';
 import { CollectionsPage } from './pages/CollectionsPage';
 import { AboutPage } from './pages/AboutPage';
 import { ContactPage } from './pages/ContactPage';
+import { RequestJewelleryPage } from './pages/RequestJewelleryPage';
+import { JewelleryRequestsPage } from './pages/JewelleryRequestsPage';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 import { AdminRouteGuard } from './components/admin/AdminRouteGuard';
 import { AdminLayout } from './pages/admin/AdminLayout';
 import { AdminProductsPage } from './pages/admin/AdminProductsPage';
+import { AdminJewelleryRequestsPage } from './pages/admin/AdminJewelleryRequestsPage';
 
 function ScrollToTopOnNavigate() {
   const location = useLocation();
@@ -43,6 +46,7 @@ export const AppContent: React.FC = () => {
         <Route path="/best-sellers" element={<ShopPage />} />
         <Route path="/about" element={<AboutPage />} />
         <Route path="/contact" element={<ContactPage />} />
+        <Route path="/request-jewellery" element={<RequestJewelleryPage />} />
         <Route
           path="/returns"
           element={
@@ -60,6 +64,19 @@ export const AppContent: React.FC = () => {
               subtitle="Track production milestones for handcrafted artisan jewelry orders."
             />
           }
+        />
+        <Route
+          path="/orders"
+          element={
+            <PlaceholderPage
+              title="My Orders"
+              subtitle="View and track your jewellery purchases and order shipments."
+            />
+          }
+        />
+        <Route
+          path="/jewellery-requests"
+          element={<JewelleryRequestsPage />}
         />
         <Route
           path="/track"
@@ -82,6 +99,7 @@ export const AppContent: React.FC = () => {
         >
           <Route index element={<Navigate to="/admin/products" replace />} />
           <Route path="products" element={<AdminProductsPage />} />
+          <Route path="jewellery-requests" element={<AdminJewelleryRequestsPage />} />
         </Route>
 
         {/* Fallback */}

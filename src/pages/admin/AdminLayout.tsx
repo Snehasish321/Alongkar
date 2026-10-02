@@ -29,6 +29,12 @@ export const AdminLayout: React.FC = () => {
       active: location.pathname === '/admin' || location.pathname === '/admin/products',
     },
     {
+      name: 'Jewellery Requests',
+      path: '/admin/jewellery-requests',
+      icon: Sparkles,
+      active: location.pathname.startsWith('/admin/jewellery-requests'),
+    },
+    {
       name: 'Orders',
       path: '#',
       icon: ShoppingBag,
