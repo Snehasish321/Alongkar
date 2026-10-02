@@ -90,9 +90,9 @@ export const Footer: React.FC = () => {
             <h4 className="text-xs uppercase tracking-[0.22em] text-[#FFE3C7] font-extrabold drop-shadow-sm">VIP Concierge</h4>
             <ul className="space-y-2 text-xs text-[#FDF8F0]/90 font-normal">
               <li><Link to="/request-jewellery" className="hover:text-[#FFE3C7] transition-colors">Request Custom Jewellery</Link></li>
-              <li><Link to="/contact" className="hover:text-[#FFE3C7] transition-colors">Bespoke Inquiries</Link></li>
-              <li><Link to="/track-order" className="hover:text-[#FFE3C7] transition-colors">Track Shipment</Link></li>
-              <li><Link to="/faqs" className="hover:text-[#FFE3C7] transition-colors">Jewellery Care Guide</Link></li>
+              <li><Link to="/contact" className="hover:text-[#FFE3C7] transition-colors">Bespoke Inquiries & Contact</Link></li>
+              <li><Link to="/track" className="hover:text-[#FFE3C7] transition-colors">Track Order Shipment</Link></li>
+              <li><Link to="/pre-orders" className="hover:text-[#FFE3C7] transition-colors">Pre-Order Production Updates</Link></li>
               <li><Link to="/about" className="hover:text-[#FFE3C7] transition-colors">Bengal Heritage Archive</Link></li>
             </ul>
           </div>
@@ -102,8 +102,8 @@ export const Footer: React.FC = () => {
             <div>
               <h4 className="text-xs uppercase tracking-[0.22em] text-[#FFE3C7] font-extrabold mb-3 drop-shadow-sm">Privileges & Terms</h4>
               <ul className="space-y-2 text-xs text-[#FDF8F0]/90 font-normal">
+                <li><Link to="/returns" className="hover:text-[#FFE3C7] transition-colors">7-Day Return & Exchange</Link></li>
                 <li><Link to="/shipping-policy" className="hover:text-[#FFE3C7] transition-colors">Insured Shipping Policy</Link></li>
-                <li><Link to="/return-policy" className="hover:text-[#FFE3C7] transition-colors">7-Day Return Guarantee</Link></li>
                 <li><Link to="/privacy-policy" className="hover:text-[#FFE3C7] transition-colors">Client Confidentiality</Link></li>
                 <li><Link to="/terms" className="hover:text-[#FFE3C7] transition-colors">Terms of Service</Link></li>
               </ul>
