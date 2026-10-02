@@ -15,13 +15,19 @@ export const HeroSection: React.FC<HeroSectionProps> = ({ startAnimation = true 
     <section className="relative w-full h-[calc(100vh-80px)] min-h-[580px] max-h-[960px] overflow-hidden bg-neutral-900 select-none">
       {/* Editorial Hero Background Image with Subtle Cinematic Scale */}
       <motion.img
-        src="/hero-campaign.jpg"
+        src="/hero-campaign.webp"
+        srcSet="/hero-campaign-mobile.webp 768w, /hero-campaign-tablet.webp 1024w, /hero-campaign.webp 1376w"
+        sizes="100vw"
         alt="Alongkar Luxury Campaign"
+        width={1376}
+        height={768}
         className="w-full h-full object-cover object-center"
         initial={{ scale: 1.12, filter: 'brightness(0.75)' }}
         animate={{ scale: 1, filter: 'brightness(0.94)' }}
         transition={{ duration: 1.8, ease: LUXURY_EASE }}
         loading="eager"
+        fetchPriority="high"
+        decoding="async"
       />
 
       {/* Atmospheric vignette & contrast gradient */}
