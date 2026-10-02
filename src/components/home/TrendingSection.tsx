@@ -4,7 +4,7 @@ import { ProductCard } from '../products/ProductCard';
 import { SectionHeading } from '../ui/SectionHeading';
 import type { Product } from '../../types';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Sparkles, Loader2 } from 'lucide-react';
+import { ArrowRight, Sparkles, Loader } from 'reicon-react';
 
 interface TrendingSectionProps {
   onQuickView?: (product: Product) => void;
@@ -93,7 +93,7 @@ export const TrendingSection: React.FC<TrendingSectionProps> = ({ onQuickView, p
         {/* Products Grid */}
         {isLoading ? (
           <div className="py-16 flex flex-col items-center justify-center gap-3">
-            <Loader2 className="w-8 h-8 animate-spin text-[#B08D57]" />
+            <Loader className="w-8 h-8 animate-spin text-[#B08D57]" />
             <p className="text-xs uppercase tracking-widest text-[#8C6C38] font-medium">
               Curating Royal Masterpieces...
             </p>

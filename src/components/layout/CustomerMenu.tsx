@@ -5,10 +5,10 @@ import {
   Package,
   Sparkles,
   Settings,
-  LogOut,
+  Logout,
   ChevronRight,
   User as UserIcon,
-} from 'lucide-react';
+} from 'reicon-react';
 
 interface CustomerMenuProps {
   className?: string;
@@ -231,7 +231,7 @@ export const CustomerMenu: React.FC<CustomerMenuProps> = ({ className = '' }) =>
               className="w-full flex items-center justify-between p-2 rounded-lg hover:bg-red-950/40 text-red-300 hover:text-red-200 transition-colors group cursor-pointer"
             >
               <div className="flex items-center gap-2.5">
-                <LogOut size={15} className="text-red-400" />
+                <Logout size={15} className="text-red-400" />
                 <span className="text-xs font-medium">Sign Out</span>
               </div>
             </button>

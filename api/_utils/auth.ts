@@ -104,8 +104,17 @@ export async function createWebRequest(req: any, bodyData?: any): Promise<Reques
 /**
  * Unified response sender supporting Vercel functions, Node HTTP (Vite dev server), and Web Response.
  */
-export function respond(res: any, status: number, data: any) {
+export function respond(res: any, status: number, data: any, headers?: Record<string, string>) {
   if (res) {
+    if (headers) {
+      if (typeof res.setHeader === 'function') {
+        for (const [k, v] of Object.entries(headers)) {
+          res.setHeader(k, v);
+        }
+      } else if (typeof res.set === 'function') {
+        res.set(headers);
+      }
+    }
     if (typeof res.status === 'function' && typeof res.json === 'function') {
       return res.status(status).json(data);
     }
@@ -118,7 +127,7 @@ export function respond(res: any, status: number, data: any) {
   }
   return new Response(JSON.stringify(data), {
     status,
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...(headers || {}) },
   });
 }
 

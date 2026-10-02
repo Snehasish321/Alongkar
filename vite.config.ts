@@ -60,6 +60,9 @@ function apiDevServerPlugin(): Plugin {
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), apiDevServerPlugin()],
+  ssr: {
+    external: ['@prisma/client', '.prisma/client'],
+  },
   resolve: {
     alias: {
       'next/font/local': path.resolve(import.meta.dirname, './src/lib/next-font-local-stub.ts'),

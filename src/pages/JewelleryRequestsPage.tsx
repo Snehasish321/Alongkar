@@ -3,16 +3,16 @@ import { Link } from 'react-router-dom';
 import { useAuth, SignInButton } from '@clerk/react';
 import {
   Sparkles,
-  RefreshCw,
+  Refresh,
   Eye,
-  AlertCircle,
+  Alert,
   Plus,
-  LogIn,
+  Login,
   Package,
   Calendar,
   Layers,
   ArrowRight,
-} from 'lucide-react';
+} from 'reicon-react';
 import { StorefrontLayout } from '../components/layout/StorefrontLayout';
 import { Button } from '../components/ui/Button';
 import {
@@ -131,7 +131,7 @@ export const JewelleryRequestsPage: React.FC = () => {
                   className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-[#FAF6F0] text-gray-700 text-xs font-semibold border border-[#E8C98A]/40 transition shadow-2xs cursor-pointer disabled:opacity-50"
                   aria-label="Refresh requests"
                 >
-                  <RefreshCw
+                  <Refresh
                     size={14}
                     className={`text-[#8C6C38] ${isLoading ? 'animate-spin' : ''}`}
                   />
@@ -156,7 +156,7 @@ export const JewelleryRequestsPage: React.FC = () => {
           {isLoaded && !isSignedIn && (
             <div className="max-w-xl mx-auto py-16 px-6 text-center rounded-2xl bg-white border border-[#E8C98A]/40 shadow-sm space-y-5">
               <div className="w-14 h-14 bg-[#E8C98A]/20 rounded-full flex items-center justify-center mx-auto text-[#8C6C38]">
-                <LogIn size={26} />
+                <Login size={26} />
               </div>
               <div className="space-y-2">
                 <h2 className="font-serif text-xl sm:text-2xl font-bold text-[#28040B]">
@@ -169,7 +169,7 @@ export const JewelleryRequestsPage: React.FC = () => {
               <div className="pt-2">
                 <SignInButton mode="modal">
                   <Button variant="gold" size="md" className="gap-2 cursor-pointer shadow-sm">
-                    <LogIn size={16} />
+                    <Login size={16} />
                     <span>SIGN IN TO YOUR ACCOUNT</span>
                   </Button>
                 </SignInButton>
@@ -184,7 +184,7 @@ export const JewelleryRequestsPage: React.FC = () => {
               {error && (
                 <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs sm:text-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
                   <div className="flex items-center gap-2.5">
-                    <AlertCircle size={18} className="text-red-600 shrink-0" />
+                    <Alert size={18} className="text-red-600 shrink-0" />
                     <span>{error}</span>
                   </div>
                   <button

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Search, ShoppingBag, Menu, User, Heart, ChevronDown, Sparkles, ArrowRight } from 'lucide-react';
+import { Search, ShoppingBag, Menu, User, Heart, ChevronDown, ArrowRight } from 'reicon-react';
 import { useScrollPosition } from '../../hooks/useScrollPosition';
 import { useCart } from '../../context/CartContext';
 import { useWishlist } from '../../context/WishlistContext';
@@ -187,17 +187,14 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMobileMenu }
               Best Sellers
             </Link>
 
-            {/* Request Jewellery - High-Priority Core USP Highlight */}
+            {/* Request Jewellery */}
             <Link
               to="/request-jewellery"
-              className={`group relative flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12.5px] xl:text-[13px] font-medium tracking-[0.02em] transition-all duration-200 cursor-pointer ${
-                isRequestActive
-                  ? 'bg-[#E8C98A] text-[#2A0008] font-semibold shadow-md shadow-[#E8C98A]/20'
-                  : 'bg-gradient-to-r from-[#E8C98A]/15 to-[#FFE3C7]/10 text-[#FFE3C7] hover:text-[#FFFFFF] border border-[#E8C98A]/40 hover:border-[#E8C98A] hover:bg-[#E8C98A]/25 shadow-xs'
+              className={`text-[13px] xl:text-[13.5px] font-medium tracking-[0.03em] transition-colors py-1 ${
+                isRequestActive ? 'text-[#E8C98A] font-semibold' : 'text-[#F8F1E3]/90 hover:text-[#E8C98A]'
               }`}
             >
-              <Sparkles size={13} className={`transition-transform duration-300 group-hover:rotate-12 ${isRequestActive ? 'text-[#2A0008]' : 'text-[#E8C98A]'}`} />
-              <span>Request Jewellery</span>
+              Request Jewellery
             </Link>
           </nav>
 

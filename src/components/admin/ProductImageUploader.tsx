@@ -1,14 +1,14 @@
 import React, { useState, useRef } from 'react';
 import { useAuth } from '@clerk/react';
 import {
-  UploadCloud,
-  Loader2,
-  AlertCircle,
-  RefreshCw,
+  Upload,
+  Loader,
+  Alert,
+  Refresh,
   Link as LinkIcon,
-  Trash2,
-  CheckCircle2,
-} from 'lucide-react';
+  Trash,
+  TickCircle,
+} from 'reicon-react';
 
 interface ProductImageUploaderProps {
   label: string;
@@ -188,14 +188,14 @@ export const ProductImageUploader: React.FC<ProductImageUploaderProps> = ({
             />
             {isUploading && (
               <div className="absolute inset-0 bg-black/80 flex items-center justify-center">
-                <Loader2 className="w-5 h-5 text-[#D6B878] animate-spin" />
+                <Loader className="w-5 h-5 text-[#D6B878] animate-spin" />
               </div>
             )}
           </div>
 
           <div className="flex-1 min-w-0 space-y-1 text-center sm:text-left">
             <div className="flex items-center justify-center sm:justify-start gap-1.5 text-[11px] text-emerald-400 font-medium">
-              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+              <TickCircle className="w-3.5 h-3.5 shrink-0" />
               <span>Image Active</span>
             </div>
             <p className="text-[10px] font-mono text-white/50 truncate max-w-xs">{value}</p>
@@ -213,9 +213,9 @@ export const ProductImageUploader: React.FC<ProductImageUploaderProps> = ({
               title="Replace image"
             >
               {isUploading ? (
-                <Loader2 className="w-3 h-3 animate-spin" />
+                <Loader className="w-3 h-3 animate-spin" />
               ) : (
-                <RefreshCw className="w-3 h-3 text-[#D6B878]" />
+                <Refresh className="w-3 h-3 text-[#D6B878]" />
               )}
               <span>Replace</span>
             </button>
@@ -226,7 +226,7 @@ export const ProductImageUploader: React.FC<ProductImageUploaderProps> = ({
               className="p-1.5 rounded-lg bg-red-950/40 hover:bg-red-900/60 text-red-400 transition cursor-pointer disabled:opacity-50"
               title="Remove image"
             >
-              <Trash2 className="w-3.5 h-3.5" />
+              <Trash className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
@@ -263,7 +263,7 @@ export const ProductImageUploader: React.FC<ProductImageUploaderProps> = ({
         >
           {isUploading ? (
             <div className="flex flex-col items-center gap-2 py-2">
-              <Loader2 className="w-7 h-7 text-[#D6B878] animate-spin" />
+              <Loader className="w-7 h-7 text-[#D6B878] animate-spin" />
               <p className="text-xs font-semibold text-white">
                 Uploading to Alongkar Cloudinary...
               </p>
@@ -274,7 +274,7 @@ export const ProductImageUploader: React.FC<ProductImageUploaderProps> = ({
           ) : (
             <div className="flex flex-col items-center gap-2">
               <div className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-[#D6B878] group-hover:scale-105 transition">
-                <UploadCloud className="w-5 h-5" />
+                <Upload className="w-5 h-5" />
               </div>
               <div>
                 <p className="text-xs font-medium text-white">
@@ -295,7 +295,7 @@ export const ProductImageUploader: React.FC<ProductImageUploaderProps> = ({
       {/* Error Displays */}
       {uploadError && (
         <div className="p-2.5 rounded-lg bg-red-950/70 border border-red-500/30 text-red-300 text-[11px] flex items-center gap-2">
-          <AlertCircle className="w-3.5 h-3.5 shrink-0 text-red-400" />
+          <Alert className="w-3.5 h-3.5 shrink-0 text-red-400" />
           <span className="flex-1">{uploadError}</span>
           <button
             type="button"
@@ -309,7 +309,7 @@ export const ProductImageUploader: React.FC<ProductImageUploaderProps> = ({
 
       {error && !uploadError && (
         <p className="text-[10px] text-red-400 mt-1 flex items-center gap-1">
-          <AlertCircle className="w-3 h-3" />
+          <Alert className="w-3 h-3" />
           <span>{error}</span>
         </p>
       )}

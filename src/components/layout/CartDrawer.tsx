@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Trash2, Plus, Minus, ShoppingBag, ShieldCheck, ArrowRight } from 'lucide-react';
+import { X, Trash, Plus, Minus, ShoppingBag, ShieldTick, ArrowRight } from 'reicon-react';
 import { useCart } from '../../context/CartContext';
 import { formatPrice } from '../../lib/utils';
 import { Button } from '../ui/Button';
@@ -109,7 +109,7 @@ export const CartDrawer: React.FC = () => {
                             className="text-gray-400 hover:text-burgundy transition-colors p-1"
                             aria-label="Remove item"
                           >
-                            <Trash2 size={15} />
+                            <Trash size={15} />
                           </button>
                         </div>
                         <p className="text-[11px] text-gold font-medium mt-1">
@@ -184,7 +184,7 @@ export const CartDrawer: React.FC = () => {
                 </Button>
 
                 <div className="flex items-center justify-center gap-2 text-[10px] text-gray-500 pt-1">
-                  <ShieldCheck size={14} className="text-gold" />
+                  <ShieldTick size={14} className="text-gold" />
                   <span>100% Secure Checkout • Quality Guaranteed</span>
                 </div>
               </div>

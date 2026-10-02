@@ -4,7 +4,7 @@ import { fetchProducts } from '../services/productApi';
 import { ProductCard } from '../components/products/ProductCard';
 import { StorefrontLayout } from '../components/layout/StorefrontLayout';
 import type { Product } from '../types';
-import { Filter, X, Loader2, AlertCircle, RefreshCw, ShoppingBag, ArrowRight } from 'lucide-react';
+import { Filter, X, Loader, Alert, Refresh, ShoppingBag, ArrowRight } from 'reicon-react';
 import { SectionHeading } from '../components/ui/SectionHeading';
 
 interface ShopPageProps {
@@ -115,7 +115,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onQuickView }) => {
           {/* Loading State */}
           {isLoading && (
             <div className="py-24 text-center bg-[#FAF7F2] rounded-xl border border-[#E8C98A]/20 p-8 space-y-4">
-              <Loader2 size={36} className="mx-auto text-[#B08D57] animate-spin" />
+              <Loader size={36} className="mx-auto text-[#B08D57] animate-spin" />
               <h3 className="font-serif text-lg font-semibold text-[#211A17]">
                 Retrieving Royal Jewellery Collection
               </h3>
@@ -129,7 +129,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onQuickView }) => {
           {!isLoading && error && (
             <div className="py-16 text-center bg-[#FAF7F2] rounded-xl border border-red-200 p-8 space-y-4">
               <div className="w-12 h-12 rounded-full bg-red-50 text-red-700 flex items-center justify-center mx-auto">
-                <AlertCircle size={24} />
+                <Alert size={24} />
               </div>
               <h3 className="font-serif text-lg font-semibold text-red-900">
                 Failed to Load Products
@@ -139,7 +139,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onQuickView }) => {
                 onClick={loadProducts}
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#2A0008] text-[#E8C98A] text-xs font-semibold uppercase tracking-wider hover:bg-[#3D0010] transition-colors cursor-pointer"
               >
-                <RefreshCw size={14} />
+                <Refresh size={14} />
                 <span>Retry Loading</span>
               </button>
             </div>

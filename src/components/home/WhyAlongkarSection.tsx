@@ -1,19 +1,19 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Award, ShieldCheck, Truck, Sparkles } from 'lucide-react';
+import { Trophy, ShieldTick, Truck, Sparkles } from 'reicon-react';
 import { SectionHeading } from '../ui/SectionHeading';
 
 export const WhyAlongkarSection: React.FC = () => {
   const features = [
     {
       step: '01',
-      icon: Award,
+      icon: Trophy,
       title: '24K Micron Gold Bond',
       description: 'Electroplated with pure 24K bullion gold over hypoallergenic brass for authentic heirloom radiance.',
     },
     {
       step: '02',
-      icon: ShieldCheck,
+      icon: ShieldTick,
       title: 'Heirloom Anti-Tarnish',
       description: 'Treated with an invisible protective shield to withstand Indian weather, moisture, and daily wear.',
     },

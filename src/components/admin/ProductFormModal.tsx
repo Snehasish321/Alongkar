@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Sparkles, Loader2, AlertCircle } from 'lucide-react';
+import { X, Sparkles, Loader, Alert } from 'reicon-react';
 import type { Product } from '../../types';
 import { ProductImageUploader } from './ProductImageUploader';
 
@@ -239,7 +239,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
         <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-6 flex-1 text-xs">
           {apiError && (
             <div className="p-3.5 rounded-xl bg-red-950/70 border border-red-500/40 text-red-300 flex items-start gap-2.5">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <Alert className="w-4 h-4 shrink-0 mt-0.5" />
               <div>
                 <p className="font-semibold text-xs text-red-200">API Error</p>
                 <p className="text-[11px] text-red-300/90">{apiError}</p>
@@ -570,7 +570,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
           >
             {isLoading ? (
               <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <Loader className="w-3.5 h-3.5 animate-spin" />
                 <span>Saving to Database...</span>
               </>
             ) : (

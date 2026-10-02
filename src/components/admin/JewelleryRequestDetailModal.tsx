@@ -1,20 +1,20 @@
 import React, { useState } from 'react';
 import {
   X,
-  ExternalLink,
+  LinkSquare,
   Phone,
-  Mail,
+  Sms,
   Clock,
-  Gem,
-  AlertCircle,
-  CheckCircle2,
-  XCircle,
+  Diamonds,
+  Alert,
+  TickCircle,
+  XCircle2,
   FileText,
-  Loader2,
+  Loader,
   ArrowRight,
   ShieldAlert,
   Link2,
-} from 'lucide-react';
+} from 'reicon-react';
 
 export interface AdminJewelleryRequest {
   id: string;
@@ -133,19 +133,19 @@ export const JewelleryRequestDetailModal: React.FC<JewelleryRequestDetailModalPr
       case 'UNDER_REVIEW':
         return (
           <span className="px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-blue-500/15 border border-blue-500/30 text-blue-300 flex items-center gap-1.5">
-            <Loader2 size={12} className="animate-spin" /> Under Review
+            <Loader size={12} className="animate-spin" /> Under Review
           </span>
         );
       case 'QUOTE_SENT':
         return (
           <span className="px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 flex items-center gap-1.5">
-            <CheckCircle2 size={12} /> Sourceable (Quote Sent)
+            <TickCircle size={12} /> Sourceable (QuoteDown Sent)
           </span>
         );
       case 'NOT_SOURCEABLE':
         return (
           <span className="px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-rose-500/15 border border-rose-500/30 text-rose-300 flex items-center gap-1.5">
-            <XCircle size={12} /> Not Sourceable
+            <XCircle2 size={12} /> Not Sourceable
           </span>
         );
       default:
@@ -175,7 +175,7 @@ export const JewelleryRequestDetailModal: React.FC<JewelleryRequestDetailModalPr
         <div className="p-5 sm:p-6 border-b border-white/10 flex items-center justify-between bg-[#180F20] shrink-0">
           <div className="flex items-wrap items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-[#40000D] border border-[#D6B878]/30 flex items-center justify-center text-[#D6B878] shrink-0">
-              <Gem size={20} />
+              <Diamonds size={20} />
             </div>
             <div>
               <div className="flex items-center gap-2.5">
@@ -208,7 +208,7 @@ export const JewelleryRequestDetailModal: React.FC<JewelleryRequestDetailModalPr
         >
           {actionError && (
             <div className="p-3.5 rounded-xl bg-red-950/70 border border-red-500/40 text-red-200 flex items-center gap-2">
-              <AlertCircle size={16} className="shrink-0 text-red-400" />
+              <Alert size={16} className="shrink-0 text-red-400" />
               <span>{actionError}</span>
             </div>
           )}
@@ -228,7 +228,7 @@ export const JewelleryRequestDetailModal: React.FC<JewelleryRequestDetailModalPr
                     className="text-[11px] text-[#D6B878] hover:underline flex items-center gap-1 font-medium"
                   >
                     <span>Open Reference</span>
-                    <ExternalLink size={10} />
+                    <LinkSquare size={10} />
                   </a>
                 </div>
                 
@@ -254,7 +254,7 @@ export const JewelleryRequestDetailModal: React.FC<JewelleryRequestDetailModalPr
                       className="px-2 py-1 rounded bg-[#D6B878]/20 hover:bg-[#D6B878]/30 border border-[#D6B878]/40 text-[#FFE3C7] text-[10px] font-semibold shrink-0 flex items-center gap-1 transition"
                     >
                       <span>Visit</span>
-                      <ExternalLink size={10} />
+                      <LinkSquare size={10} />
                     </a>
                   </div>
                 </div>
@@ -277,7 +277,7 @@ export const JewelleryRequestDetailModal: React.FC<JewelleryRequestDetailModalPr
                   </div>
                   {request.customerEmail && (
                     <div className="flex items-center gap-2">
-                      <Mail size={14} className="text-[#D6B878] shrink-0" />
+                      <Sms size={14} className="text-[#D6B878] shrink-0" />
                       <a
                         href={`mailto:${request.customerEmail}`}
                         className="truncate hover:text-[#D6B878] transition"
@@ -384,7 +384,7 @@ export const JewelleryRequestDetailModal: React.FC<JewelleryRequestDetailModalPr
                         disabled={isUpdating}
                         className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#40000D] to-[#5A0015] border border-[#D6B878]/40 text-[#FFE3C7] text-xs font-semibold hover:brightness-110 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                       >
-                        {isUpdating ? <Loader2 size={14} className="animate-spin" /> : <ArrowRight size={14} />}
+                        {isUpdating ? <Loader size={14} className="animate-spin" /> : <ArrowRight size={14} />}
                         <span>Mark Under Review</span>
                       </button>
 
@@ -393,7 +393,7 @@ export const JewelleryRequestDetailModal: React.FC<JewelleryRequestDetailModalPr
                         disabled={isUpdating}
                         className="py-2.5 px-4 rounded-xl bg-red-950/40 hover:bg-red-900/60 border border-red-500/30 text-red-300 text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                       >
-                        <XCircle size={14} />
+                        <XCircle2 size={14} />
                         <span>Not Sourceable</span>
                       </button>
                     </div>
@@ -411,8 +411,8 @@ export const JewelleryRequestDetailModal: React.FC<JewelleryRequestDetailModalPr
                         disabled={isUpdating}
                         className="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-800 to-emerald-700 border border-emerald-500/40 text-emerald-100 text-xs font-semibold hover:brightness-110 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-md"
                       >
-                        {isUpdating ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
-                        <span>Mark Sourceable (Progress to Quote)</span>
+                        {isUpdating ? <Loader size={14} className="animate-spin" /> : <TickCircle size={14} />}
+                        <span>Mark Sourceable (Progress to QuoteDown)</span>
                       </button>
 
                       <button
@@ -420,7 +420,7 @@ export const JewelleryRequestDetailModal: React.FC<JewelleryRequestDetailModalPr
                         disabled={isUpdating}
                         className="py-2.5 px-4 rounded-xl bg-red-950/40 hover:bg-red-900/60 border border-red-500/30 text-red-300 text-xs font-semibold transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                       >
-                        <XCircle size={14} />
+                        <XCircle2 size={14} />
                         <span>Not Sourceable</span>
                       </button>
                     </div>
@@ -429,7 +429,7 @@ export const JewelleryRequestDetailModal: React.FC<JewelleryRequestDetailModalPr
 
                 {request.status === 'QUOTE_SENT' && (
                   <div className="p-3 rounded-lg bg-emerald-950/30 border border-emerald-500/20 text-emerald-300 text-xs flex items-center gap-2">
-                    <CheckCircle2 size={16} className="shrink-0 text-emerald-400" />
+                    <TickCircle size={16} className="shrink-0 text-emerald-400" />
                     <span>
                       Request is marked <strong>Sourceable</strong>. Quotation and advance payment workflow will be managed in upcoming tasks.
                     </span>
@@ -438,7 +438,7 @@ export const JewelleryRequestDetailModal: React.FC<JewelleryRequestDetailModalPr
 
                 {request.status === 'NOT_SOURCEABLE' && (
                   <div className="p-3 rounded-lg bg-rose-950/30 border border-rose-500/20 text-rose-300 text-xs flex items-center gap-2">
-                    <XCircle size={16} className="shrink-0 text-rose-400" />
+                    <XCircle2 size={16} className="shrink-0 text-rose-400" />
                     <span>
                       This request has been marked <strong>Not Sourceable</strong>.
                     </span>
@@ -467,7 +467,7 @@ export const JewelleryRequestDetailModal: React.FC<JewelleryRequestDetailModalPr
                         disabled={isUpdating}
                         className="px-3.5 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-xs font-semibold text-white transition flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                       >
-                        {isUpdating ? <Loader2 size={12} className="animate-spin" /> : null}
+                        {isUpdating ? <Loader size={12} className="animate-spin" /> : null}
                         <span>Confirm Not Sourceable</span>
                       </button>
                     </div>
