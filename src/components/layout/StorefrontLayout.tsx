@@ -12,6 +12,48 @@ const CartDrawer = lazy(() => import('./CartDrawer').then((m) => ({ default: m.C
 const WishlistDrawer = lazy(() => import('./WishlistDrawer').then((m) => ({ default: m.WishlistDrawer })));
 const MobileMenu = lazy(() => import('./MobileMenu').then((m) => ({ default: m.MobileMenu })));
 
+/**
+ * Isolated wrapper for CartDrawer so CartContext subscriptions
+ * do not trigger re-renders of StorefrontLayout or its page children ({children}).
+ */
+const IsolatedCartDrawer: React.FC = () => {
+  const { isCartOpen } = useCart();
+  const [hasOpened, setHasOpened] = useState(false);
+
+  useEffect(() => {
+    if (isCartOpen && !hasOpened) {
+      setHasOpened(true);
+    }
+  }, [isCartOpen, hasOpened]);
+
+  if (!isCartOpen && !hasOpened) {
+    return null;
+  }
+
+  return <CartDrawer />;
+};
+
+/**
+ * Isolated wrapper for WishlistDrawer so WishlistContext subscriptions
+ * do not trigger re-renders of StorefrontLayout or its page children ({children}).
+ */
+const IsolatedWishlistDrawer: React.FC = () => {
+  const { isWishlistOpen } = useWishlist();
+  const [hasOpened, setHasOpened] = useState(false);
+
+  useEffect(() => {
+    if (isWishlistOpen && !hasOpened) {
+      setHasOpened(true);
+    }
+  }, [isWishlistOpen, hasOpened]);
+
+  if (!isWishlistOpen && !hasOpened) {
+    return null;
+  }
+
+  return <WishlistDrawer />;
+};
+
 interface StorefrontLayoutProps {
   children: React.ReactNode;
 }
@@ -21,21 +63,7 @@ export const StorefrontLayout: React.FC<StorefrontLayoutProps> = ({ children }) 
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [hasOpenedSearch, setHasOpenedSearch] = useState(false);
   const [hasOpenedMobileMenu, setHasOpenedMobileMenu] = useState(false);
-  const [hasOpenedCart, setHasOpenedCart] = useState(false);
-  const [hasOpenedWishlist, setHasOpenedWishlist] = useState(false);
-
-  const { isCartOpen } = useCart();
-  const { isWishlistOpen } = useWishlist();
   const navigate = useNavigate();
-
-  // Keep drawers in memory after first opening so AnimatePresence exit animations play smoothly
-  useEffect(() => {
-    if (isCartOpen && !hasOpenedCart) setHasOpenedCart(true);
-  }, [isCartOpen, hasOpenedCart]);
-
-  useEffect(() => {
-    if (isWishlistOpen && !hasOpenedWishlist) setHasOpenedWishlist(true);
-  }, [isWishlistOpen, hasOpenedWishlist]);
 
   const handleOpenSearch = () => {
     setHasOpenedSearch(true);
@@ -80,11 +108,11 @@ export const StorefrontLayout: React.FC<StorefrontLayoutProps> = ({ children }) 
           />
         )}
 
-        {/* Slide-over Cart Drawer */}
-        {(isCartOpen || hasOpenedCart) && <CartDrawer />}
+        {/* Slide-over Cart Drawer (Isolated from StorefrontLayout renders) */}
+        <IsolatedCartDrawer />
 
-        {/* Slide-over Wishlist Drawer */}
-        {(isWishlistOpen || hasOpenedWishlist) && <WishlistDrawer />}
+        {/* Slide-over Wishlist Drawer (Isolated from StorefrontLayout renders) */}
+        <IsolatedWishlistDrawer />
 
         {/* Responsive Mobile Drawer */}
         {(isMobileMenuOpen || hasOpenedMobileMenu) && (
@@ -97,4 +125,5 @@ export const StorefrontLayout: React.FC<StorefrontLayoutProps> = ({ children }) 
     </div>
   );
 };
+
 
