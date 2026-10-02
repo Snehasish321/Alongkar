@@ -1,6 +1,5 @@
 import React, { useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
-import { ReactLenis, useLenis } from 'lenis/react';
 import { CartProvider } from './context/CartContext';
 import { WishlistProvider } from './context/WishlistContext';
 import { HomePage } from './pages/HomePage';
@@ -43,15 +42,20 @@ const AdminJewelleryRequestsPage = lazy(() =>
 
 function ScrollToTopOnNavigate() {
   const location = useLocation();
-  const lenis = useLenis();
 
   useEffect(() => {
-    if (lenis) {
-      lenis.scrollTo(0, { immediate: true });
+    const globalLenis = (
+      window as unknown as {
+        __lenis?: { scrollTo: (target: number, opts?: { immediate: boolean }) => void };
+      }
+    ).__lenis;
+
+    if (globalLenis && typeof globalLenis.scrollTo === 'function') {
+      globalLenis.scrollTo(0, { immediate: true });
     } else {
       window.scrollTo(0, 0);
     }
-  }, [location.pathname, lenis]);
+  }, [location.pathname]);
 
   return null;
 }
@@ -142,16 +146,32 @@ export const AppContent: React.FC = () => {
 };
 
 function DeferredLenis() {
-  const [isMounted, setIsMounted] = React.useState(false);
-
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
+    let isCancelled = false;
+    let lenisInstance: { destroy: () => void } | null = null;
     let idleId: number | undefined;
     let timerId: ReturnType<typeof setTimeout> | undefined;
 
-    const initialize = () => {
-      setIsMounted(true);
+    const initialize = async () => {
+      if (isCancelled) return;
+      try {
+        const { default: Lenis } = await import('lenis');
+        if (isCancelled) return;
+
+        lenisInstance = new Lenis({
+          lerp: 0.09,
+          duration: 1.2,
+          smoothWheel: true,
+          syncTouch: false,
+          autoRaf: true,
+        });
+
+        (window as unknown as { __lenis?: unknown }).__lenis = lenisInstance;
+      } catch (err) {
+        console.error('Failed to dynamically initialize Lenis smooth scroll:', err);
+      }
     };
 
     if ('requestIdleCallback' in window) {
@@ -161,31 +181,21 @@ function DeferredLenis() {
     }
 
     return () => {
+      isCancelled = true;
       if (idleId !== undefined && 'cancelIdleCallback' in window) {
         window.cancelIdleCallback(idleId);
       }
       if (timerId !== undefined) {
         clearTimeout(timerId);
       }
+      if (lenisInstance) {
+        lenisInstance.destroy();
+        (window as unknown as { __lenis?: unknown }).__lenis = null;
+      }
     };
   }, []);
 
-  if (!isMounted) {
-    return null;
-  }
-
-  return (
-    <ReactLenis
-      root
-      options={{
-        lerp: 0.09,
-        duration: 1.2,
-        smoothWheel: true,
-        syncTouch: false,
-        autoRaf: true,
-      }}
-    />
-  );
+  return null;
 }
 
 export default function App() {

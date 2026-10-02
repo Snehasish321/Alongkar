@@ -80,6 +80,9 @@ export default defineConfig({
             if (id.includes('framer-motion') || id.includes('lucide-react')) {
               return 'vendor-ui';
             }
+            if (id.includes('lenis')) {
+              return undefined;
+            }
             return 'vendor';
           }
         },
