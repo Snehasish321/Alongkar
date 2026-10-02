@@ -1,8 +1,22 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ChevronRight, ChevronDown, User, Sparkles, ShoppingBag, PackageSearch, HelpCircle, RotateCcw, Clock } from 'lucide-react';
-import { SignInButton, Show, UserButton } from '@clerk/react';
+import {
+  X,
+  ChevronRight,
+  ChevronDown,
+  User,
+  Sparkles,
+  ShoppingBag,
+  PackageSearch,
+  HelpCircle,
+  RotateCcw,
+  Clock,
+  Package,
+  Settings,
+  LogOut,
+} from 'lucide-react';
+import { SignInButton, Show, useUser, useClerk } from '@clerk/react';
 
 interface MobileMenuProps {
   isOpen: boolean;
@@ -11,6 +25,8 @@ interface MobileMenuProps {
 
 export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
   const location = useLocation();
+  const { user } = useUser();
+  const clerk = useClerk();
   const [isShopExpanded, setIsShopExpanded] = useState(false);
 
   const categories = [
@@ -188,21 +204,75 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
             </div>
 
             {/* Footer / Account Authentication */}
-            <div className="p-4 border-t border-white/10 bg-[#28040B]/80">
+            <div className="p-4 border-t border-white/10 bg-[#28040B]/80 space-y-3">
               <Show when="signed-in">
-                <div className="flex items-center justify-between">
+                <div className="space-y-3">
                   <div className="flex items-center gap-3">
-                    <UserButton />
-                    <div>
-                      <p className="text-xs font-semibold text-[#FFE3C7]">My Account</p>
-                      <Link
-                        to="/track"
-                        onClick={onClose}
-                        className="text-[11px] text-[#E8C98A] hover:underline"
-                      >
-                        Track Active Orders
-                      </Link>
+                    {user?.imageUrl ? (
+                      <img
+                        src={user.imageUrl}
+                        alt={user.fullName || 'User'}
+                        className="w-9 h-9 rounded-full object-cover border border-[#E8C98A]/40 shrink-0"
+                      />
+                    ) : (
+                      <div className="w-9 h-9 rounded-full bg-[#E8C98A]/20 border border-[#E8C98A]/40 flex items-center justify-center text-[#E8C98A] shrink-0 font-serif font-bold text-xs">
+                        {(user?.fullName || user?.firstName || 'A').charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-[#FFE3C7] truncate">
+                        {user?.fullName || user?.firstName || 'Alongkar Client'}
+                      </p>
+                      {user?.primaryEmailAddress?.emailAddress && (
+                        <p className="text-[10px] text-[#F8F1E3]/60 truncate font-normal">
+                          {user.primaryEmailAddress.emailAddress}
+                        </p>
+                      )}
                     </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 pt-1 border-t border-white/10">
+                    <Link
+                      to="/orders"
+                      onClick={onClose}
+                      className="flex items-center gap-2 p-2 rounded-lg bg-white/5 hover:bg-[#E8C98A]/15 border border-[#E8C98A]/20 text-[11px] font-medium text-[#FFE3C7] transition-colors"
+                    >
+                      <Package size={14} className="text-[#E8C98A]" />
+                      <span>My Orders</span>
+                    </Link>
+                    <Link
+                      to="/jewellery-requests"
+                      onClick={onClose}
+                      className="flex items-center gap-2 p-2 rounded-lg bg-white/5 hover:bg-[#E8C98A]/15 border border-[#E8C98A]/20 text-[11px] font-medium text-[#FFE3C7] transition-colors"
+                    >
+                      <Sparkles size={14} className="text-[#E8C98A]" />
+                      <span>Requests</span>
+                    </Link>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1 text-[11px] text-[#F8F1E3]/70">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        clerk.openUserProfile();
+                      }}
+                      className="hover:text-[#E8C98A] transition-colors cursor-pointer flex items-center gap-1"
+                    >
+                      <Settings size={13} />
+                      <span>Account Settings</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        onClose();
+                        await clerk.signOut();
+                      }}
+                      className="text-red-300 hover:text-red-200 transition-colors cursor-pointer flex items-center gap-1"
+                    >
+                      <LogOut size={13} />
+                      <span>Sign Out</span>
+                    </button>
                   </div>
                 </div>
               </Show>

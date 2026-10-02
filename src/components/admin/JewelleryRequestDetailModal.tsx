@@ -67,6 +67,34 @@ export const JewelleryRequestDetailModal: React.FC<JewelleryRequestDetailModalPr
     setConfirmRejectOpen(false);
   }
 
+  // Lock body scroll when modal is open
+  React.useEffect(() => {
+    if (!isOpen) return;
+
+    const originalOverflow = document.body.style.overflow;
+    const originalPaddingRight = document.body.style.paddingRight;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.body.style.paddingRight = originalPaddingRight;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, onClose]);
+
   if (!isOpen || !request) return null;
 
   const handleAction = async (status: string) => {
@@ -130,11 +158,22 @@ export const JewelleryRequestDetailModal: React.FC<JewelleryRequestDetailModalPr
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto bg-black/80 backdrop-blur-sm">
-      <div className="relative w-full max-w-4xl bg-[#140B1A] border border-[#D6B878]/30 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/80 backdrop-blur-sm"
+      data-lenis-prevent
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !isUpdating) {
+          onClose();
+        }
+      }}
+    >
+      <div
+        className="relative w-full max-w-4xl bg-[#140B1A] border border-[#D6B878]/30 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] overscroll-contain"
+        data-lenis-prevent
+      >
         {/* Header */}
-        <div className="p-5 sm:p-6 border-b border-white/10 flex items-center justify-between bg-[#180F20]">
-          <div className="flex flex-wrap items-center gap-3">
+        <div className="p-5 sm:p-6 border-b border-white/10 flex items-center justify-between bg-[#180F20] shrink-0">
+          <div className="flex items-wrap items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-[#40000D] border border-[#D6B878]/30 flex items-center justify-center text-[#D6B878] shrink-0">
               <Gem size={20} />
             </div>
@@ -162,7 +201,11 @@ export const JewelleryRequestDetailModal: React.FC<JewelleryRequestDetailModalPr
         </div>
 
         {/* Scrollable Content */}
-        <div className="p-5 sm:p-6 overflow-y-auto space-y-6 text-xs text-[#EDE4D5]">
+        <div
+          className="p-5 sm:p-6 overflow-y-auto flex-1 min-h-0 overscroll-contain space-y-6 text-xs text-[#EDE4D5] no-scrollbar scrollbar-none"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+          data-lenis-prevent
+        >
           {actionError && (
             <div className="p-3.5 rounded-xl bg-red-950/70 border border-red-500/40 text-red-200 flex items-center gap-2">
               <AlertCircle size={16} className="shrink-0 text-red-400" />

@@ -10,6 +10,7 @@ import { CollectionsPage } from './pages/CollectionsPage';
 import { AboutPage } from './pages/AboutPage';
 import { ContactPage } from './pages/ContactPage';
 import { RequestJewelleryPage } from './pages/RequestJewelleryPage';
+import { JewelleryRequestsPage } from './pages/JewelleryRequestsPage';
 import { PlaceholderPage } from './pages/PlaceholderPage';
 import { AdminRouteGuard } from './components/admin/AdminRouteGuard';
 import { AdminLayout } from './pages/admin/AdminLayout';
@@ -63,6 +64,19 @@ export const AppContent: React.FC = () => {
               subtitle="Track production milestones for handcrafted artisan jewelry orders."
             />
           }
+        />
+        <Route
+          path="/orders"
+          element={
+            <PlaceholderPage
+              title="My Orders"
+              subtitle="View and track your jewellery purchases and order shipments."
+            />
+          }
+        />
+        <Route
+          path="/jewellery-requests"
+          element={<JewelleryRequestsPage />}
         />
         <Route
           path="/track"

@@ -4,7 +4,8 @@ import { Search, ShoppingBag, Menu, User, Heart, ChevronDown, Sparkles, ArrowRig
 import { useScrollPosition } from '../../hooks/useScrollPosition';
 import { useCart } from '../../context/CartContext';
 import { useWishlist } from '../../context/WishlistContext';
-import { SignInButton, Show, UserButton } from '@clerk/react';
+import { SignInButton, Show } from '@clerk/react';
+import { CustomerMenu } from './CustomerMenu';
 
 interface NavbarProps {
   onOpenSearch: () => void;
@@ -239,13 +240,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMobileMenu }
             {/* Clerk Authentication / Profile Button */}
             <div className="flex items-center">
               <Show when="signed-in">
-                <UserButton
-                  appearance={{
-                    elements: {
-                      avatarBox: 'w-7 h-7 ring-1 ring-[#E8C98A]/60',
-                    },
-                  }}
-                />
+                <CustomerMenu />
               </Show>
               <Show when="signed-out">
                 <SignInButton mode="modal">
