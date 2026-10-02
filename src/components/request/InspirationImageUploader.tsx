@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   ExternalLink,
   Sparkles,
+  Ban,
 } from 'lucide-react';
 
 interface InspirationImageUploaderProps {
@@ -16,6 +17,7 @@ interface InspirationImageUploaderProps {
   onChange: (url: string) => void;
   error?: string;
   disabled?: boolean;
+  disabledMessage?: string;
   onUploadStateChange?: (isUploading: boolean) => void;
 }
 
@@ -28,6 +30,7 @@ export const InspirationImageUploader: React.FC<InspirationImageUploaderProps> =
   onChange,
   error,
   disabled = false,
+  disabledMessage,
   onUploadStateChange,
 }) => {
   const { getToken, isSignedIn } = useAuth();
@@ -49,7 +52,7 @@ export const InspirationImageUploader: React.FC<InspirationImageUploaderProps> =
   };
 
   const handleFileUpload = async (file: File) => {
-    if (!file) return;
+    if (!file || disabled) return;
 
     setUploadError(null);
 
@@ -158,6 +161,7 @@ export const InspirationImageUploader: React.FC<InspirationImageUploaderProps> =
   };
 
   const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (disabled || isUploading) return;
     if (e.target.files && e.target.files.length > 0) {
       handleFileUpload(e.target.files[0]);
     }
@@ -176,11 +180,11 @@ export const InspirationImageUploader: React.FC<InspirationImageUploaderProps> =
           htmlFor="inspiration-image-file"
           className="block text-xs uppercase tracking-wider text-espresso font-semibold"
         >
-          Inspiration Image <span className="text-burgundy">*</span>
+          INSPIRATION IMAGE
         </label>
         {value && !isUploading && (
           <span className="text-[11px] text-emerald-700 font-medium flex items-center gap-1">
-            <CheckCircle2 size={12} /> Cloudinary CDN Ready
+            <CheckCircle2 size={12} /> Image Attached
           </span>
         )}
       </div>
@@ -257,7 +261,7 @@ export const InspirationImageUploader: React.FC<InspirationImageUploaderProps> =
             <button
               type="button"
               onClick={handleRemove}
-              disabled={disabled || isUploading}
+              disabled={isUploading}
               className="p-2 rounded-brand bg-red-50 hover:bg-red-100 text-burgundy transition border border-burgundy/20 cursor-pointer disabled:opacity-50"
               title="Remove image"
               aria-label="Remove image"
@@ -277,13 +281,16 @@ export const InspirationImageUploader: React.FC<InspirationImageUploaderProps> =
               fileInputRef.current?.click();
             }
           }}
-          className={`relative rounded-brand border-2 border-dashed p-6 sm:p-8 transition flex flex-col items-center justify-center text-center cursor-pointer ${
-            isDragging
-              ? 'border-gold bg-gold/10'
+          className={`relative rounded-brand border-2 border-dashed p-6 sm:p-7 transition flex flex-col items-center justify-center text-center ${
+            disabled
+              ? 'bg-neutral-100/60 border-neutral-300 text-neutral-400 cursor-not-allowed opacity-65 select-none'
+              : isDragging
+              ? 'border-gold bg-gold/10 cursor-copy'
               : error
-              ? 'border-burgundy/60 bg-red-50/30 hover:border-burgundy'
-              : 'border-gold/30 hover:border-gold/70 bg-ivory hover:bg-ivory-pearl'
-          } ${disabled || isUploading ? 'opacity-60 cursor-not-allowed' : ''}`}
+              ? 'border-burgundy/60 bg-red-50/30 hover:border-burgundy cursor-pointer'
+              : 'border-gold/30 hover:border-gold/70 bg-ivory hover:bg-ivory-pearl cursor-pointer'
+          }`}
+          aria-disabled={disabled}
         >
           {isUploading ? (
             <div className="flex flex-col items-center gap-2 py-2">
@@ -294,6 +301,20 @@ export const InspirationImageUploader: React.FC<InspirationImageUploaderProps> =
               <p className="text-[11px] text-gray-500">
                 Optimizing image quality and dimensions for atelier review
               </p>
+            </div>
+          ) : disabled ? (
+            <div className="flex flex-col items-center gap-2 py-1">
+              <div className="w-9 h-9 rounded-full bg-neutral-200/70 flex items-center justify-center text-neutral-400">
+                <Ban className="w-5 h-5" />
+              </div>
+              <p className="text-xs font-medium text-neutral-500">
+                Image upload is disabled
+              </p>
+              {disabledMessage && (
+                <p className="text-[11px] text-neutral-400 max-w-sm">
+                  {disabledMessage}
+                </p>
+              )}
             </div>
           ) : (
             <div className="flex flex-col items-center gap-2.5">

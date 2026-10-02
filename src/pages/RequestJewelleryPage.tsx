@@ -13,6 +13,8 @@ import {
   ShieldCheck,
   Clock,
   Gem,
+  Link2,
+  X,
 } from 'lucide-react';
 import { StorefrontLayout } from '../components/layout/StorefrontLayout';
 import { SectionHeading } from '../components/ui/SectionHeading';
@@ -36,6 +38,7 @@ interface FormState {
   jewelleryType: string;
   description: string;
   inspirationImageUrl: string;
+  inspirationLink: string;
   budget: string;
   quantity: number;
   phone: string;
@@ -45,7 +48,9 @@ interface FormState {
 interface FormErrors {
   jewelleryType?: string;
   description?: string;
+  inspiration?: string;
   inspirationImageUrl?: string;
+  inspirationLink?: string;
   quantity?: string;
   phone?: string;
   budget?: string;
@@ -60,6 +65,7 @@ export const RequestJewelleryPage: React.FC = () => {
     jewelleryType: 'Jhumka',
     description: '',
     inspirationImageUrl: '',
+    inspirationLink: '',
     budget: '',
     quantity: 1,
     phone: '',
@@ -76,6 +82,9 @@ export const RequestJewelleryPage: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [authError, setAuthError] = useState(false);
 
+  const hasImage = Boolean(formData.inspirationImageUrl.trim());
+  const hasLink = Boolean(formData.inspirationLink.trim());
+
   // Field validation
   const validateForm = (): boolean => {
     const newErrors: FormErrors = {};
@@ -88,11 +97,14 @@ export const RequestJewelleryPage: React.FC = () => {
       newErrors.description = "Please describe the design you're looking for.";
     }
 
+    // Inspiration validation: mutually exclusive (Image OR Link required)
     if (isImageUploading) {
-      newErrors.inspirationImageUrl = 'Please wait for your inspiration photo to finish uploading.';
-    } else if (!formData.inspirationImageUrl.trim()) {
-      newErrors.inspirationImageUrl = 'Please upload an inspiration photo of the jewellery design.';
-    } else {
+      newErrors.inspiration = 'Please wait for your inspiration photo to finish uploading.';
+    } else if (!hasImage && !hasLink) {
+      newErrors.inspiration = 'Please provide an inspiration image or an inspiration link.';
+    } else if (hasImage && hasLink) {
+      newErrors.inspiration = 'Please provide only one inspiration reference: an image or a link.';
+    } else if (hasImage) {
       try {
         const parsed = new URL(formData.inspirationImageUrl.trim());
         if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
@@ -100,6 +112,15 @@ export const RequestJewelleryPage: React.FC = () => {
         }
       } catch {
         newErrors.inspirationImageUrl = 'Invalid image URL received.';
+      }
+    } else if (hasLink) {
+      try {
+        const parsed = new URL(formData.inspirationLink.trim());
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+          newErrors.inspirationLink = 'Please enter a valid URL starting with http:// or https://';
+        }
+      } catch {
+        newErrors.inspirationLink = 'Please enter a valid website link (e.g. https://www.pinterest.com/pin/example/)';
       }
     }
 
@@ -131,9 +152,15 @@ export const RequestJewelleryPage: React.FC = () => {
 
   const handleFieldChange = (field: keyof FormState, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-    if (errors[field as keyof FormErrors]) {
-      setErrors((prev) => ({ ...prev, [field]: undefined, general: undefined }));
-    }
+    setErrors((prev) => {
+      const updated = { ...prev, [field]: undefined, general: undefined };
+      if (field === 'inspirationImageUrl' || field === 'inspirationLink') {
+        updated.inspiration = undefined;
+        updated.inspirationImageUrl = undefined;
+        updated.inspirationLink = undefined;
+      }
+      return updated;
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -160,7 +187,8 @@ export const RequestJewelleryPage: React.FC = () => {
       const payload = {
         jewelleryType: formData.jewelleryType.trim(),
         description: formData.description.trim(),
-        inspirationImageUrl: formData.inspirationImageUrl.trim(),
+        inspirationImageUrl: hasImage ? formData.inspirationImageUrl.trim() : '',
+        inspirationLink: hasLink ? formData.inspirationLink.trim() : '',
         quantity: formData.quantity,
         phone: formData.phone.trim(),
         budget: budgetVal,
@@ -221,6 +249,7 @@ export const RequestJewelleryPage: React.FC = () => {
       jewelleryType: 'Jhumka',
       description: '',
       inspirationImageUrl: '',
+      inspirationLink: '',
       budget: '',
       quantity: 1,
       phone: '',
@@ -444,14 +473,125 @@ export const RequestJewelleryPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Row 2: Inspiration Image Component */}
-                  <InspirationImageUploader
-                    value={formData.inspirationImageUrl}
-                    onChange={(val) => handleFieldChange('inspirationImageUrl', val)}
-                    error={errors.inspirationImageUrl}
-                    disabled={isSubmitting}
-                    onUploadStateChange={(uploading) => setIsImageUploading(uploading)}
-                  />
+                  {/* Row 2: Inspiration Reference Section (Mutually Exclusive: Link OR Image) */}
+                  <div className="space-y-4 pt-1">
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="block text-xs uppercase tracking-wider text-espresso font-semibold">
+                          Inspiration Reference <span className="text-burgundy">*</span>
+                        </span>
+                        <span className="text-[11px] text-gray-500 font-normal">
+                          Provide a link <span className="font-semibold text-espresso">OR</span> an image
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-gray-500">
+                        Provide either an inspiration link or an inspiration image.
+                      </p>
+                    </div>
+
+                    {/* General Inspiration Error */}
+                    {errors.inspiration && (
+                      <div className="p-3 rounded-brand bg-red-50 border border-burgundy/30 text-burgundy text-xs flex items-center gap-2">
+                        <AlertCircle size={14} className="shrink-0" />
+                        <span>{errors.inspiration}</span>
+                      </div>
+                    )}
+
+                    {/* 1. Inspiration Link Input */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label
+                          htmlFor="inspiration-link"
+                          className="block text-xs uppercase tracking-wider text-espresso font-semibold"
+                        >
+                          INSPIRATION LINK
+                        </label>
+                        {hasLink && !hasImage && !errors.inspirationLink && (
+                          <span className="text-[11px] text-emerald-700 font-medium flex items-center gap-1">
+                            <CheckCircle2 size={12} /> Link Attached
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="relative">
+                        <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                          <Link2 size={15} />
+                        </div>
+                        <input
+                          id="inspiration-link"
+                          type="url"
+                          disabled={hasImage || isSubmitting}
+                          value={formData.inspirationLink}
+                          onChange={(e) => {
+                            handleFieldChange('inspirationLink', e.target.value);
+                            if (errors.inspiration) {
+                              setErrors((prev) => ({ ...prev, inspiration: undefined }));
+                            }
+                          }}
+                          placeholder="Paste a link to your jewellery inspiration (Pinterest, Instagram, website, etc.)"
+                          className={`w-full bg-ivory text-xs text-espresso pl-10 pr-10 py-3 rounded-brand border transition-colors focus:outline-none focus:ring-2 ${
+                            hasImage
+                              ? 'bg-neutral-100/60 text-neutral-400 border-neutral-300 cursor-not-allowed opacity-65 select-none'
+                              : errors.inspirationLink
+                              ? 'border-burgundy focus:ring-burgundy/20'
+                              : 'border-gold/30 focus:border-gold focus:ring-gold/30'
+                          }`}
+                          aria-disabled={hasImage || isSubmitting}
+                        />
+                        {formData.inspirationLink && !hasImage && (
+                          <button
+                            type="button"
+                            onClick={() => handleFieldChange('inspirationLink', '')}
+                            className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-espresso transition cursor-pointer"
+                            title="Clear link"
+                            aria-label="Clear inspiration link"
+                          >
+                            <X size={15} />
+                          </button>
+                        )}
+                      </div>
+
+                      {hasImage ? (
+                        <p className="text-[11px] text-neutral-500 italic">
+                          An inspiration image has been uploaded. Remove it to use an inspiration link instead.
+                        </p>
+                      ) : errors.inspirationLink ? (
+                        <p className="text-xs text-burgundy flex items-center gap-1 font-medium">
+                          <AlertCircle size={13} className="shrink-0" />
+                          <span>{errors.inspirationLink}</span>
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-gray-500">
+                          Paste a link to your jewellery inspiration (Pinterest, Instagram, website, etc.)
+                        </p>
+                      )}
+                    </div>
+
+                    {/* 2. OR Divider */}
+                    <div className="relative flex items-center justify-center my-3">
+                      <div className="border-t border-gold/25 w-full"></div>
+                      <span className="bg-ivory-pearl px-3.5 py-0.5 rounded-full border border-gold/30 text-[10px] font-bold text-gold uppercase tracking-widest relative shadow-xs">
+                        OR
+                      </span>
+                    </div>
+
+                    {/* 3. Inspiration Image Uploader */}
+                    <div className="space-y-1">
+                      <InspirationImageUploader
+                        value={formData.inspirationImageUrl}
+                        onChange={(val) => {
+                          handleFieldChange('inspirationImageUrl', val);
+                          if (errors.inspiration) {
+                            setErrors((prev) => ({ ...prev, inspiration: undefined }));
+                          }
+                        }}
+                        error={errors.inspirationImageUrl}
+                        disabled={hasLink || isSubmitting}
+                        disabledMessage="An inspiration link has been added. Remove the link to upload an inspiration image instead."
+                        onUploadStateChange={(uploading) => setIsImageUploading(uploading)}
+                      />
+                    </div>
+                  </div>
 
                   {/* Row 3: Description */}
                   <div className="space-y-2">

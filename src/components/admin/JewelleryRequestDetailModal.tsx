@@ -13,6 +13,7 @@ import {
   Loader2,
   ArrowRight,
   ShieldAlert,
+  Link2,
 } from 'lucide-react';
 
 export interface AdminJewelleryRequest {
@@ -173,9 +174,21 @@ export const JewelleryRequestDetailModal: React.FC<JewelleryRequestDetailModalPr
             {/* Left: Inspiration Image & Customer Details */}
             <div className="lg:col-span-5 space-y-4">
               <div className="space-y-2">
-                <span className="text-[10px] uppercase font-bold tracking-wider text-[#D6B878] block">
-                  Inspiration Image
-                </span>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-[#D6B878] block">
+                    Inspiration Reference
+                  </span>
+                  <a
+                    href={request.inspirationImageUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[11px] text-[#D6B878] hover:underline flex items-center gap-1 font-medium"
+                  >
+                    <span>Open Reference</span>
+                    <ExternalLink size={10} />
+                  </a>
+                </div>
+                
                 <div className="relative rounded-xl border border-white/15 bg-black/60 overflow-hidden group">
                   <img
                     src={request.inspirationImageUrl}
@@ -183,18 +196,24 @@ export const JewelleryRequestDetailModal: React.FC<JewelleryRequestDetailModalPr
                     className="w-full h-56 sm:h-64 object-contain bg-black/40"
                     onError={(e) => {
                       (e.target as HTMLImageElement).src =
-                        'https://placehold.co/400x400?text=Image+Unavailable';
+                        'https://placehold.co/400x400?text=Inspiration+Link+Attached';
                     }}
                   />
-                  <a
-                    href={request.inspirationImageUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="absolute bottom-2 right-2 px-2.5 py-1.5 rounded-lg bg-black/70 backdrop-blur-xs border border-white/20 text-[#EDE4D5] hover:text-[#D6B878] text-[11px] font-medium flex items-center gap-1.5 transition"
-                  >
-                    <span>Inspect Original</span>
-                    <ExternalLink size={11} />
-                  </a>
+                  <div className="p-2.5 bg-black/80 border-t border-white/10 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 truncate text-[11px] text-white/80">
+                      <Link2 size={12} className="text-[#D6B878] shrink-0" />
+                      <span className="truncate">{request.inspirationImageUrl}</span>
+                    </div>
+                    <a
+                      href={request.inspirationImageUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2 py-1 rounded bg-[#D6B878]/20 hover:bg-[#D6B878]/30 border border-[#D6B878]/40 text-[#FFE3C7] text-[10px] font-semibold shrink-0 flex items-center gap-1 transition"
+                    >
+                      <span>Visit</span>
+                      <ExternalLink size={10} />
+                    </a>
+                  </div>
                 </div>
               </div>
 

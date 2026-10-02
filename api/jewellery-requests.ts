@@ -95,14 +95,40 @@ export function validateJewelleryRequestCreatePayload(body: any): {
     errors.push({ field: 'description', message: 'Description is required and cannot be empty' });
   }
 
-  // 3. Inspiration Image URL (required, valid HTTP/HTTPS URL)
-  if (!body.inspirationImageUrl || typeof body.inspirationImageUrl !== 'string' || body.inspirationImageUrl.trim().length === 0) {
-    errors.push({ field: 'inspirationImageUrl', message: 'Inspiration image URL is required' });
-  } else if (!isValidUrl(body.inspirationImageUrl.trim())) {
+  // 3. Inspiration Reference: Image URL OR Inspiration Link (mutually exclusive, exactly one required)
+  const rawImageUrl = typeof body.inspirationImageUrl === 'string' ? body.inspirationImageUrl.trim() : '';
+  const rawLink = typeof body.inspirationLink === 'string' ? body.inspirationLink.trim() : '';
+
+  let finalInspirationUrl = '';
+
+  if (rawImageUrl && rawLink && rawImageUrl !== rawLink) {
+    errors.push({
+      field: 'inspiration',
+      message: 'Please provide only one inspiration reference: an image or a link.',
+    });
+  } else if (!rawImageUrl && !rawLink) {
     errors.push({
       field: 'inspirationImageUrl',
-      message: 'Inspiration image URL must be a valid HTTP or HTTPS URL',
+      message: 'Please provide an inspiration image or an inspiration link.',
     });
+  } else if (rawImageUrl && (!rawLink || rawImageUrl === rawLink)) {
+    if (!isValidUrl(rawImageUrl)) {
+      errors.push({
+        field: 'inspirationImageUrl',
+        message: 'Inspiration image URL must be a valid HTTP or HTTPS URL',
+      });
+    } else {
+      finalInspirationUrl = rawImageUrl;
+    }
+  } else if (rawLink) {
+    if (!isValidUrl(rawLink)) {
+      errors.push({
+        field: 'inspirationLink',
+        message: 'Inspiration link must be a valid HTTP or HTTPS URL',
+      });
+    } else {
+      finalInspirationUrl = rawLink;
+    }
   }
 
   // 4. Quantity (optional input with default of 1, but if provided must be a positive integer)
@@ -174,7 +200,7 @@ export function validateJewelleryRequestCreatePayload(body: any): {
     data: {
       jewelleryType: body.jewelleryType.trim(),
       description: body.description.trim(),
-      inspirationImageUrl: body.inspirationImageUrl.trim(),
+      inspirationImageUrl: finalInspirationUrl,
       quantity,
       phone: body.phone.trim(),
       budget: parsedBudget,
