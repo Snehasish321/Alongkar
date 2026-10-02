@@ -80,6 +80,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMobileMenu }
           <div className="flex items-center gap-1.5 lg:hidden flex-1">
             <button
               onClick={onOpenMobileMenu}
+              onMouseEnter={() => import('./MobileMenu')}
+              onTouchStart={() => import('./MobileMenu')}
               className="p-2 text-[#F8F1E3] hover:text-[#E8C98A] transition-colors rounded-lg hover:bg-white/5 cursor-pointer"
               aria-label="Open Navigation Menu"
             >
@@ -87,6 +89,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMobileMenu }
             </button>
             <button
               onClick={onOpenSearch}
+              onMouseEnter={() => import('./SearchModal')}
+              onTouchStart={() => import('./SearchModal')}
               className="p-2 text-[#F8F1E3]/85 hover:text-[#E8C98A] transition-colors rounded-lg hover:bg-white/5 cursor-pointer"
               aria-label="Search Catalogue"
             >
@@ -217,6 +221,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMobileMenu }
             {/* Search Trigger */}
             <button
               onClick={onOpenSearch}
+              onMouseEnter={() => import('./SearchModal')}
               className="p-2 text-[#F8F1E3]/90 hover:text-[#E8C98A] transition-colors rounded-full hover:bg-white/10 cursor-pointer"
               aria-label="Search Products"
             >
@@ -226,6 +231,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMobileMenu }
             {/* Wishlist Button */}
             <button
               onClick={() => setIsWishlistOpen(true)}
+              onMouseEnter={() => import('./WishlistDrawer')}
               className="relative p-2 text-[#F8F1E3]/90 hover:text-[#E8C98A] transition-colors rounded-full hover:bg-white/10 cursor-pointer"
               aria-label="View Wishlist"
             >
@@ -257,6 +263,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMobileMenu }
             {/* Cart Button with Numeric Badge */}
             <button
               onClick={() => setIsCartOpen(true)}
+              onMouseEnter={() => import('./CartDrawer')}
               className="relative p-2 text-[#F8F1E3] hover:text-[#E8C98A] transition-transform active:scale-95 cursor-pointer rounded-full hover:bg-white/10"
               aria-label="Shopping Cart"
             >
@@ -271,6 +278,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMobileMenu }
           <div className="flex items-center justify-end lg:hidden gap-1.5 flex-1">
             <button
               onClick={() => setIsWishlistOpen(true)}
+              onMouseEnter={() => import('./WishlistDrawer')}
+              onTouchStart={() => import('./WishlistDrawer')}
               className="relative p-2 text-[#F8F1E3] hover:text-[#E8C98A] cursor-pointer"
               aria-label="View Wishlist"
             >

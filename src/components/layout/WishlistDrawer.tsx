@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Heart, ShoppingBag, Trash2 } from 'lucide-react';
 import { useWishlist } from '../../context/WishlistContext';
@@ -9,6 +9,16 @@ import { Button } from '../ui/Button';
 export const WishlistDrawer: React.FC = () => {
   const { wishlist, isWishlistOpen, setIsWishlistOpen, toggleWishlist } = useWishlist();
   const { addToCart } = useCart();
+
+  // Close drawer on Escape key
+  useEffect(() => {
+    if (!isWishlistOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsWishlistOpen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isWishlistOpen, setIsWishlistOpen]);
 
   return (
     <AnimatePresence>
