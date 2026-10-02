@@ -141,7 +141,39 @@ export const AppContent: React.FC = () => {
   );
 };
 
-export default function App() {
+function DeferredLenis() {
+  const [isMounted, setIsMounted] = React.useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    let idleId: number | undefined;
+    let timerId: ReturnType<typeof setTimeout> | undefined;
+
+    const initialize = () => {
+      setIsMounted(true);
+    };
+
+    if ('requestIdleCallback' in window) {
+      idleId = window.requestIdleCallback(initialize, { timeout: 2000 });
+    } else {
+      timerId = setTimeout(initialize, 1500);
+    }
+
+    return () => {
+      if (idleId !== undefined && 'cancelIdleCallback' in window) {
+        window.cancelIdleCallback(idleId);
+      }
+      if (timerId !== undefined) {
+        clearTimeout(timerId);
+      }
+    };
+  }, []);
+
+  if (!isMounted) {
+    return null;
+  }
+
   return (
     <ReactLenis
       root
@@ -152,7 +184,14 @@ export default function App() {
         syncTouch: false,
         autoRaf: true,
       }}
-    >
+    />
+  );
+}
+
+export default function App() {
+  return (
+    <>
+      <DeferredLenis />
       <Router>
         <CartProvider>
           <WishlistProvider>
@@ -160,6 +199,6 @@ export default function App() {
           </WishlistProvider>
         </CartProvider>
       </Router>
-    </ReactLenis>
+    </>
   );
 }
