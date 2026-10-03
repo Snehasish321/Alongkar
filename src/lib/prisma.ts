@@ -21,8 +21,6 @@ export const prisma =
     log: isProduction ? ['error'] : ['query', 'error', 'warn'],
   });
 
-if (!isProduction) {
-  globalForPrisma.prisma = prisma;
-}
+globalForPrisma.prisma = prisma;
 
 export default prisma;

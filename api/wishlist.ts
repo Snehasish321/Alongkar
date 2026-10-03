@@ -51,8 +51,20 @@ export default async function handler(req: any, res?: any) {
     if (method === 'POST') {
       const { productId } = body;
 
-      if (!productId || typeof productId !== 'string') {
+      if (!productId || typeof productId !== 'string' || !productId.trim()) {
         return respond(res, 400, { error: 'Invalid or missing productId' });
+      }
+
+      const trimmedProductId = productId.trim();
+
+      // Verify product exists in database
+      const product = await prisma.product.findUnique({
+        where: { id: trimmedProductId },
+        select: { id: true },
+      });
+
+      if (!product) {
+        return respond(res, 404, { error: 'Product not found' });
       }
 
       const wishlist = await getOrCreateWishlist();
@@ -61,13 +73,13 @@ export default async function handler(req: any, res?: any) {
         where: {
           wishlistId_productId: {
             wishlistId: wishlist.id,
-            productId,
+            productId: trimmedProductId,
           },
         },
         update: {},
         create: {
           wishlistId: wishlist.id,
-          productId,
+          productId: trimmedProductId,
         },
       });
 
@@ -88,15 +100,16 @@ export default async function handler(req: any, res?: any) {
         (req.query && req.query.productId) ||
         (req.url ? new URL(req.url, 'http://localhost').searchParams.get('productId') : null);
 
-      if (!productId || typeof productId !== 'string') {
+      if (!productId || typeof productId !== 'string' || !productId.trim()) {
         return respond(res, 400, { error: 'Invalid or missing productId' });
       }
 
+      const trimmedProductId = productId.trim();
       const wishlist = await getOrCreateWishlist();
       await prisma.wishlistItem.deleteMany({
         where: {
           wishlistId: wishlist.id,
-          productId,
+          productId: trimmedProductId,
         },
       });
 

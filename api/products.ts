@@ -545,23 +545,65 @@ export default async function handler(req: any, res?: any) {
         );
       }
 
-      // Query parameter category / collection filtering if provided
+      // Query parameters for filtering, searching, sorting & pagination
       let categoryFilter: string | undefined = undefined;
       let collectionFilter: string | undefined = undefined;
+      let searchQuery: string | undefined = undefined;
+      let sortBy: string | undefined = undefined;
+      let inStockFilter: string | undefined = undefined;
+      let minPrice: number | undefined = undefined;
+      let maxPrice: number | undefined = undefined;
+      let page: number | undefined = undefined;
+      let limit: number | undefined = undefined;
 
-      if (req.query) {
-        if (req.query.category) categoryFilter = String(req.query.category).trim();
-        if (req.query.collectionId) collectionFilter = String(req.query.collectionId).trim();
+      const rawParams: Record<string, string> = {};
+      if (req.query && typeof req.query === 'object') {
+        Object.assign(rawParams, req.query);
       } else if (req.url) {
         try {
           const url = new URL(req.url, 'http://localhost');
-          if (url.searchParams.get('category')) categoryFilter = url.searchParams.get('category')!.trim();
-          if (url.searchParams.get('collectionId')) collectionFilter = url.searchParams.get('collectionId')!.trim();
+          url.searchParams.forEach((v, k) => {
+            rawParams[k] = v;
+          });
         } catch {}
       }
 
-      const listCacheKey = CacheKey.productsList(categoryFilter, collectionFilter);
-      const cachedList = await cacheGet<{ products: any[]; count: number }>(listCacheKey);
+      if (rawParams.category) categoryFilter = rawParams.category.trim();
+      if (rawParams.collectionId) collectionFilter = rawParams.collectionId.trim();
+      if (rawParams.search || rawParams.q) searchQuery = (rawParams.search || rawParams.q).trim();
+      if (rawParams.sortBy || rawParams.sort) sortBy = (rawParams.sortBy || rawParams.sort).trim();
+      if (rawParams.inStock !== undefined) inStockFilter = rawParams.inStock.trim();
+      if (rawParams.minPrice) {
+        const num = parseFloat(rawParams.minPrice);
+        if (!isNaN(num) && num >= 0) minPrice = num;
+      }
+      if (rawParams.maxPrice) {
+        const num = parseFloat(rawParams.maxPrice);
+        if (!isNaN(num) && num >= 0) maxPrice = num;
+      }
+      if (rawParams.page) {
+        const p = parseInt(rawParams.page, 10);
+        if (!isNaN(p) && p >= 1) page = p;
+      }
+      if (rawParams.limit) {
+        const l = parseInt(rawParams.limit, 10);
+        if (!isNaN(l) && l >= 1) limit = Math.min(100, Math.max(1, l));
+      }
+
+      const filterOptions = {
+        category: categoryFilter,
+        collectionId: collectionFilter,
+        search: searchQuery,
+        sortBy,
+        inStock: inStockFilter,
+        minPrice,
+        maxPrice,
+        page,
+        limit,
+      };
+
+      const listCacheKey = CacheKey.productsList(filterOptions);
+      const cachedList = await cacheGet<any>(listCacheKey);
       if (cachedList.hit && cachedList.data) {
         return respond(
           res,
@@ -578,24 +620,86 @@ export default async function handler(req: any, res?: any) {
       // Capture cache version before DB query to guard against concurrent mutations
       const cacheVersion = await getCacheVersion();
 
-      const whereClause: any = {};
+      // Build database WHERE clause
+      const whereClause: Prisma.ProductWhereInput = {};
       if (categoryFilter && categoryFilter.toLowerCase() !== 'all') {
         whereClause.category = categoryFilter;
       }
       if (collectionFilter && collectionFilter.toLowerCase() !== 'all') {
         whereClause.collectionId = collectionFilter;
       }
+      if (inStockFilter && inStockFilter.toLowerCase() !== 'all') {
+        whereClause.inStock = inStockFilter.toLowerCase() === 'true';
+      }
+      if (minPrice !== undefined || maxPrice !== undefined) {
+        whereClause.price = {
+          ...(minPrice !== undefined ? { gte: minPrice } : {}),
+          ...(maxPrice !== undefined ? { lte: maxPrice } : {}),
+        };
+      }
+      if (searchQuery) {
+        whereClause.OR = [
+          { name: { contains: searchQuery, mode: 'insensitive' } },
+          { description: { contains: searchQuery, mode: 'insensitive' } },
+          { category: { contains: searchQuery, mode: 'insensitive' } },
+        ];
+      }
 
-      // List all products from PostgreSQL source of truth
-      const products = await prisma.product.findMany({
-        where: whereClause,
-        orderBy: { createdAt: 'desc' },
-      });
+      // Build database ORDER BY clause
+      let orderByClause: Prisma.ProductOrderByWithRelationInput | Prisma.ProductOrderByWithRelationInput[] = { createdAt: 'desc' };
+      if (sortBy) {
+        const s = sortBy.toLowerCase();
+        if (s === 'price-asc' || s === 'price-low-to-high') {
+          orderByClause = { price: 'asc' };
+        } else if (s === 'price-desc' || s === 'price-high-to-low') {
+          orderByClause = { price: 'desc' };
+        } else if (s === 'rating') {
+          orderByClause = { rating: 'desc' };
+        } else if (s === 'bestseller' || s === 'popular') {
+          orderByClause = [{ isBestSeller: 'desc' }, { rating: 'desc' }, { createdAt: 'desc' }];
+        } else if (s === 'newest') {
+          orderByClause = { createdAt: 'desc' };
+        }
+      }
 
-      const responseData = {
-        products: products.map(formatProductResponse),
-        count: products.length,
-      };
+      let responseData: any;
+
+      if (page !== undefined) {
+        const pageSize = limit || 20;
+        const skip = (page - 1) * pageSize;
+
+        // Run data query and total count query in parallel
+        const [products, totalCount] = await Promise.all([
+          prisma.product.findMany({
+            where: whereClause,
+            orderBy: orderByClause,
+            skip,
+            take: pageSize,
+          }),
+          prisma.product.count({ where: whereClause }),
+        ]);
+
+        responseData = {
+          products: products.map(formatProductResponse),
+          count: products.length,
+          total: totalCount,
+          page,
+          limit: pageSize,
+          totalPages: Math.ceil(totalCount / pageSize) || 1,
+        };
+      } else {
+        // Enforce safe maximum limit of 100 for unpaginated queries to protect DB
+        const products = await prisma.product.findMany({
+          where: whereClause,
+          orderBy: orderByClause,
+          take: limit || 100,
+        });
+
+        responseData = {
+          products: products.map(formatProductResponse),
+          count: products.length,
+        };
+      }
 
       // Store in Redis with cache generation verification to prevent stale overwrite
       await cacheSet(listCacheKey, responseData, TTL.PRODUCTS_ALL, cacheVersion);

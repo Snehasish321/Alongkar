@@ -7,16 +7,69 @@ export const TTL = {
   PRODUCT_ONE: 60 * 10, // 10 minutes (distributed Redis cache)
 } as const;
 
+export interface ProductListFilterOptions {
+  category?: string | null;
+  collectionId?: string | null;
+  search?: string | null;
+  sortBy?: string | null;
+  inStock?: boolean | string | null;
+  minPrice?: number | string | null;
+  maxPrice?: number | string | null;
+  page?: number | string | null;
+  limit?: number | string | null;
+}
+
 // ─── Deterministic Cache Key Generators ───────────────────────────────────────
 export const CacheKey = {
   /**
    * Generates a canonical, deterministic cache key for product listings.
-   * Parameter order and casing are strictly normalized.
+   * Parameter order, casing, whitespace, and default values are strictly normalized.
    */
-  productsList: (category?: string | null, collectionId?: string | null): string => {
-    const cat = category && category.trim().toLowerCase() !== 'all' ? category.trim().toLowerCase() : 'all';
-    const col = collectionId && collectionId.trim().toLowerCase() !== 'all' ? collectionId.trim().toLowerCase() : 'all';
-    return `products:list:${cat}:${col}`;
+  productsList: (
+    categoryOrOptions?: string | null | ProductListFilterOptions,
+    collectionId?: string | null
+  ): string => {
+    let cat = 'all';
+    let col = 'all';
+    let search = '';
+    let sort = 'default';
+    let stock = 'all';
+    let minP = '';
+    let maxP = '';
+    let page = '';
+    let limit = '';
+
+    if (typeof categoryOrOptions === 'object' && categoryOrOptions !== null) {
+      const opts = categoryOrOptions;
+      if (opts.category && opts.category.trim().toLowerCase() !== 'all') cat = opts.category.trim().toLowerCase();
+      if (opts.collectionId && opts.collectionId.trim().toLowerCase() !== 'all') col = opts.collectionId.trim().toLowerCase();
+      if (opts.search && opts.search.trim()) search = opts.search.trim().toLowerCase();
+      if (opts.sortBy && opts.sortBy.trim()) sort = opts.sortBy.trim().toLowerCase();
+      if (opts.inStock !== undefined && opts.inStock !== null && String(opts.inStock).trim().toLowerCase() !== 'all') {
+        stock = String(opts.inStock).trim().toLowerCase();
+      }
+      if (opts.minPrice !== undefined && opts.minPrice !== null && String(opts.minPrice).trim()) {
+        minP = String(opts.minPrice).trim();
+      }
+      if (opts.maxPrice !== undefined && opts.maxPrice !== null && String(opts.maxPrice).trim()) {
+        maxP = String(opts.maxPrice).trim();
+      }
+      if (opts.page !== undefined && opts.page !== null && String(opts.page).trim()) {
+        page = String(opts.page).trim();
+      }
+      if (opts.limit !== undefined && opts.limit !== null && String(opts.limit).trim()) {
+        limit = String(opts.limit).trim();
+      }
+    } else {
+      if (categoryOrOptions && categoryOrOptions.trim().toLowerCase() !== 'all') cat = categoryOrOptions.trim().toLowerCase();
+      if (collectionId && collectionId.trim().toLowerCase() !== 'all') col = collectionId.trim().toLowerCase();
+    }
+
+    if (!search && sort === 'default' && stock === 'all' && !minP && !maxP && !page && !limit) {
+      return `products:list:${cat}:${col}`;
+    }
+
+    return `products:list:${cat}:${col}:q=${encodeURIComponent(search)}:s=${sort}:stk=${stock}:p=${minP}-${maxP}:pg=${page}:${limit}`;
   },
 
   /**
