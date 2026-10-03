@@ -1,7 +1,7 @@
 import { getAuthenticatedUser, respond } from '../_utils/auth.js';
 import { parseMultipartForm } from '../_utils/multipart.js';
 import { cloudinary, isCloudinaryConfigured } from '../_utils/cloudinary.js';
-import { checkRateLimit, getSafeErrorMessage } from '../_utils/security.js';
+import { checkRateLimit, getSafeErrorMessage, logServerError } from '../_utils/security.js';
 import type { UploadApiResponse } from 'cloudinary';
 
 const MAX_INSPIRATION_SIZE_BYTES = 5 * 1024 * 1024; // 5MB limit for customer inspiration images
@@ -127,7 +127,10 @@ export default async function handler(req: any, res?: any) {
       bytes: uploadResult.bytes,
     });
   } catch (error: any) {
-    console.error('Inspiration image upload error:', error?.message || error);
+    logServerError(error, {
+      endpoint: '/api/uploads/jewellery-inspiration',
+      method,
+    });
     return respond(res, 500, {
       success: false,
       error: getSafeErrorMessage(error, 'Failed to upload inspiration image to Cloudinary. Please try again.'),

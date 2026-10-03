@@ -1,6 +1,6 @@
 import prisma from '../src/lib/prisma.js';
 import { getAuthenticatedUser, getRequestBody, respond, isPayloadTooLarge, isMalformedJson } from './_utils/auth.js';
-import { isValidIdentifier, getSafeErrorMessage } from './_utils/security.js';
+import { isValidIdentifier, getSafeErrorMessage, logServerError, withTimeout } from './_utils/security.js';
 
 export const MAX_CART_ITEM_QUANTITY = 99;
 export const MAX_CART_UNIQUE_ITEMS = 50;
@@ -55,30 +55,36 @@ export function formatCartResponse(cart: any) {
 }
 
 /**
- * Retrieves or creates a Cart record for the given user within a database transaction or standard client.
+ * Retrieves or creates a Cart record for the given user atomically.
+ * Uses upsert to eliminate race conditions during simultaneous initial user visits.
  */
 export async function getOrCreateCart(userId: string, tx?: any) {
   const db = tx || prisma;
-  let cart = await db.cart.findUnique({
-    where: { userId },
-    include: {
-      items: {
-        orderBy: { createdAt: 'asc' },
-      },
-    },
-  });
-
-  if (!cart) {
-    cart = await db.cart.create({
-      data: { userId },
+  try {
+    return await db.cart.upsert({
+      where: { userId },
+      update: {},
+      create: { userId },
       include: {
         items: {
           orderBy: { createdAt: 'asc' },
         },
       },
     });
+  } catch (err: any) {
+    if (err?.code === 'P2002') {
+      const existing = await db.cart.findUnique({
+        where: { userId },
+        include: {
+          items: {
+            orderBy: { createdAt: 'asc' },
+          },
+        },
+      });
+      if (existing) return existing;
+    }
+    throw err;
   }
-  return cart;
 }
 
 export default async function handler(req: any, res?: any) {
@@ -102,7 +108,11 @@ export default async function handler(req: any, res?: any) {
 
     // ─── GET /api/cart (Fetch authenticated user's persistent cart) ──────────────
     if (method === 'GET') {
-      const cart = await getOrCreateCart(user.id);
+      const cart = await withTimeout(
+        getOrCreateCart(user.id),
+        8000,
+        'Fetch user cart'
+      );
       return respond(res, 200, formatCartResponse(cart));
     }
 
@@ -132,10 +142,14 @@ export default async function handler(req: any, res?: any) {
       }
 
       // Verify product existence in database to prevent orphan cart items
-      const product = await prisma.product.findUnique({
-        where: { id: trimmedProductId },
-        select: { id: true },
-      });
+      const product = await withTimeout(
+        prisma.product.findUnique({
+          where: { id: trimmedProductId },
+          select: { id: true },
+        }),
+        8000,
+        'Verify product existence'
+      );
 
       if (!product) {
         return respond(res, 404, { error: 'Product not found' });
@@ -154,32 +168,36 @@ export default async function handler(req: any, res?: any) {
       }
 
       // Atomic quantity increment within transaction with cap
-      await prisma.$transaction(async (tx) => {
-        const existingItem = await tx.cartItem.findUnique({
-          where: {
-            cartId_productId: {
-              cartId: cart.id,
-              productId: trimmedProductId,
+      await withTimeout(
+        prisma.$transaction(async (tx) => {
+          const existingItem = await tx.cartItem.findUnique({
+            where: {
+              cartId_productId: {
+                cartId: cart.id,
+                productId: trimmedProductId,
+              },
             },
-          },
-        });
+          });
 
-        if (existingItem) {
-          const newQty = Math.min(MAX_CART_ITEM_QUANTITY, existingItem.quantity + qty);
-          await tx.cartItem.update({
-            where: { id: existingItem.id },
-            data: { quantity: newQty },
-          });
-        } else {
-          await tx.cartItem.create({
-            data: {
-              cartId: cart.id,
-              productId: trimmedProductId,
-              quantity: qty,
-            },
-          });
-        }
-      });
+          if (existingItem) {
+            const newQty = Math.min(MAX_CART_ITEM_QUANTITY, existingItem.quantity + qty);
+            await tx.cartItem.update({
+              where: { id: existingItem.id },
+              data: { quantity: newQty },
+            });
+          } else {
+            await tx.cartItem.create({
+              data: {
+                cartId: cart.id,
+                productId: trimmedProductId,
+                quantity: qty,
+              },
+            });
+          }
+        }),
+        8000,
+        'Cart item addition transaction'
+      );
 
       const updatedCart = await getOrCreateCart(user.id);
       return respond(res, 200, formatCartResponse(updatedCart));
@@ -209,37 +227,49 @@ export default async function handler(req: any, res?: any) {
 
       if (quantity === 0) {
         // Quantity 0 removes the item
-        await prisma.cartItem.deleteMany({
-          where: {
-            cartId: cart.id,
-            productId: trimmedProductId,
-          },
-        });
+        await withTimeout(
+          prisma.cartItem.deleteMany({
+            where: {
+              cartId: cart.id,
+              productId: trimmedProductId,
+            },
+          }),
+          8000,
+          'Delete cart item on 0 quantity'
+        );
       } else {
         // Verify product exists before setting quantity
-        const product = await prisma.product.findUnique({
-          where: { id: trimmedProductId },
-          select: { id: true },
-        });
+        const product = await withTimeout(
+          prisma.product.findUnique({
+            where: { id: trimmedProductId },
+            select: { id: true },
+          }),
+          8000,
+          'Verify product existence'
+        );
 
         if (!product) {
           return respond(res, 404, { error: 'Product not found' });
         }
 
-        await prisma.cartItem.upsert({
-          where: {
-            cartId_productId: {
+        await withTimeout(
+          prisma.cartItem.upsert({
+            where: {
+              cartId_productId: {
+                cartId: cart.id,
+                productId: trimmedProductId,
+              },
+            },
+            update: { quantity },
+            create: {
               cartId: cart.id,
               productId: trimmedProductId,
+              quantity,
             },
-          },
-          update: { quantity },
-          create: {
-            cartId: cart.id,
-            productId: trimmedProductId,
-            quantity,
-          },
-        });
+          }),
+          8000,
+          'Upsert cart item quantity'
+        );
       }
 
       const updatedCart = await getOrCreateCart(user.id);
@@ -252,11 +282,15 @@ export default async function handler(req: any, res?: any) {
       const cart = await getOrCreateCart(user.id);
 
       if (isClearAll) {
-        await prisma.cartItem.deleteMany({
-          where: {
-            cartId: cart.id,
-          },
-        });
+        await withTimeout(
+          prisma.cartItem.deleteMany({
+            where: {
+              cartId: cart.id,
+            },
+          }),
+          8000,
+          'Clear all cart items'
+        );
       } else {
         const rawProductId =
           body?.productId ||
@@ -273,12 +307,16 @@ export default async function handler(req: any, res?: any) {
           return respond(res, 400, { error: 'Invalid productId format' });
         }
 
-        await prisma.cartItem.deleteMany({
-          where: {
-            cartId: cart.id,
-            productId,
-          },
-        });
+        await withTimeout(
+          prisma.cartItem.deleteMany({
+            where: {
+              cartId: cart.id,
+              productId,
+            },
+          }),
+          8000,
+          'Delete single cart item'
+        );
       }
 
       const updatedCart = await getOrCreateCart(user.id);
@@ -287,7 +325,12 @@ export default async function handler(req: any, res?: any) {
 
     return respond(res, 405, { error: `Method ${method} Not Allowed` });
   } catch (error) {
-    console.error('Cart API error:', error);
+    logServerError({
+      endpoint: '/api/cart',
+      method,
+      operation: 'cart_handler',
+      error,
+    });
     return respond(res, 500, { error: getSafeErrorMessage(error, 'Internal Server Error') });
   }
 }

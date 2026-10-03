@@ -1,6 +1,37 @@
 import prisma from '../src/lib/prisma.js';
 import { getAuthenticatedUser, getRequestBody, respond, isPayloadTooLarge, isMalformedJson } from './_utils/auth.js';
-import { isValidIdentifier, getSafeErrorMessage } from './_utils/security.js';
+import { isValidIdentifier, getSafeErrorMessage, logServerError, withTimeout } from './_utils/security.js';
+
+/**
+ * Atomically gets or creates the user's wishlist using upsert to eliminate race conditions.
+ */
+export async function getOrCreateWishlist(userId: string) {
+  try {
+    return await prisma.wishlist.upsert({
+      where: { userId },
+      update: {},
+      create: { userId },
+      include: {
+        items: {
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+  } catch (err: any) {
+    if (err?.code === 'P2002') {
+      const existing = await prisma.wishlist.findUnique({
+        where: { userId },
+        include: {
+          items: {
+            orderBy: { createdAt: 'asc' },
+          },
+        },
+      });
+      if (existing) return existing;
+    }
+    throw err;
+  }
+}
 
 export default async function handler(req: any, res?: any) {
   const method = (req.method || 'GET').toUpperCase();
@@ -21,32 +52,12 @@ export default async function handler(req: any, res?: any) {
       return respond(res, 401, { error: 'Unauthorized: Valid Clerk session required' });
     }
 
-    // Helper to get or create the user's wishlist
-    const getOrCreateWishlist = async () => {
-      let wishlist = await prisma.wishlist.findUnique({
-        where: { userId: user.id },
-        include: {
-          items: {
-            orderBy: { createdAt: 'asc' },
-          },
-        },
-      });
-
-      if (!wishlist) {
-        wishlist = await prisma.wishlist.create({
-          data: { userId: user.id },
-          include: {
-            items: {
-              orderBy: { createdAt: 'asc' },
-            },
-          },
-        });
-      }
-      return wishlist;
-    };
-
     if (method === 'GET') {
-      const wishlist = await getOrCreateWishlist();
+      const wishlist = await withTimeout(
+        getOrCreateWishlist(user.id),
+        8000,
+        'Fetch user wishlist'
+      );
       return respond(res, 200, {
         id: wishlist.id,
         items: wishlist.items.map((item) => ({
@@ -71,32 +82,40 @@ export default async function handler(req: any, res?: any) {
       }
 
       // Verify product exists in database
-      const product = await prisma.product.findUnique({
-        where: { id: trimmedProductId },
-        select: { id: true },
-      });
+      const product = await withTimeout(
+        prisma.product.findUnique({
+          where: { id: trimmedProductId },
+          select: { id: true },
+        }),
+        8000,
+        'Verify wishlist product existence'
+      );
 
       if (!product) {
         return respond(res, 404, { error: 'Product not found' });
       }
 
-      const wishlist = await getOrCreateWishlist();
+      const wishlist = await getOrCreateWishlist(user.id);
 
-      await prisma.wishlistItem.upsert({
-        where: {
-          wishlistId_productId: {
+      await withTimeout(
+        prisma.wishlistItem.upsert({
+          where: {
+            wishlistId_productId: {
+              wishlistId: wishlist.id,
+              productId: trimmedProductId,
+            },
+          },
+          update: {},
+          create: {
             wishlistId: wishlist.id,
             productId: trimmedProductId,
           },
-        },
-        update: {},
-        create: {
-          wishlistId: wishlist.id,
-          productId: trimmedProductId,
-        },
-      });
+        }),
+        8000,
+        'Upsert wishlist item'
+      );
 
-      const updatedWishlist = await getOrCreateWishlist();
+      const updatedWishlist = await getOrCreateWishlist(user.id);
       return respond(res, 200, {
         id: updatedWishlist.id,
         items: updatedWishlist.items.map((item) => ({
@@ -123,15 +142,19 @@ export default async function handler(req: any, res?: any) {
         return respond(res, 400, { error: 'Invalid productId format' });
       }
 
-      const wishlist = await getOrCreateWishlist();
-      await prisma.wishlistItem.deleteMany({
-        where: {
-          wishlistId: wishlist.id,
-          productId: trimmedProductId,
-        },
-      });
+      const wishlist = await getOrCreateWishlist(user.id);
+      await withTimeout(
+        prisma.wishlistItem.deleteMany({
+          where: {
+            wishlistId: wishlist.id,
+            productId: trimmedProductId,
+          },
+        }),
+        8000,
+        'Delete wishlist item'
+      );
 
-      const updatedWishlist = await getOrCreateWishlist();
+      const updatedWishlist = await getOrCreateWishlist(user.id);
       return respond(res, 200, {
         id: updatedWishlist.id,
         items: updatedWishlist.items.map((item) => ({
@@ -144,7 +167,12 @@ export default async function handler(req: any, res?: any) {
 
     return respond(res, 405, { error: `Method ${method} Not Allowed` });
   } catch (error) {
-    console.error('Wishlist API error:', error);
+    logServerError({
+      endpoint: '/api/wishlist',
+      method,
+      operation: 'wishlist_handler',
+      error,
+    });
     return respond(res, 500, { error: getSafeErrorMessage(error, 'Internal Server Error') });
   }
 }

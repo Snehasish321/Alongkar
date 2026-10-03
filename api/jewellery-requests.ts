@@ -7,6 +7,8 @@ import {
   isValidNumber,
   isValidInteger,
   getSafeErrorMessage,
+  logServerError,
+  withTimeout,
   checkRateLimit,
 } from './_utils/security.js';
 import { Prisma } from '@prisma/client';
@@ -258,10 +260,14 @@ export default async function handler(req: any, res?: any) {
     // GET: Retrieve authenticated customer's requests
     // ==========================================
     if (method === 'GET') {
-      const requests = await (prisma as any).jewelleryRequest.findMany({
-        where: { userId: user.id },
-        orderBy: { createdAt: 'desc' },
-      });
+      const requests = await withTimeout(
+        (prisma as any).jewelleryRequest.findMany({
+          where: { userId: user.id },
+          orderBy: { createdAt: 'desc' },
+        }),
+        8000,
+        'Fetch user jewellery requests'
+      );
 
       return respond(res, 200, {
         success: true,
@@ -310,20 +316,24 @@ export default async function handler(req: any, res?: any) {
         try {
           const requestNumber = generateRequestNumber();
 
-          const createdRequest = await (prisma as any).jewelleryRequest.create({
-            data: {
-              requestNumber,
-              userId: user.id, // Strictly server-controlled from authenticated session
-              inspirationImageUrl: data.inspirationImageUrl,
-              jewelleryType: data.jewelleryType,
-              description: data.description,
-              budget: data.budget !== null ? new Prisma.Decimal(data.budget) : null,
-              quantity: data.quantity,
-              phone: data.phone,
-              additionalRequirements: data.additionalRequirements,
-              status: 'PENDING', // Initial lifecycle status is always PENDING
-            },
-          });
+          const createdRequest = await withTimeout(
+            (prisma as any).jewelleryRequest.create({
+              data: {
+                requestNumber,
+                userId: user.id, // Strictly server-controlled from authenticated session
+                inspirationImageUrl: data.inspirationImageUrl,
+                jewelleryType: data.jewelleryType,
+                description: data.description,
+                budget: data.budget !== null ? new Prisma.Decimal(data.budget) : null,
+                quantity: data.quantity,
+                phone: data.phone,
+                additionalRequirements: data.additionalRequirements,
+                status: 'PENDING', // Initial lifecycle status is always PENDING
+              },
+            }),
+            8000,
+            'Create jewellery request'
+          );
 
           return respond(res, 201, {
             success: true,
@@ -345,7 +355,14 @@ export default async function handler(req: any, res?: any) {
         }
       }
 
-      console.error('Database error creating JewelleryRequest:', lastError);
+      logServerError({
+        endpoint: '/api/jewellery-requests',
+        method: 'POST',
+        operation: 'create_jewellery_request',
+        userId: user.id,
+        error: lastError,
+      });
+
       return respond(res, 500, {
         success: false,
         error: getSafeErrorMessage(lastError, 'Failed to create jewellery request in database'),
@@ -357,7 +374,12 @@ export default async function handler(req: any, res?: any) {
       error: `Method ${method} Not Allowed`,
     });
   } catch (error) {
-    console.error('JewelleryRequest API unhandled error:', error);
+    logServerError({
+      endpoint: '/api/jewellery-requests',
+      method,
+      operation: 'jewellery_requests_handler',
+      error,
+    });
     return respond(res, 500, {
       success: false,
       error: getSafeErrorMessage(error, 'Internal Server Error'),

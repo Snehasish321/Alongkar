@@ -1,7 +1,7 @@
 import { requireAdmin, respond } from '../_utils/auth.js';
 import { parseMultipartForm } from '../_utils/multipart.js';
 import { cloudinary, isCloudinaryConfigured } from '../_utils/cloudinary.js';
-import { getSafeErrorMessage } from '../_utils/security.js';
+import { getSafeErrorMessage, logServerError } from '../_utils/security.js';
 import type { UploadApiResponse } from 'cloudinary';
 
 /**
@@ -94,7 +94,10 @@ export default async function handler(req: any, res?: any) {
       bytes: uploadResult.bytes,
     });
   } catch (error: any) {
-    console.error('Image upload handler error:', error?.message || error);
+    logServerError(error, {
+      endpoint: '/api/uploads/product-image',
+      method,
+    });
     return respond(res, 500, {
       error: getSafeErrorMessage(error, 'Failed to upload image to Cloudinary. Please try again.'),
     });

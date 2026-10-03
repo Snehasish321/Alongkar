@@ -12,6 +12,7 @@ export const MAX_PRODUCT_PRICE = 100_000_000;
 export const MAX_CART_QUANTITY = 99;
 export const MAX_PAGE_LIMIT = 100;
 export const MAX_PAGE_NUMBER = 10_000;
+export const DEFAULT_DB_TIMEOUT_MS = 8000; // 8 seconds default timeout for database queries
 
 // Explicit allowed sort values for product catalog queries
 export const ALLOWED_SORT_VALUES = [
@@ -125,7 +126,7 @@ export function sanitizeSortBy(sortBy: unknown): AllowedSortValue | undefined {
   return undefined;
 }
 
-// ─── Error Sanitization ───────────────────────────────────────────────────────
+// ─── Error Sanitization & Observability ───────────────────────────────────────
 
 /**
  * Returns a safe, production-grade error message for client responses,
@@ -134,27 +135,134 @@ export function sanitizeSortBy(sortBy: unknown): AllowedSortValue | undefined {
 export function getSafeErrorMessage(error: unknown, fallbackMessage = 'Internal Server Error'): string {
   if (!error) return fallbackMessage;
 
-  // Known safe error codes / prefixes
-  if (typeof error === 'object' && error !== null && 'message' in error) {
-    const msg = String((error as any).message);
-    // Don't expose database internals or connection strings
-    if (
-      msg.includes('postgresql://') ||
-      msg.includes('postgres://') ||
-      msg.includes('prisma') ||
-      msg.includes('PrismaClient') ||
-      msg.includes('CLERK_') ||
-      msg.includes('CLOUDINARY_') ||
-      msg.includes('SECRET') ||
-      msg.includes('apiKey') ||
-      msg.includes('token') ||
-      msg.includes('at ') // stack trace line
-    ) {
-      return fallbackMessage;
+  if (typeof error === 'object' && error !== null) {
+    const errObj = error as any;
+
+    // Safe mappings for Prisma known request error codes
+    if (errObj.code === 'P2002') {
+      return 'A record with this value already exists (unique constraint violation).';
+    }
+    if (errObj.code === 'P2025') {
+      return 'Requested record was not found or has been modified.';
+    }
+    if (errObj.code === 'P2003') {
+      return 'Referenced record was not found (foreign key constraint).';
+    }
+
+    if ('message' in errObj) {
+      const msg = String(errObj.message);
+      // Redact database connection strings, credentials, and internal stack traces
+      if (
+        msg.includes('postgresql://') ||
+        msg.includes('postgres://') ||
+        msg.includes('prisma') ||
+        msg.includes('PrismaClient') ||
+        msg.includes('CLERK_') ||
+        msg.includes('CLOUDINARY_') ||
+        msg.includes('SECRET') ||
+        msg.includes('apiKey') ||
+        msg.includes('token') ||
+        msg.includes('at ') // stack trace line
+      ) {
+        return fallbackMessage;
+      }
     }
   }
 
   return fallbackMessage;
+}
+
+export interface ServerErrorContext {
+  endpoint: string;
+  method?: string;
+  operation?: string;
+  error?: unknown;
+  userId?: string;
+  extra?: Record<string, any>;
+  context?: Record<string, any>;
+}
+
+/**
+ * Sanitizes and redacts sensitive credentials, tokens, DB URLs, and secrets from arbitrary strings.
+ */
+export function maskSensitiveString(str: string): string {
+  if (!str || typeof str !== 'string') return '';
+  return str
+    .replace(/postgresql:\/\/[^@\s]+@/gi, 'postgresql://[REDACTED]@')
+    .replace(/postgres:\/\/[^@\s]+@/gi, 'postgres://[REDACTED]@')
+    .replace(/Bearer\s+([A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.?[A-Za-z0-9-_.+/=]*)/gi, 'Bearer [REDACTED_TOKEN]')
+    .replace(/eyJ[A-Za-z0-9-_=]{10,}/g, '[REDACTED_JWT]')
+    .replace(/CLERK_SECRET_KEY=[^\s&]+/gi, 'CLERK_SECRET_KEY=[REDACTED]')
+    .replace(/CLOUDINARY_API_SECRET=[^\s&]+/gi, 'CLOUDINARY_API_SECRET=[REDACTED]')
+    .replace(/password[:=][^\s&,]+/gi, 'password=[REDACTED]');
+}
+
+/**
+ * Structured server-side error logging with automatic redaction of sensitive credentials.
+ */
+export function logServerError(
+  firstArg: ServerErrorContext | unknown,
+  secondArg?: { endpoint?: string; method?: string; operation?: string; userId?: string; context?: any; extra?: any }
+) {
+  let endpoint = 'UNKNOWN';
+  let method = 'UNKNOWN';
+  let operation = 'UNKNOWN';
+  let error: unknown = firstArg;
+  let userId: string | undefined;
+  let extra: any;
+
+  if (firstArg && typeof firstArg === 'object' && 'endpoint' in firstArg) {
+    const ctx = firstArg as ServerErrorContext;
+    endpoint = ctx.endpoint;
+    method = ctx.method || 'UNKNOWN';
+    operation = ctx.operation || 'OPERATION';
+    error = ctx.error;
+    userId = ctx.userId;
+    extra = ctx.extra || ctx.context;
+  } else if (secondArg) {
+    endpoint = secondArg.endpoint || 'UNKNOWN';
+    method = secondArg.method || 'UNKNOWN';
+    operation = secondArg.operation || 'OPERATION';
+    userId = secondArg.userId;
+    extra = secondArg.extra || secondArg.context;
+  }
+
+  const timestamp = new Date().toISOString();
+  const rawErrorMessage = error instanceof Error ? error.message : String(error || 'Unknown server error');
+  const sanitizedMessage = maskSensitiveString(rawErrorMessage);
+
+  const extraStr = extra ? ` | extra: ${maskSensitiveString(JSON.stringify(extra))}` : '';
+
+  console.error(
+    `[${timestamp}] [SERVER_ERROR] [${method} ${endpoint}] [${operation}]` +
+      (userId ? ` [user:${userId}]` : '') +
+      `: ${sanitizedMessage}${extraStr}`
+  );
+}
+
+// ─── Database Query Timeout Guard ─────────────────────────────────────────────
+
+/**
+ * Wraps a database or external operation with a deterministic timeout.
+ * Rejects with a descriptive timeout error if the operation exceeds timeoutMs.
+ */
+export async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs = DEFAULT_DB_TIMEOUT_MS,
+  operationName = 'Database operation'
+): Promise<T> {
+  let timer: any;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(`${operationName} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // ─── Lightweight Rate Limiter ─────────────────────────────────────────────────

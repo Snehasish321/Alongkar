@@ -19,6 +19,8 @@ import {
   sanitizeSearchQuery,
   sanitizeSortBy,
   getSafeErrorMessage,
+  logServerError,
+  withTimeout,
   checkRateLimit,
   MAX_PRODUCT_PRICE,
   MAX_DESCRIPTION_LENGTH,
@@ -515,15 +517,27 @@ export default async function handler(req: any, res?: any) {
         let product = null;
 
         if (id && !slug) {
-          product = await prisma.product.findUnique({ where: { id } });
+          product = await withTimeout(
+            prisma.product.findUnique({ where: { id } }),
+            8000,
+            'Find product by id'
+          );
         } else if (slug && !id) {
-          product = await prisma.product.findUnique({ where: { slug } });
+          product = await withTimeout(
+            prisma.product.findUnique({ where: { slug } }),
+            8000,
+            'Find product by slug'
+          );
         } else if (raw) {
-          product = await prisma.product.findFirst({
-            where: {
-              OR: [{ id: raw }, { slug: raw }],
-            },
-          });
+          product = await withTimeout(
+            prisma.product.findFirst({
+              where: {
+                OR: [{ id: raw }, { slug: raw }],
+              },
+            }),
+            8000,
+            'Find product by raw identifier'
+          );
         }
 
         if (!product) {
@@ -536,10 +550,14 @@ export default async function handler(req: any, res?: any) {
         const formatted = formatProductResponse(product);
 
         // Cache single product in Redis with version check to prevent stale GET race
-        if (product.id) await cacheSet(CacheKey.productId(product.id), formatted, TTL.PRODUCT_ONE, cacheVersion);
-        if (product.slug) await cacheSet(CacheKey.productSlug(product.slug), formatted, TTL.PRODUCT_ONE, cacheVersion);
-        if (raw && raw !== product.id && raw !== product.slug) {
-          await cacheSet(CacheKey.productRaw(raw), formatted, TTL.PRODUCT_ONE, cacheVersion);
+        try {
+          if (product.id) await cacheSet(CacheKey.productId(product.id), formatted, TTL.PRODUCT_ONE, cacheVersion);
+          if (product.slug) await cacheSet(CacheKey.productSlug(product.slug), formatted, TTL.PRODUCT_ONE, cacheVersion);
+          if (raw && raw !== product.id && raw !== product.slug) {
+            await cacheSet(CacheKey.productRaw(raw), formatted, TTL.PRODUCT_ONE, cacheVersion);
+          }
+        } catch (cacheErr) {
+          console.warn('[Cache] Non-critical cacheSet error:', cacheErr);
         }
 
         return respond(
@@ -718,16 +736,20 @@ export default async function handler(req: any, res?: any) {
         const pageSize = limit || 20;
         const skip = (page - 1) * pageSize;
 
-        // Run data query and total count query in parallel
-        const [products, totalCount] = await Promise.all([
-          prisma.product.findMany({
-            where: whereClause,
-            orderBy: orderByClause,
-            skip,
-            take: pageSize,
-          }),
-          prisma.product.count({ where: whereClause }),
-        ]);
+        // Run data query and total count query in parallel with timeout protection
+        const [products, totalCount] = await withTimeout(
+          Promise.all([
+            prisma.product.findMany({
+              where: whereClause,
+              orderBy: orderByClause,
+              skip,
+              take: pageSize,
+            }),
+            prisma.product.count({ where: whereClause }),
+          ]),
+          8000,
+          'Paginated products query'
+        );
 
         responseData = {
           products: products.map(formatProductResponse),
@@ -739,11 +761,15 @@ export default async function handler(req: any, res?: any) {
         };
       } else {
         // Enforce safe maximum limit of 100 for unpaginated queries to protect DB
-        const products = await prisma.product.findMany({
-          where: whereClause,
-          orderBy: orderByClause,
-          take: limit || 100,
-        });
+        const products = await withTimeout(
+          prisma.product.findMany({
+            where: whereClause,
+            orderBy: orderByClause,
+            take: limit || 100,
+          }),
+          8000,
+          'Unpaginated products query'
+        );
 
         responseData = {
           products: products.map(formatProductResponse),
@@ -752,7 +778,11 @@ export default async function handler(req: any, res?: any) {
       }
 
       // Store in Redis with cache generation verification to prevent stale overwrite
-      await cacheSet(listCacheKey, responseData, TTL.PRODUCTS_ALL, cacheVersion);
+      try {
+        await cacheSet(listCacheKey, responseData, TTL.PRODUCTS_ALL, cacheVersion);
+      } catch (cacheErr) {
+        console.warn('[Cache] Non-critical cacheSet error:', cacheErr);
+      }
 
       return respond(
         res,
@@ -789,12 +819,20 @@ export default async function handler(req: any, res?: any) {
       }
 
       try {
-        const createdProduct = await prisma.product.create({
-          data,
-        });
+        const createdProduct = await withTimeout(
+          prisma.product.create({
+            data,
+          }),
+          8000,
+          'Create product'
+        );
 
-        // Invalidate product caches across L1 & L2
-        await invalidateProducts();
+        // Invalidate product caches gracefully
+        try {
+          await invalidateProducts();
+        } catch (cacheErr) {
+          console.warn('[Cache] Invalidation warning after product creation:', cacheErr);
+        }
 
         return respond(res, 201, {
           message: 'Product created successfully',
@@ -811,7 +849,12 @@ export default async function handler(req: any, res?: any) {
             field: isSlug ? 'slug' : 'id',
           });
         }
-        console.error('Prisma error during product creation:', error);
+        logServerError({
+          endpoint: '/api/products',
+          method: 'POST',
+          operation: 'create_product',
+          error,
+        });
         return respond(res, 500, { error: 'Failed to create product in database' });
       }
     }
@@ -829,11 +872,15 @@ export default async function handler(req: any, res?: any) {
       }
 
       // Find target product
-      const existingProduct = await prisma.product.findFirst({
-        where: {
-          OR: [{ id: id || raw || '' }, { slug: slug || raw || '' }],
-        },
-      });
+      const existingProduct = await withTimeout(
+        prisma.product.findFirst({
+          where: {
+            OR: [{ id: id || raw || '' }, { slug: slug || raw || '' }],
+          },
+        }),
+        8000,
+        'Find product before update'
+      );
 
       if (!existingProduct) {
         return respond(res, 404, {
@@ -857,16 +904,24 @@ export default async function handler(req: any, res?: any) {
       }
 
       try {
-        const updatedProduct = await prisma.product.update({
-          where: { id: existingProduct.id },
-          data: updateData,
-        });
+        const updatedProduct = await withTimeout(
+          prisma.product.update({
+            where: { id: existingProduct.id },
+            data: updateData,
+          }),
+          8000,
+          'Update product'
+        );
 
-        // Invalidate product catalog and specific item keys
-        await invalidateProducts();
-        await invalidateProductKeys(existingProduct.id, existingProduct.slug);
-        if (updatedProduct.id || updatedProduct.slug) {
-          await invalidateProductKeys(updatedProduct.id, updatedProduct.slug);
+        // Invalidate product catalog and specific item keys gracefully
+        try {
+          await invalidateProducts();
+          await invalidateProductKeys(existingProduct.id, existingProduct.slug);
+          if (updatedProduct.id || updatedProduct.slug) {
+            await invalidateProductKeys(updatedProduct.id, updatedProduct.slug);
+          }
+        } catch (cacheErr) {
+          console.warn('[Cache] Invalidation warning after product update:', cacheErr);
         }
 
         return respond(res, 200, {
@@ -880,7 +935,12 @@ export default async function handler(req: any, res?: any) {
             field: 'slug',
           });
         }
-        console.error('Prisma error during product update:', error);
+        logServerError({
+          endpoint: '/api/products',
+          method: 'PATCH',
+          operation: 'update_product',
+          error,
+        });
         return respond(res, 500, { error: 'Failed to update product in database' });
       }
     }
@@ -898,11 +958,15 @@ export default async function handler(req: any, res?: any) {
       }
 
       // Find target product
-      const existingProduct = await prisma.product.findFirst({
-        where: {
-          OR: [{ id: id || raw || '' }, { slug: slug || raw || '' }],
-        },
-      });
+      const existingProduct = await withTimeout(
+        prisma.product.findFirst({
+          where: {
+            OR: [{ id: id || raw || '' }, { slug: slug || raw || '' }],
+          },
+        }),
+        8000,
+        'Find product before deletion'
+      );
 
       if (!existingProduct) {
         return respond(res, 404, {
@@ -913,13 +977,21 @@ export default async function handler(req: any, res?: any) {
 
       try {
         // Cascade onDelete in schema handles CartItem & WishlistItem relationships cleanly
-        const deletedProduct = await prisma.product.delete({
-          where: { id: existingProduct.id },
-        });
+        const deletedProduct = await withTimeout(
+          prisma.product.delete({
+            where: { id: existingProduct.id },
+          }),
+          8000,
+          'Delete product'
+        );
 
-        // Invalidate product catalog and specific item keys
-        await invalidateProducts();
-        await invalidateProductKeys(existingProduct.id, existingProduct.slug);
+        // Invalidate product catalog and specific item keys gracefully
+        try {
+          await invalidateProducts();
+          await invalidateProductKeys(existingProduct.id, existingProduct.slug);
+        } catch (cacheErr) {
+          console.warn('[Cache] Invalidation warning after product deletion:', cacheErr);
+        }
 
         return respond(res, 200, {
           message: 'Product deleted successfully',
@@ -927,14 +999,24 @@ export default async function handler(req: any, res?: any) {
           product: formatProductResponse(deletedProduct),
         });
       } catch (error) {
-        console.error('Prisma error during product deletion:', error);
+        logServerError({
+          endpoint: '/api/products',
+          method: 'DELETE',
+          operation: 'delete_product',
+          error,
+        });
         return respond(res, 500, { error: 'Failed to delete product from database' });
       }
     }
 
     return respond(res, 405, { error: `Method ${method} Not Allowed` });
   } catch (error) {
-    console.error('Product API unhandled error:', error);
+    logServerError({
+      endpoint: '/api/products',
+      method,
+      operation: 'product_handler',
+      error,
+    });
     return respond(res, 500, { error: getSafeErrorMessage(error, 'Internal Server Error') });
   }
 }

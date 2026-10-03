@@ -6,6 +6,8 @@ import {
   isValidString,
   isValidNumber,
   getSafeErrorMessage,
+  withTimeout,
+  logServerError,
 } from '../_utils/security.js';
 import { Prisma } from '@prisma/client';
 
@@ -161,18 +163,22 @@ export default async function handler(req: any, res?: any) {
 
       // Single Request Lookup
       if (requestId) {
-        const singleRequest = await (prisma as any).jewelleryRequest.findUnique({
-          where: { id: requestId },
-          include: {
-            user: {
-              select: {
-                id: true,
-                clerkUserId: true,
-                email: true,
+        const singleRequest = await withTimeout(
+          (prisma as any).jewelleryRequest.findUnique({
+            where: { id: requestId },
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  clerkUserId: true,
+                  email: true,
+                },
               },
             },
-          },
-        });
+          }),
+          8000,
+          'Admin jewellery request lookup timed out.'
+        );
 
         if (!singleRequest) {
           return respond(res, 404, {
@@ -227,31 +233,35 @@ export default async function handler(req: any, res?: any) {
 
       const skip = (page - 1) * limit;
 
-      const [requests, totalCount, statsData] = await Promise.all([
-        (prisma as any).jewelleryRequest.findMany({
-          where: whereClause,
-          include: {
-            user: {
-              select: {
-                id: true,
-                clerkUserId: true,
-                email: true,
+      const [requests, totalCount, statsData] = await withTimeout(
+        Promise.all([
+          (prisma as any).jewelleryRequest.findMany({
+            where: whereClause,
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  clerkUserId: true,
+                  email: true,
+                },
               },
             },
-          },
-          orderBy: { createdAt: 'desc' },
-          skip,
-          take: limit,
-        }),
-        (prisma as any).jewelleryRequest.count({ where: whereClause }),
-        // Global aggregate stats for metrics dashboard
-        (prisma as any).jewelleryRequest.groupBy({
-          by: ['status'],
-          _count: {
-            status: true,
-          },
-        }),
-      ]);
+            orderBy: { createdAt: 'desc' },
+            skip,
+            take: limit,
+          }),
+          (prisma as any).jewelleryRequest.count({ where: whereClause }),
+          // Global aggregate stats for metrics dashboard
+          (prisma as any).jewelleryRequest.groupBy({
+            by: ['status'],
+            _count: {
+              status: true,
+            },
+          }),
+        ]),
+        8000,
+        'Admin jewellery requests query timed out.'
+      );
 
       const stats = {
         total: 0,
@@ -294,18 +304,22 @@ export default async function handler(req: any, res?: any) {
         });
       }
 
-      const existingRequest = await (prisma as any).jewelleryRequest.findUnique({
-        where: { id: requestId },
-        include: {
-          user: {
-            select: {
-              id: true,
-              clerkUserId: true,
-              email: true,
+      const existingRequest = await withTimeout(
+        (prisma as any).jewelleryRequest.findUnique({
+          where: { id: requestId },
+          include: {
+            user: {
+              select: {
+                id: true,
+                clerkUserId: true,
+                email: true,
+              },
             },
           },
-        },
-      });
+        }),
+        8000,
+        'Admin jewellery request lookup timed out.'
+      );
 
       if (!existingRequest) {
         return respond(res, 404, {
@@ -410,19 +424,23 @@ export default async function handler(req: any, res?: any) {
         });
       }
 
-      const updatedRecord = await (prisma as any).jewelleryRequest.update({
-        where: { id: existingRequest.id },
-        data: updateData,
-        include: {
-          user: {
-            select: {
-              id: true,
-              clerkUserId: true,
-              email: true,
+      const updatedRecord = await withTimeout(
+        (prisma as any).jewelleryRequest.update({
+          where: { id: existingRequest.id },
+          data: updateData,
+          include: {
+            user: {
+              select: {
+                id: true,
+                clerkUserId: true,
+                email: true,
+              },
             },
           },
-        },
-      });
+        }),
+        8000,
+        'Admin jewellery request update timed out.'
+      );
 
       return respond(res, 200, {
         success: true,
@@ -436,7 +454,10 @@ export default async function handler(req: any, res?: any) {
       error: `Method ${method} Not Allowed`,
     });
   } catch (error: any) {
-    console.error('Admin Jewellery Request API error:', error);
+    logServerError(error, {
+      endpoint: '/api/admin/jewellery-requests',
+      method,
+    });
     return respond(res, 500, {
       success: false,
       error: getSafeErrorMessage(error, 'Internal server error while processing admin request.'),
