@@ -1,11 +1,20 @@
 import prisma from '../src/lib/prisma.js';
-import { getAuthenticatedUser, getRequestBody, respond } from './_utils/auth.js';
+import { getAuthenticatedUser, getRequestBody, respond, isPayloadTooLarge, isMalformedJson } from './_utils/auth.js';
+import { isValidIdentifier, getSafeErrorMessage } from './_utils/security.js';
 
 export default async function handler(req: any, res?: any) {
   const method = (req.method || 'GET').toUpperCase();
 
   try {
     const body = await getRequestBody(req);
+
+    if (isPayloadTooLarge(body)) {
+      return respond(res, 413, { error: 'Payload too large: maximum allowed JSON body size is 1MB' });
+    }
+    if (isMalformedJson(body)) {
+      return respond(res, 400, { error: 'Invalid JSON payload format' });
+    }
+
     const user = await getAuthenticatedUser(req, body);
 
     if (!user) {
@@ -57,6 +66,10 @@ export default async function handler(req: any, res?: any) {
 
       const trimmedProductId = productId.trim();
 
+      if (!isValidIdentifier(trimmedProductId)) {
+        return respond(res, 400, { error: 'Invalid productId format' });
+      }
+
       // Verify product exists in database
       const product = await prisma.product.findUnique({
         where: { id: trimmedProductId },
@@ -95,16 +108,21 @@ export default async function handler(req: any, res?: any) {
     }
 
     if (method === 'DELETE') {
-      const productId =
-        body.productId ||
+      const rawProductId =
+        body?.productId ||
         (req.query && req.query.productId) ||
         (req.url ? new URL(req.url, 'http://localhost').searchParams.get('productId') : null);
 
-      if (!productId || typeof productId !== 'string' || !productId.trim()) {
+      if (!rawProductId || typeof rawProductId !== 'string' || !rawProductId.trim()) {
         return respond(res, 400, { error: 'Invalid or missing productId' });
       }
 
-      const trimmedProductId = productId.trim();
+      const trimmedProductId = rawProductId.trim();
+
+      if (!isValidIdentifier(trimmedProductId)) {
+        return respond(res, 400, { error: 'Invalid productId format' });
+      }
+
       const wishlist = await getOrCreateWishlist();
       await prisma.wishlistItem.deleteMany({
         where: {
@@ -127,6 +145,6 @@ export default async function handler(req: any, res?: any) {
     return respond(res, 405, { error: `Method ${method} Not Allowed` });
   } catch (error) {
     console.error('Wishlist API error:', error);
-    return respond(res, 500, { error: 'Internal Server Error' });
+    return respond(res, 500, { error: getSafeErrorMessage(error, 'Internal Server Error') });
   }
 }

@@ -1,7 +1,9 @@
 import prisma from '../src/lib/prisma.js';
-import { getAuthenticatedUser, getRequestBody, respond } from './_utils/auth.js';
+import { getAuthenticatedUser, getRequestBody, respond, isPayloadTooLarge, isMalformedJson } from './_utils/auth.js';
+import { isValidIdentifier, getSafeErrorMessage } from './_utils/security.js';
 
 export const MAX_CART_ITEM_QUANTITY = 99;
+export const MAX_CART_UNIQUE_ITEMS = 50;
 
 /**
  * Validates a cart item addition quantity.
@@ -84,6 +86,14 @@ export default async function handler(req: any, res?: any) {
 
   try {
     const body = await getRequestBody(req);
+
+    if (isPayloadTooLarge(body)) {
+      return respond(res, 413, { error: 'Payload too large: maximum allowed JSON body size is 1MB' });
+    }
+    if (isMalformedJson(body)) {
+      return respond(res, 400, { error: 'Invalid JSON payload format' });
+    }
+
     const user = await getAuthenticatedUser(req, body);
 
     if (!user) {
@@ -105,6 +115,10 @@ export default async function handler(req: any, res?: any) {
       }
 
       const trimmedProductId = productId.trim();
+
+      if (!isValidIdentifier(trimmedProductId)) {
+        return respond(res, 400, { error: 'Invalid productId format' });
+      }
 
       // Quantity validation
       let qty = 1;
@@ -128,6 +142,16 @@ export default async function handler(req: any, res?: any) {
       }
 
       const cart = await getOrCreateCart(user.id);
+
+      // Check unique cart items limit
+      if (cart.items && cart.items.length >= MAX_CART_UNIQUE_ITEMS) {
+        const itemExists = cart.items.some((it: any) => it.productId === trimmedProductId);
+        if (!itemExists) {
+          return respond(res, 400, {
+            error: `Cart cannot contain more than ${MAX_CART_UNIQUE_ITEMS} unique items`,
+          });
+        }
+      }
 
       // Atomic quantity increment within transaction with cap
       await prisma.$transaction(async (tx) => {
@@ -170,6 +194,10 @@ export default async function handler(req: any, res?: any) {
       }
 
       const trimmedProductId = productId.trim();
+
+      if (!isValidIdentifier(trimmedProductId)) {
+        return respond(res, 400, { error: 'Invalid productId format' });
+      }
 
       if (!isValidUpdateQuantity(quantity)) {
         return respond(res, 400, {
@@ -230,19 +258,25 @@ export default async function handler(req: any, res?: any) {
           },
         });
       } else {
-        const productId =
+        const rawProductId =
           body?.productId ||
           (req.query && req.query.productId) ||
           (req.url ? new URL(req.url, 'http://localhost').searchParams.get('productId') : null);
 
-        if (!productId || typeof productId !== 'string' || productId.trim().length === 0) {
+        if (!rawProductId || typeof rawProductId !== 'string' || rawProductId.trim().length === 0) {
           return respond(res, 400, { error: 'Invalid or missing productId' });
+        }
+
+        const productId = rawProductId.trim();
+
+        if (!isValidIdentifier(productId)) {
+          return respond(res, 400, { error: 'Invalid productId format' });
         }
 
         await prisma.cartItem.deleteMany({
           where: {
             cartId: cart.id,
-            productId: productId.trim(),
+            productId,
           },
         });
       }
@@ -254,6 +288,6 @@ export default async function handler(req: any, res?: any) {
     return respond(res, 405, { error: `Method ${method} Not Allowed` });
   } catch (error) {
     console.error('Cart API error:', error);
-    return respond(res, 500, { error: 'Internal Server Error' });
+    return respond(res, 500, { error: getSafeErrorMessage(error, 'Internal Server Error') });
   }
 }
