@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { createClerkClient } from '@clerk/backend';
 import prisma from '../../src/lib/prisma.js';
+import { getOrCreateRequestId, logSecurityEvent, logDependencyFailure } from './logger.js';
 
 const publishableKey =
   process.env.CLERK_PUBLISHABLE_KEY ||
@@ -159,13 +160,25 @@ const DEFAULT_SECURITY_HEADERS: Record<string, string> = {
 
 /**
  * Unified response sender supporting Vercel functions, Node HTTP (Vite dev server), and Web Response.
- * Automatically injects standard security headers to prevent MIME confusion, clickjacking, and referrer leakage.
+ * Automatically injects standard security headers to prevent MIME confusion, clickjacking, and referrer leakage,
+ * as well as X-Request-ID correlation tracking headers.
  */
 export function respond(res: any, status: number, data: any, headers?: Record<string, string>) {
   const mergedHeaders: Record<string, string> = {
     ...DEFAULT_SECURITY_HEADERS,
     ...(headers || {}),
   };
+
+  const reqId =
+    mergedHeaders['X-Request-ID'] ||
+    mergedHeaders['x-request-id'] ||
+    res?._requestId ||
+    res?.req?._requestId ||
+    res?._req?._requestId;
+
+  if (reqId) {
+    mergedHeaders['X-Request-ID'] = reqId;
+  }
 
   if (res) {
     if (typeof res.setHeader === 'function') {

@@ -1,5 +1,6 @@
 import { Redis as UpstashRedis } from '@upstash/redis';
 import IORedis from 'ioredis';
+import { logDependencyFailure } from './logger.js';
 
 // ─── Centralized Cache TTLs (seconds) ─────────────────────────────────────────
 export const TTL = {
@@ -131,7 +132,7 @@ export function getRedisClient(): { upstash?: UpstashRedis; io?: IORedis } | nul
       });
       return { upstash: _upstash };
     } catch (e) {
-      console.warn('[Cache] Failed to initialize Upstash REST client:', e);
+      logDependencyFailure('redis', 'init_upstash_client', e, { isFatal: false });
     }
   }
 
@@ -144,12 +145,13 @@ export function getRedisClient(): { upstash?: UpstashRedis; io?: IORedis } | nul
         lazyConnect: true,
         enableOfflineQueue: false,
       });
-      _ioredis.on('error', () => {
+      _ioredis.on('error', (err) => {
         // Suppress connection errors to prevent breaking API requests
+        logDependencyFailure('redis', 'ioredis_runtime_error', err, { isFatal: false });
       });
       return { io: _ioredis };
     } catch (e) {
-      console.warn('[Cache] Failed to initialize ioredis client:', e);
+      logDependencyFailure('redis', 'init_ioredis_client', e, { isFatal: false });
     }
   }
 
@@ -268,7 +270,7 @@ export async function cacheSet(
     }
   } catch (err) {
     // Graceful degradation: log warning without crashing caller
-    console.warn('[Cache] Write error for key:', key, err);
+    logDependencyFailure('redis', 'cache_write', err, { isFatal: false, extra: { key } });
   }
 
   return false;
@@ -290,7 +292,7 @@ export async function cacheDel(key: string): Promise<void> {
       await client.io.del(key);
     }
   } catch (err) {
-    console.warn('[Cache] Error deleting key:', key, err);
+    logDependencyFailure('redis', 'cache_delete', err, { isFatal: false, extra: { key } });
   }
 }
 
@@ -325,7 +327,7 @@ export async function invalidateProducts(): Promise<void> {
       }
     }
   } catch (err) {
-    console.warn('[Cache] Error during product cache invalidation:', err);
+    logDependencyFailure('redis', 'invalidate_products', err, { isFatal: false });
   }
 }
 

@@ -10,6 +10,9 @@ import {
   logServerError,
   withTimeout,
   checkRateLimit,
+  getOrCreateRequestId,
+  logSlowRequest,
+  logSecurityEvent,
 } from './_utils/security.js';
 import { Prisma } from '@prisma/client';
 
@@ -230,17 +233,34 @@ export function validateJewelleryRequestCreatePayload(body: any): {
  */
 export default async function handler(req: any, res?: any) {
   const method = (req.method || 'GET').toUpperCase();
+  const requestId = getOrCreateRequestId(req);
+  if (res) res._requestId = requestId;
+  const startTime = Date.now();
 
   try {
     const body = await getRequestBody(req);
 
     if (isPayloadTooLarge(body)) {
+      logSecurityEvent({
+        event: 'payload_too_large',
+        endpoint: '/api/jewellery-requests',
+        method,
+        requestId,
+        statusCode: 413,
+      });
       return respond(res, 413, {
         success: false,
         error: 'Payload too large: maximum allowed JSON body size is 1MB',
       });
     }
     if (isMalformedJson(body)) {
+      logSecurityEvent({
+        event: 'malformed_json',
+        endpoint: '/api/jewellery-requests',
+        method,
+        requestId,
+        statusCode: 400,
+      });
       return respond(res, 400, {
         success: false,
         error: 'Invalid JSON payload format',
@@ -250,6 +270,13 @@ export default async function handler(req: any, res?: any) {
     const user = await getAuthenticatedUser(req, body);
 
     if (!user) {
+      logSecurityEvent({
+        event: 'unauthorized_access',
+        endpoint: '/api/jewellery-requests',
+        method,
+        requestId,
+        statusCode: 401,
+      });
       return respond(res, 401, {
         success: false,
         error: 'Unauthorized: Valid Clerk session required',
@@ -369,15 +396,21 @@ export default async function handler(req: any, res?: any) {
       });
     }
 
+    const durationMs = Date.now() - startTime;
+    logSlowRequest({ endpoint: '/api/jewellery-requests', method, durationMs, requestId });
     return respond(res, 405, {
       success: false,
       error: `Method ${method} Not Allowed`,
     });
   } catch (error) {
+    const durationMs = Date.now() - startTime;
     logServerError({
       endpoint: '/api/jewellery-requests',
       method,
       operation: 'jewellery_requests_handler',
+      requestId,
+      durationMs,
+      statusCode: 500,
       error,
     });
     return respond(res, 500, {

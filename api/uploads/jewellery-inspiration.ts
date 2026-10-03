@@ -1,7 +1,15 @@
 import { getAuthenticatedUser, respond } from '../_utils/auth.js';
 import { parseMultipartForm } from '../_utils/multipart.js';
 import { cloudinary, isCloudinaryConfigured } from '../_utils/cloudinary.js';
-import { checkRateLimit, getSafeErrorMessage, logServerError } from '../_utils/security.js';
+import {
+  checkRateLimit,
+  getSafeErrorMessage,
+  logServerError,
+  getOrCreateRequestId,
+  logSlowRequest,
+  logSecurityEvent,
+  logDependencyFailure,
+} from '../_utils/security.js';
 import type { UploadApiResponse } from 'cloudinary';
 
 const MAX_INSPIRATION_SIZE_BYTES = 5 * 1024 * 1024; // 5MB limit for customer inspiration images
@@ -47,6 +55,9 @@ async function uploadInspirationToCloudinary(
  */
 export default async function handler(req: any, res?: any) {
   const method = (req.method || 'GET').toUpperCase();
+  const requestId = getOrCreateRequestId(req);
+  if (res) res._requestId = requestId;
+  const startTime = Date.now();
 
   if (method !== 'POST') {
     return respond(res, 405, {
@@ -59,6 +70,13 @@ export default async function handler(req: any, res?: any) {
     // 1. Verify Authenticated Customer via Clerk session
     const user = await getAuthenticatedUser(req);
     if (!user) {
+      logSecurityEvent({
+        event: 'unauthorized_inspiration_upload',
+        endpoint: '/api/uploads/jewellery-inspiration',
+        method,
+        requestId,
+        statusCode: 401,
+      });
       return respond(res, 401, {
         success: false,
         error: 'Unauthorized: Valid Clerk session required to upload inspiration images.',
@@ -117,6 +135,9 @@ export default async function handler(req: any, res?: any) {
     // 6. Upload Image to Cloudinary folder: alongkar/jewellery-requests
     const uploadResult = await uploadInspirationToCloudinary(file.buffer);
 
+    const durationMs = Date.now() - startTime;
+    logSlowRequest({ endpoint: '/api/uploads/jewellery-inspiration', method, durationMs, requestId });
+
     // 7. Return secure delivery URL and metadata (never secrets!)
     return respond(res, 200, {
       success: true,
@@ -127,9 +148,19 @@ export default async function handler(req: any, res?: any) {
       bytes: uploadResult.bytes,
     });
   } catch (error: any) {
+    const durationMs = Date.now() - startTime;
+    logDependencyFailure('cloudinary', 'upload_inspiration_image', error, {
+      endpoint: '/api/uploads/jewellery-inspiration',
+      method,
+      requestId,
+      isFatal: true,
+    });
     logServerError(error, {
       endpoint: '/api/uploads/jewellery-inspiration',
       method,
+      requestId,
+      durationMs,
+      statusCode: 500,
     });
     return respond(res, 500, {
       success: false,

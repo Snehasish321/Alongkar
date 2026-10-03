@@ -8,6 +8,9 @@ import {
   getSafeErrorMessage,
   withTimeout,
   logServerError,
+  getOrCreateRequestId,
+  logSlowRequest,
+  logSecurityEvent,
 } from '../_utils/security.js';
 import { Prisma } from '@prisma/client';
 
@@ -129,17 +132,34 @@ export function formatAdminJewelleryRequest(r: any) {
  */
 export default async function handler(req: any, res?: any) {
   const method = (req.method || 'GET').toUpperCase();
+  const requestId = getOrCreateRequestId(req);
+  if (res) res._requestId = requestId;
+  const startTime = Date.now();
 
   try {
     const body = await getRequestBody(req);
 
     if (isPayloadTooLarge(body)) {
+      logSecurityEvent({
+        event: 'payload_too_large',
+        endpoint: '/api/admin/jewellery-requests',
+        method,
+        requestId,
+        statusCode: 413,
+      });
       return respond(res, 413, {
         success: false,
         error: 'Payload too large: maximum allowed JSON body size is 1MB',
       });
     }
     if (isMalformedJson(body)) {
+      logSecurityEvent({
+        event: 'malformed_json',
+        endpoint: '/api/admin/jewellery-requests',
+        method,
+        requestId,
+        statusCode: 400,
+      });
       return respond(res, 400, {
         success: false,
         error: 'Invalid JSON payload format',
@@ -149,6 +169,13 @@ export default async function handler(req: any, res?: any) {
     // 1. Enforce strict server-side Admin Authorization (Clerk metadata role === 'admin')
     const authCheck = await requireAdmin(req, body);
     if (!authCheck.authorized) {
+      logSecurityEvent({
+        event: authCheck.status === 401 ? 'unauthorized_admin_access' : 'forbidden_admin_access',
+        endpoint: '/api/admin/jewellery-requests',
+        method,
+        requestId,
+        statusCode: authCheck.status,
+      });
       return respond(res, authCheck.status, {
         success: false,
         error: authCheck.error || 'Forbidden: Administrator privileges required',
@@ -449,14 +476,20 @@ export default async function handler(req: any, res?: any) {
       });
     }
 
+    const durationMs = Date.now() - startTime;
+    logSlowRequest({ endpoint: '/api/admin/jewellery-requests', method, durationMs, requestId });
     return respond(res, 405, {
       success: false,
       error: `Method ${method} Not Allowed`,
     });
   } catch (error: any) {
+    const durationMs = Date.now() - startTime;
     logServerError(error, {
       endpoint: '/api/admin/jewellery-requests',
       method,
+      requestId,
+      durationMs,
+      statusCode: 500,
     });
     return respond(res, 500, {
       success: false,

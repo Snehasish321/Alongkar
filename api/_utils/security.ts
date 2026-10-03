@@ -172,73 +172,7 @@ export function getSafeErrorMessage(error: unknown, fallbackMessage = 'Internal 
   return fallbackMessage;
 }
 
-export interface ServerErrorContext {
-  endpoint: string;
-  method?: string;
-  operation?: string;
-  error?: unknown;
-  userId?: string;
-  extra?: Record<string, any>;
-  context?: Record<string, any>;
-}
-
-/**
- * Sanitizes and redacts sensitive credentials, tokens, DB URLs, and secrets from arbitrary strings.
- */
-export function maskSensitiveString(str: string): string {
-  if (!str || typeof str !== 'string') return '';
-  return str
-    .replace(/postgresql:\/\/[^@\s]+@/gi, 'postgresql://[REDACTED]@')
-    .replace(/postgres:\/\/[^@\s]+@/gi, 'postgres://[REDACTED]@')
-    .replace(/Bearer\s+([A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.?[A-Za-z0-9-_.+/=]*)/gi, 'Bearer [REDACTED_TOKEN]')
-    .replace(/eyJ[A-Za-z0-9-_=]{10,}/g, '[REDACTED_JWT]')
-    .replace(/CLERK_SECRET_KEY=[^\s&]+/gi, 'CLERK_SECRET_KEY=[REDACTED]')
-    .replace(/CLOUDINARY_API_SECRET=[^\s&]+/gi, 'CLOUDINARY_API_SECRET=[REDACTED]')
-    .replace(/password[:=][^\s&,]+/gi, 'password=[REDACTED]');
-}
-
-/**
- * Structured server-side error logging with automatic redaction of sensitive credentials.
- */
-export function logServerError(
-  firstArg: ServerErrorContext | unknown,
-  secondArg?: { endpoint?: string; method?: string; operation?: string; userId?: string; context?: any; extra?: any }
-) {
-  let endpoint = 'UNKNOWN';
-  let method = 'UNKNOWN';
-  let operation = 'UNKNOWN';
-  let error: unknown = firstArg;
-  let userId: string | undefined;
-  let extra: any;
-
-  if (firstArg && typeof firstArg === 'object' && 'endpoint' in firstArg) {
-    const ctx = firstArg as ServerErrorContext;
-    endpoint = ctx.endpoint;
-    method = ctx.method || 'UNKNOWN';
-    operation = ctx.operation || 'OPERATION';
-    error = ctx.error;
-    userId = ctx.userId;
-    extra = ctx.extra || ctx.context;
-  } else if (secondArg) {
-    endpoint = secondArg.endpoint || 'UNKNOWN';
-    method = secondArg.method || 'UNKNOWN';
-    operation = secondArg.operation || 'OPERATION';
-    userId = secondArg.userId;
-    extra = secondArg.extra || secondArg.context;
-  }
-
-  const timestamp = new Date().toISOString();
-  const rawErrorMessage = error instanceof Error ? error.message : String(error || 'Unknown server error');
-  const sanitizedMessage = maskSensitiveString(rawErrorMessage);
-
-  const extraStr = extra ? ` | extra: ${maskSensitiveString(JSON.stringify(extra))}` : '';
-
-  console.error(
-    `[${timestamp}] [SERVER_ERROR] [${method} ${endpoint}] [${operation}]` +
-      (userId ? ` [user:${userId}]` : '') +
-      `: ${sanitizedMessage}${extraStr}`
-  );
-}
+export * from './logger.js';
 
 // ─── Database Query Timeout Guard ─────────────────────────────────────────────
 

@@ -1,6 +1,14 @@
 import prisma from '../src/lib/prisma.js';
 import { getAuthenticatedUser, getRequestBody, respond, isPayloadTooLarge, isMalformedJson } from './_utils/auth.js';
-import { isValidIdentifier, getSafeErrorMessage, logServerError, withTimeout } from './_utils/security.js';
+import {
+  isValidIdentifier,
+  getSafeErrorMessage,
+  logServerError,
+  withTimeout,
+  getOrCreateRequestId,
+  logSlowRequest,
+  logSecurityEvent,
+} from './_utils/security.js';
 
 /**
  * Atomically gets or creates the user's wishlist using upsert to eliminate race conditions.
@@ -35,20 +43,44 @@ export async function getOrCreateWishlist(userId: string) {
 
 export default async function handler(req: any, res?: any) {
   const method = (req.method || 'GET').toUpperCase();
+  const requestId = getOrCreateRequestId(req);
+  if (res) res._requestId = requestId;
+  const startTime = Date.now();
 
   try {
     const body = await getRequestBody(req);
 
     if (isPayloadTooLarge(body)) {
+      logSecurityEvent({
+        event: 'payload_too_large',
+        endpoint: '/api/wishlist',
+        method,
+        requestId,
+        statusCode: 413,
+      });
       return respond(res, 413, { error: 'Payload too large: maximum allowed JSON body size is 1MB' });
     }
     if (isMalformedJson(body)) {
+      logSecurityEvent({
+        event: 'malformed_json',
+        endpoint: '/api/wishlist',
+        method,
+        requestId,
+        statusCode: 400,
+      });
       return respond(res, 400, { error: 'Invalid JSON payload format' });
     }
 
     const user = await getAuthenticatedUser(req, body);
 
     if (!user) {
+      logSecurityEvent({
+        event: 'unauthorized_access',
+        endpoint: '/api/wishlist',
+        method,
+        requestId,
+        statusCode: 401,
+      });
       return respond(res, 401, { error: 'Unauthorized: Valid Clerk session required' });
     }
 
@@ -165,12 +197,18 @@ export default async function handler(req: any, res?: any) {
       });
     }
 
+    const durationMs = Date.now() - startTime;
+    logSlowRequest({ endpoint: '/api/wishlist', method, durationMs, requestId });
     return respond(res, 405, { error: `Method ${method} Not Allowed` });
   } catch (error) {
+    const durationMs = Date.now() - startTime;
     logServerError({
       endpoint: '/api/wishlist',
       method,
       operation: 'wishlist_handler',
+      requestId,
+      durationMs,
+      statusCode: 500,
       error,
     });
     return respond(res, 500, { error: getSafeErrorMessage(error, 'Internal Server Error') });

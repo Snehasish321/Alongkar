@@ -22,6 +22,9 @@ import {
   logServerError,
   withTimeout,
   checkRateLimit,
+  getOrCreateRequestId,
+  logSlowRequest,
+  logSecurityEvent,
   MAX_PRODUCT_PRICE,
   MAX_DESCRIPTION_LENGTH,
   MAX_IMAGE_URL_LENGTH,
@@ -466,15 +469,32 @@ export function extractIdentifier(req: any, body: any): { id?: string; slug?: st
  */
 export default async function handler(req: any, res?: any) {
   const method = (req.method || 'GET').toUpperCase();
+  const requestId = getOrCreateRequestId(req);
+  if (res) res._requestId = requestId;
+  const startTime = Date.now();
 
   try {
     const body = await getRequestBody(req);
 
     // Enforce payload size and JSON structure protection
     if (isPayloadTooLarge(body)) {
+      logSecurityEvent({
+        event: 'payload_too_large',
+        endpoint: '/api/products',
+        method,
+        requestId,
+        statusCode: 413,
+      });
       return respond(res, 413, { error: 'Payload too large: maximum allowed JSON body size is 1MB' });
     }
     if (isMalformedJson(body)) {
+      logSecurityEvent({
+        event: 'malformed_json',
+        endpoint: '/api/products',
+        method,
+        requestId,
+        statusCode: 400,
+      });
       return respond(res, 400, { error: 'Invalid JSON payload format' });
     }
 
@@ -1009,12 +1029,18 @@ export default async function handler(req: any, res?: any) {
       }
     }
 
+    const durationMs = Date.now() - startTime;
+    logSlowRequest({ endpoint: '/api/products', method, durationMs, requestId });
     return respond(res, 405, { error: `Method ${method} Not Allowed` });
   } catch (error) {
+    const durationMs = Date.now() - startTime;
     logServerError({
       endpoint: '/api/products',
       method,
       operation: 'product_handler',
+      requestId,
+      durationMs,
+      statusCode: 500,
       error,
     });
     return respond(res, 500, { error: getSafeErrorMessage(error, 'Internal Server Error') });
