@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import {
   cacheGet,
   cacheSet,
+  getCacheVersion,
   invalidateProducts,
   invalidateProductKeys,
   CacheKey,
@@ -473,7 +474,7 @@ export default async function handler(req: any, res?: any) {
     const body = await getRequestBody(req);
 
     // ==========================================
-    // GET: Retrieve All Products or Single Product (Cached L1 + L2)
+    // GET: Retrieve All Products or Single Product (Redis L2 + PostgreSQL)
     // ==========================================
     if (method === 'GET') {
       const { id, slug, raw } = extractIdentifier(req, body);
@@ -495,10 +496,13 @@ export default async function handler(req: any, res?: any) {
             {
               'X-Cache': 'HIT',
               'X-Cache-Source': cached.source,
-              'Cache-Control': 'public, s-maxage=600, stale-while-revalidate=1200',
+              'Cache-Control': 'private, no-cache, no-transform',
             }
           );
         }
+
+        // Capture cache version before DB read to detect race with mutations
+        const cacheVersion = await getCacheVersion();
 
         let product = null;
 
@@ -523,11 +527,11 @@ export default async function handler(req: any, res?: any) {
 
         const formatted = formatProductResponse(product);
 
-        // Cache single product (under id, slug, and raw if available for instant future hits)
-        if (product.id) await cacheSet(CacheKey.productId(product.id), formatted, TTL.PRODUCT_ONE);
-        if (product.slug) await cacheSet(CacheKey.productSlug(product.slug), formatted, TTL.PRODUCT_ONE);
+        // Cache single product in Redis with version check to prevent stale GET race
+        if (product.id) await cacheSet(CacheKey.productId(product.id), formatted, TTL.PRODUCT_ONE, cacheVersion);
+        if (product.slug) await cacheSet(CacheKey.productSlug(product.slug), formatted, TTL.PRODUCT_ONE, cacheVersion);
         if (raw && raw !== product.id && raw !== product.slug) {
-          await cacheSet(CacheKey.productRaw(raw), formatted, TTL.PRODUCT_ONE);
+          await cacheSet(CacheKey.productRaw(raw), formatted, TTL.PRODUCT_ONE, cacheVersion);
         }
 
         return respond(
@@ -536,7 +540,7 @@ export default async function handler(req: any, res?: any) {
           { product: formatted },
           {
             'X-Cache': 'MISS',
-            'Cache-Control': 'public, s-maxage=600, stale-while-revalidate=1200',
+            'Cache-Control': 'private, no-cache, no-transform',
           }
         );
       }
@@ -566,16 +570,23 @@ export default async function handler(req: any, res?: any) {
           {
             'X-Cache': 'HIT',
             'X-Cache-Source': cachedList.source,
-            'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+            'Cache-Control': 'private, no-cache, no-transform',
           }
         );
       }
 
-      const whereClause: any = {};
-      if (categoryFilter) whereClause.category = categoryFilter;
-      if (collectionFilter) whereClause.collectionId = collectionFilter;
+      // Capture cache version before DB query to guard against concurrent mutations
+      const cacheVersion = await getCacheVersion();
 
-      // List all products from database
+      const whereClause: any = {};
+      if (categoryFilter && categoryFilter.toLowerCase() !== 'all') {
+        whereClause.category = categoryFilter;
+      }
+      if (collectionFilter && collectionFilter.toLowerCase() !== 'all') {
+        whereClause.collectionId = collectionFilter;
+      }
+
+      // List all products from PostgreSQL source of truth
       const products = await prisma.product.findMany({
         where: whereClause,
         orderBy: { createdAt: 'desc' },
@@ -586,8 +597,8 @@ export default async function handler(req: any, res?: any) {
         count: products.length,
       };
 
-      // Store in L1 + L2 Cache
-      await cacheSet(listCacheKey, responseData, TTL.PRODUCTS_ALL);
+      // Store in Redis with cache generation verification to prevent stale overwrite
+      await cacheSet(listCacheKey, responseData, TTL.PRODUCTS_ALL, cacheVersion);
 
       return respond(
         res,
@@ -595,7 +606,7 @@ export default async function handler(req: any, res?: any) {
         responseData,
         {
           'X-Cache': 'MISS',
-          'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+          'Cache-Control': 'private, no-cache, no-transform',
         }
       );
     }

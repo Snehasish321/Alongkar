@@ -78,13 +78,26 @@ const ITEM_CACHE_TTL = 120 * 1000;   // 2 minutes
 const catalogCache = new Map<string, CacheRecord<Product[]>>();
 const itemCache = new Map<string, CacheRecord<Product>>();
 const inFlightRequests = new Map<string, Promise<any>>();
+const activeAbortControllers = new Map<string, AbortController>();
+
+// Generation counter to protect against stale in-flight requests overwriting fresh data
+let clientCacheGeneration = 0;
 
 /**
- * Manually invalidates client-side memory cache (e.g. after admin updates).
+ * Manually invalidates client-side memory cache and aborts any active in-flight requests.
  */
 export function clearProductApiCache(): void {
+  clientCacheGeneration++;
   catalogCache.clear();
   itemCache.clear();
+
+  // Abort all in-flight requests so old responses cannot overwrite fresh state
+  activeAbortControllers.forEach((ctrl) => {
+    try {
+      ctrl.abort();
+    } catch {}
+  });
+  activeAbortControllers.clear();
   inFlightRequests.clear();
 }
 
@@ -101,11 +114,11 @@ function seedItemCache(products: Product[]): void {
 
 /**
  * Fetches all products (or filtered products) from the database via GET /api/products.
- * Features in-memory caching and request deduplication.
+ * Features in-memory caching, request deduplication, and generation protection.
  */
 export async function fetchProducts(options?: FetchProductsOptions): Promise<Product[]> {
-  const cat = options?.category && options.category !== 'all' ? options.category : 'all';
-  const col = options?.collectionId ? options.collectionId : 'all';
+  const cat = options?.category && options.category !== 'all' ? options.category.trim().toLowerCase() : 'all';
+  const col = options?.collectionId && options.collectionId !== 'all' ? options.collectionId.trim().toLowerCase() : 'all';
   const cacheKey = `catalog:${cat}:${col}`;
 
   // 1. Check client memory cache unless forceRefresh requested
@@ -116,48 +129,68 @@ export async function fetchProducts(options?: FetchProductsOptions): Promise<Pro
     }
   }
 
-  // 2. Request deduplication: reuse any in-flight Promise for this query
+  // 2. If forceRefresh requested, abort any existing in-flight request for this key
+  if (options?.forceRefresh && activeAbortControllers.has(cacheKey)) {
+    try {
+      activeAbortControllers.get(cacheKey)!.abort();
+    } catch {}
+    activeAbortControllers.delete(cacheKey);
+    inFlightRequests.delete(cacheKey);
+  }
+
+  // 3. Request deduplication: reuse active in-flight Promise for identical query
   if (inFlightRequests.has(cacheKey)) {
     return inFlightRequests.get(cacheKey)!;
   }
 
+  const requestGen = clientCacheGeneration;
+  const abortController = new AbortController();
+  activeAbortControllers.set(cacheKey, abortController);
+
   const fetchPromise = (async () => {
-    try {
-      const params = new URLSearchParams();
-      if (options?.category && options.category !== 'all') {
-        params.set('category', options.category);
-      }
-      if (options?.collectionId) {
-        params.set('collectionId', options.collectionId);
-      }
+    const params = new URLSearchParams();
+    if (options?.category && options.category !== 'all') {
+      params.set('category', options.category.trim());
+    }
+    if (options?.collectionId && options.collectionId !== 'all') {
+      params.set('collectionId', options.collectionId.trim());
+    }
 
-      const query = params.toString() ? `?${params.toString()}` : '';
-      const response = await fetch(`/api/products${query}`, {
-        method: 'GET',
-        headers: {
-          Accept: 'application/json',
-        },
-      });
+    const query = params.toString() ? `?${params.toString()}` : '';
+    const response = await fetch(`/api/products${query}`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+      },
+      signal: abortController.signal,
+    });
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch products: ${response.status} ${response.statusText}`);
-      }
+    if (!response.ok) {
+      throw new Error(`Failed to fetch products: ${response.status} ${response.statusText}`);
+    }
 
-      const data = await response.json();
-      const rawList = Array.isArray(data.products) ? data.products : [];
-      const normalizedList = rawList.map(normalizeProduct);
+    const data = await response.json();
+    const rawList = Array.isArray(data.products) ? data.products : [];
+    const normalizedList = rawList.map(normalizeProduct);
 
-      // Store in catalog cache
+    // Only cache if cache generation hasn't changed during the network roundtrip
+    if (requestGen === clientCacheGeneration) {
       catalogCache.set(cacheKey, { data: normalizedList, timestamp: Date.now() });
-
-      // Pre-seed item cache so detail pages open instantly (0ms)
       seedItemCache(normalizedList);
+    }
 
-      return normalizedList;
-    } finally {
+    return normalizedList;
+  })();
+
+  fetchPromise.finally(() => {
+    // Safe cleanup: only remove from inFlight map if this promise was the active one
+    if (inFlightRequests.get(cacheKey) === fetchPromise) {
       inFlightRequests.delete(cacheKey);
     }
-  })();
+    if (activeAbortControllers.get(cacheKey) === abortController) {
+      activeAbortControllers.delete(cacheKey);
+    }
+  });
 
   inFlightRequests.set(cacheKey, fetchPromise);
   return fetchPromise;
@@ -165,7 +198,7 @@ export async function fetchProducts(options?: FetchProductsOptions): Promise<Pro
 
 /**
  * Fetches a single product by its unique slug via GET /api/products?slug=<slug>.
- * Features in-memory caching and request deduplication.
+ * Features in-memory caching, request deduplication, and generation protection.
  * Returns null if the product is not found (404).
  */
 export async function fetchProductBySlug(slug: string, forceRefresh = false): Promise<Product | null> {
@@ -173,7 +206,7 @@ export async function fetchProductBySlug(slug: string, forceRefresh = false): Pr
     return null;
   }
 
-  const cleanSlug = slug.trim();
+  const cleanSlug = slug.trim().toLowerCase();
   const cacheKey = `slug:${cleanSlug}`;
 
   if (!forceRefresh) {
@@ -183,43 +216,64 @@ export async function fetchProductBySlug(slug: string, forceRefresh = false): Pr
     }
   }
 
+  if (forceRefresh && activeAbortControllers.has(cacheKey)) {
+    try {
+      activeAbortControllers.get(cacheKey)!.abort();
+    } catch {}
+    activeAbortControllers.delete(cacheKey);
+    inFlightRequests.delete(cacheKey);
+  }
+
   if (inFlightRequests.has(cacheKey)) {
     return inFlightRequests.get(cacheKey)!;
   }
 
+  const requestGen = clientCacheGeneration;
+  const abortController = new AbortController();
+  activeAbortControllers.set(cacheKey, abortController);
+
   const fetchPromise = (async () => {
-    try {
-      const response = await fetch(`/api/products?slug=${encodeURIComponent(cleanSlug)}`, {
-        method: 'GET',
-        headers: {
-          Accept: 'application/json',
-        },
-      });
+    const response = await fetch(`/api/products?slug=${encodeURIComponent(cleanSlug)}`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+      },
+      signal: abortController.signal,
+    });
 
-      if (response.status === 404) {
-        return null;
-      }
+    if (response.status === 404) {
+      return null;
+    }
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch product by slug "${cleanSlug}": ${response.status} ${response.statusText}`);
-      }
+    if (!response.ok) {
+      throw new Error(`Failed to fetch product by slug "${cleanSlug}": ${response.status} ${response.statusText}`);
+    }
 
-      const data = await response.json();
-      if (!data.product) {
-        return null;
-      }
+    const data = await response.json();
+    if (!data.product) {
+      return null;
+    }
 
-      const product = normalizeProduct(data.product);
+    const product = normalizeProduct(data.product);
+
+    if (requestGen === clientCacheGeneration) {
       itemCache.set(cacheKey, { data: product, timestamp: Date.now() });
       if (product.id) {
         itemCache.set(`id:${product.id}`, { data: product, timestamp: Date.now() });
       }
+    }
 
-      return product;
-    } finally {
+    return product;
+  })();
+
+  fetchPromise.finally(() => {
+    if (inFlightRequests.get(cacheKey) === fetchPromise) {
       inFlightRequests.delete(cacheKey);
     }
-  })();
+    if (activeAbortControllers.get(cacheKey) === abortController) {
+      activeAbortControllers.delete(cacheKey);
+    }
+  });
 
   inFlightRequests.set(cacheKey, fetchPromise);
   return fetchPromise;
@@ -227,7 +281,7 @@ export async function fetchProductBySlug(slug: string, forceRefresh = false): Pr
 
 /**
  * Fetches a single product by its unique ID via GET /api/products?id=<id>.
- * Features in-memory caching and request deduplication.
+ * Features in-memory caching, request deduplication, and generation protection.
  * Returns null if the product is not found (404).
  */
 export async function fetchProductById(id: string, forceRefresh = false): Promise<Product | null> {
@@ -245,43 +299,64 @@ export async function fetchProductById(id: string, forceRefresh = false): Promis
     }
   }
 
+  if (forceRefresh && activeAbortControllers.has(cacheKey)) {
+    try {
+      activeAbortControllers.get(cacheKey)!.abort();
+    } catch {}
+    activeAbortControllers.delete(cacheKey);
+    inFlightRequests.delete(cacheKey);
+  }
+
   if (inFlightRequests.has(cacheKey)) {
     return inFlightRequests.get(cacheKey)!;
   }
 
+  const requestGen = clientCacheGeneration;
+  const abortController = new AbortController();
+  activeAbortControllers.set(cacheKey, abortController);
+
   const fetchPromise = (async () => {
-    try {
-      const response = await fetch(`/api/products?id=${encodeURIComponent(cleanId)}`, {
-        method: 'GET',
-        headers: {
-          Accept: 'application/json',
-        },
-      });
+    const response = await fetch(`/api/products?id=${encodeURIComponent(cleanId)}`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+      },
+      signal: abortController.signal,
+    });
 
-      if (response.status === 404) {
-        return null;
-      }
+    if (response.status === 404) {
+      return null;
+    }
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch product by id "${cleanId}": ${response.status} ${response.statusText}`);
-      }
+    if (!response.ok) {
+      throw new Error(`Failed to fetch product by id "${cleanId}": ${response.status} ${response.statusText}`);
+    }
 
-      const data = await response.json();
-      if (!data.product) {
-        return null;
-      }
+    const data = await response.json();
+    if (!data.product) {
+      return null;
+    }
 
-      const product = normalizeProduct(data.product);
+    const product = normalizeProduct(data.product);
+
+    if (requestGen === clientCacheGeneration) {
       itemCache.set(cacheKey, { data: product, timestamp: Date.now() });
       if (product.slug) {
-        itemCache.set(`slug:${product.slug}`, { data: product, timestamp: Date.now() });
+        itemCache.set(`slug:${product.slug.toLowerCase().trim()}`, { data: product, timestamp: Date.now() });
       }
+    }
 
-      return product;
-    } finally {
+    return product;
+  })();
+
+  fetchPromise.finally(() => {
+    if (inFlightRequests.get(cacheKey) === fetchPromise) {
       inFlightRequests.delete(cacheKey);
     }
-  })();
+    if (activeAbortControllers.get(cacheKey) === abortController) {
+      activeAbortControllers.delete(cacheKey);
+    }
+  });
 
   inFlightRequests.set(cacheKey, fetchPromise);
   return fetchPromise;
