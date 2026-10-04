@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
   ChevronRight,
@@ -29,6 +28,16 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
   const clerk = useClerk();
   const [isShopExpanded, setIsShopExpanded] = useState(false);
 
+  // Close drawer on Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   const categories = [
     { name: 'All Products', path: '/shop' },
     { name: 'Necklaces & Chokers', path: '/shop?category=necklaces' },
@@ -47,28 +56,21 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
     { name: 'Contact Us', path: '/contact', icon: HelpCircle },
   ];
 
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 lg:hidden"
-          />
+  if (!isOpen) return null;
 
-          {/* Drawer */}
-          <motion.aside
-            initial={{ x: '-100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '-100%' }}
-            transition={{ type: 'spring', damping: 28, stiffness: 260 }}
-            className="fixed top-0 left-0 bottom-0 w-[86%] max-w-sm bg-[#1C0307] text-[#F8F1E3] z-50 flex flex-col justify-between shadow-2xl border-r border-[#E8C98A]/20 overflow-y-auto"
-            data-lenis-prevent
-          >
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        onClick={onClose}
+        className="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 lg:hidden animate-fade-in"
+      />
+
+      {/* Drawer */}
+      <aside
+        className="fixed top-0 left-0 bottom-0 w-[86%] max-w-sm bg-[#1C0307] text-[#F8F1E3] z-50 flex flex-col justify-between shadow-2xl border-r border-[#E8C98A]/20 overflow-y-auto animate-drawer-slide-left"
+        data-lenis-prevent
+      >
             <div>
               {/* Header */}
               <div className="p-4 sm:p-5 flex items-center justify-between border-b border-[#E8C98A]/20 bg-[#28040B]">
@@ -106,35 +108,29 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
                     />
                   </button>
 
-                  <AnimatePresence>
-                    {isShopExpanded && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="overflow-hidden pl-7 pr-2 pt-1 space-y-1"
-                      >
-                        {categories.map((cat) => {
-                          const isActive = location.pathname + location.search === cat.path;
-                          return (
-                            <Link
-                              key={cat.name}
-                              to={cat.path}
-                              onClick={onClose}
-                              className={`block px-3 py-2 rounded-md text-xs tracking-wide transition-colors ${
-                                isActive
-                                  ? 'bg-[#E8C98A]/20 text-[#FFE3C7] font-semibold'
-                                  : 'text-[#F8F1E3]/75 hover:text-[#FFE3C7] hover:bg-white/5'
-                              }`}
-                            >
-                              {cat.name}
-                            </Link>
-                          );
-                        })}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                  {isShopExpanded && (
+                    <div
+                      className="overflow-hidden pl-7 pr-2 pt-1 space-y-1 animate-fade-in"
+                    >
+                      {categories.map((cat) => {
+                        const isActive = location.pathname + location.search === cat.path;
+                        return (
+                          <Link
+                            key={cat.name}
+                            to={cat.path}
+                            onClick={onClose}
+                            className={`block px-3 py-2 rounded-md text-xs tracking-wide transition-colors ${
+                              isActive
+                                ? 'bg-[#E8C98A]/20 text-[#FFE3C7] font-semibold'
+                                : 'text-[#F8F1E3]/75 hover:text-[#FFE3C7] hover:bg-white/5'
+                            }`}
+                          >
+                            {cat.name}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 {/* 2. Request Jewellery - Core USP Highlight */}
@@ -288,9 +284,7 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
                 </SignInButton>
               </Show>
             </div>
-          </motion.aside>
+          </aside>
         </>
-      )}
-    </AnimatePresence>
   );
 };

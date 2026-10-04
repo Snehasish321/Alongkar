@@ -1,6 +1,5 @@
 import React from 'react';
-import { motion } from 'framer-motion';
-import { ArrowRight } from 'reicon-react';
+import { ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { Collection } from '../../types';
 
@@ -11,9 +10,8 @@ interface CollectionCardProps {
 export const CollectionCard: React.FC<CollectionCardProps> = ({ collection }) => {
   return (
     <Link to={`/collections#${collection.slug}`}>
-      <motion.div
-        whileHover={{ y: -6 }}
-        className="group relative h-96 sm:h-[420px] rounded-brand overflow-hidden shadow-soft hover:shadow-elevated transition-all duration-500 cursor-pointer border border-gold/20 flex flex-col justify-end p-6 sm:p-8"
+      <div
+        className="group relative h-96 sm:h-[420px] rounded-brand overflow-hidden shadow-soft hover:shadow-elevated hover:-translate-y-1.5 transition-all duration-500 cursor-pointer border border-gold/20 flex flex-col justify-end p-6 sm:p-8"
       >
         {/* Background Image */}
         <img
@@ -44,7 +42,7 @@ export const CollectionCard: React.FC<CollectionCardProps> = ({ collection }) =>
             <ArrowRight size={14} className="group-hover:translate-x-1.5 transition-transform" />
           </div>
         </div>
-      </motion.div>
+      </div>
     </Link>
   );
 };

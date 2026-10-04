@@ -1,14 +1,34 @@
 import prisma from '../src/lib/prisma.js';
-import { requireAdmin, getRequestBody, respond } from './_utils/auth.js';
+import { requireAdmin, getRequestBody, respond, isPayloadTooLarge, isMalformedJson } from './_utils/auth.js';
 import { Prisma } from '@prisma/client';
 import {
   cacheGet,
   cacheSet,
+  getCacheVersion,
   invalidateProducts,
   invalidateProductKeys,
   CacheKey,
   TTL,
 } from './_utils/cache.js';
+import {
+  isValidString,
+  isValidNumber,
+  isValidInteger,
+  isValidSlug as isValidSlugUtil,
+  isValidIdentifier,
+  sanitizeSearchQuery,
+  sanitizeSortBy,
+  getSafeErrorMessage,
+  logServerError,
+  withTimeout,
+  checkRateLimit,
+  getOrCreateRequestId,
+  logSlowRequest,
+  logSecurityEvent,
+  MAX_PRODUCT_PRICE,
+  MAX_DESCRIPTION_LENGTH,
+  MAX_IMAGE_URL_LENGTH,
+} from './_utils/security.js';
 
 export interface ValidationError {
   field: string;
@@ -19,7 +39,7 @@ export interface ValidationError {
  * Validates slug format: lowercase letters, numbers, and hyphens only.
  */
 export function isValidSlug(slug: string): boolean {
-  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug);
+  return isValidSlugUtil(slug);
 }
 
 /**
@@ -63,20 +83,21 @@ export function formatProductResponse(product: any) {
 
 /**
  * Validates the complete creation payload for POST requests.
+ * Uses strict length, numeric range, and type validation to prevent malformed or abusive inputs.
  */
 export function validateProductCreatePayload(body: any): { errors: ValidationError[]; data?: any } {
   const errors: ValidationError[] = [];
 
-  if (!body || typeof body !== 'object') {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
     return { errors: [{ field: 'body', message: 'Request body must be a valid JSON object' }] };
   }
 
-  // Name
-  if (!body.name || typeof body.name !== 'string' || body.name.trim().length === 0) {
-    errors.push({ field: 'name', message: 'Product name is required and must be a non-empty string' });
+  // Name (1 - 200 chars)
+  if (!isValidString(body.name, 1, 200)) {
+    errors.push({ field: 'name', message: 'Product name is required and must be between 1 and 200 characters' });
   }
 
-  // Slug
+  // Slug (1 - 150 chars, lowercase alphanumeric with single hyphens)
   if (!body.slug || typeof body.slug !== 'string' || body.slug.trim().length === 0) {
     errors.push({ field: 'slug', message: 'Product slug is required and must be a non-empty string' });
   } else if (!isValidSlug(body.slug.trim())) {
@@ -86,102 +107,82 @@ export function validateProductCreatePayload(body: any): { errors: ValidationErr
     });
   }
 
-  // Category
-  if (!body.category || typeof body.category !== 'string' || body.category.trim().length === 0) {
-    errors.push({ field: 'category', message: 'Product category is required' });
+  // Category (1 - 50 chars)
+  if (!isValidString(body.category, 1, 50)) {
+    errors.push({ field: 'category', message: 'Product category is required (maximum 50 characters)' });
   }
 
-  // Price
-  if (
-    body.price === undefined ||
-    body.price === null ||
-    typeof body.price !== 'number' ||
-    isNaN(body.price) ||
-    body.price < 0
-  ) {
-    errors.push({ field: 'price', message: 'Product price is required and must be a non-negative number' });
-  }
-
-  // Original Price
-  if (
-    body.originalPrice === undefined ||
-    body.originalPrice === null ||
-    typeof body.originalPrice !== 'number' ||
-    isNaN(body.originalPrice) ||
-    body.originalPrice < 0
-  ) {
+  // Price (0 - 100,000,000, finite number)
+  if (!isValidNumber(body.price, 0, MAX_PRODUCT_PRICE)) {
     errors.push({
-      field: 'originalPrice',
-      message: 'Original price is required and must be a non-negative number',
+      field: 'price',
+      message: `Product price is required and must be a non-negative finite number (max ${MAX_PRODUCT_PRICE})`,
     });
   }
 
-  // Image
-  if (!body.image || typeof body.image !== 'string' || body.image.trim().length === 0) {
-    errors.push({ field: 'image', message: 'Main product image URL is required' });
+  // Original Price (0 - 100,000,000, finite number)
+  if (!isValidNumber(body.originalPrice, 0, MAX_PRODUCT_PRICE)) {
+    errors.push({
+      field: 'originalPrice',
+      message: `Original price is required and must be a non-negative finite number (max ${MAX_PRODUCT_PRICE})`,
+    });
   }
 
-  // Hover Image
-  if (!body.hoverImage || typeof body.hoverImage !== 'string' || body.hoverImage.trim().length === 0) {
-    errors.push({ field: 'hoverImage', message: 'Hover image URL is required' });
+  // Image (1 - 1000 chars)
+  if (!isValidString(body.image, 1, MAX_IMAGE_URL_LENGTH)) {
+    errors.push({ field: 'image', message: 'Main product image URL is required (maximum 1000 characters)' });
   }
 
-  // Description
-  if (!body.description || typeof body.description !== 'string' || body.description.trim().length === 0) {
-    errors.push({ field: 'description', message: 'Product description is required' });
+  // Hover Image (1 - 1000 chars)
+  if (!isValidString(body.hoverImage, 1, MAX_IMAGE_URL_LENGTH)) {
+    errors.push({ field: 'hoverImage', message: 'Hover image URL is required (maximum 1000 characters)' });
+  }
+
+  // Description (1 - 5000 chars)
+  if (!isValidString(body.description, 1, MAX_DESCRIPTION_LENGTH)) {
+    errors.push({ field: 'description', message: 'Product description is required (maximum 5000 characters)' });
   }
 
   // Finish, BaseMaterial, Warranty (support both flat and nested under details)
   const finish = body.finish !== undefined ? body.finish : body.details?.finish;
-  if (!finish || typeof finish !== 'string' || finish.trim().length === 0) {
-    errors.push({ field: 'finish', message: 'Product finish specification is required' });
+  if (!isValidString(finish, 1, 100)) {
+    errors.push({ field: 'finish', message: 'Product finish specification is required (maximum 100 characters)' });
   }
 
   const baseMaterial = body.baseMaterial !== undefined ? body.baseMaterial : body.details?.baseMaterial;
-  if (!baseMaterial || typeof baseMaterial !== 'string' || baseMaterial.trim().length === 0) {
-    errors.push({ field: 'baseMaterial', message: 'Product base material is required' });
+  if (!isValidString(baseMaterial, 1, 100)) {
+    errors.push({ field: 'baseMaterial', message: 'Product base material is required (maximum 100 characters)' });
   }
 
   const warranty = body.warranty !== undefined ? body.warranty : body.details?.warranty;
-  if (!warranty || typeof warranty !== 'string' || warranty.trim().length === 0) {
-    errors.push({ field: 'warranty', message: 'Product warranty is required' });
+  if (!isValidString(warranty, 1, 100)) {
+    errors.push({ field: 'warranty', message: 'Product warranty is required (maximum 100 characters)' });
   }
 
   const stoneType = body.stoneType !== undefined ? body.stoneType : body.details?.stoneType;
-  if (stoneType !== undefined && stoneType !== null && typeof stoneType !== 'string') {
-    errors.push({ field: 'stoneType', message: 'Stone type must be a string or null' });
+  if (stoneType !== undefined && stoneType !== null) {
+    if (!isValidString(stoneType, 1, 100)) {
+      errors.push({ field: 'stoneType', message: 'Stone type must be a string up to 100 characters or null' });
+    }
   }
 
   const collectionId = body.collectionId;
-  if (collectionId !== undefined && collectionId !== null && typeof collectionId !== 'string') {
-    errors.push({ field: 'collectionId', message: 'Collection ID must be a string or null' });
+  if (collectionId !== undefined && collectionId !== null) {
+    if (!isValidString(collectionId, 1, 50)) {
+      errors.push({ field: 'collectionId', message: 'Collection ID must be a string up to 50 characters or null' });
+    }
   }
 
-  if (
-    body.rating !== undefined &&
-    (typeof body.rating !== 'number' || isNaN(body.rating) || body.rating < 0 || body.rating > 5)
-  ) {
-    errors.push({ field: 'rating', message: 'Rating must be a number between 0 and 5' });
+  if (body.rating !== undefined && !isValidNumber(body.rating, 0, 5)) {
+    errors.push({ field: 'rating', message: 'Rating must be a finite number between 0 and 5' });
   }
 
-  if (
-    body.reviewCount !== undefined &&
-    (typeof body.reviewCount !== 'number' ||
-      isNaN(body.reviewCount) ||
-      body.reviewCount < 0 ||
-      !Number.isInteger(body.reviewCount))
-  ) {
+  if (body.reviewCount !== undefined && !isValidInteger(body.reviewCount, 0, 10_000_000)) {
     errors.push({ field: 'reviewCount', message: 'Review count must be a non-negative integer' });
   }
 
-  if (
-    body.discountPercent !== undefined &&
-    (typeof body.discountPercent !== 'number' ||
-      isNaN(body.discountPercent) ||
-      body.discountPercent < 0 ||
-      body.discountPercent > 100)
-  ) {
-    errors.push({ field: 'discountPercent', message: 'Discount percent must be a number between 0 and 100' });
+  if (body.discountPercent !== undefined && !isValidInteger(body.discountPercent, 0, 100)) {
+    errors.push({ field: 'discountPercent', message: 'Discount percent must be an integer between 0 and 100' });
   }
 
   if (errors.length > 0) {
@@ -201,8 +202,9 @@ export function validateProductCreatePayload(body: any): { errors: ValidationErr
     );
   }
 
+  // Explicit field allowlist preventing mass assignment
   const sanitizedData = {
-    ...(body.id ? { id: String(body.id).trim() } : {}),
+    ...(body.id && isValidIdentifier(body.id) ? { id: String(body.id).trim() } : {}),
     name: body.name.trim(),
     slug: body.slug.trim(),
     category: body.category.trim(),
@@ -230,27 +232,28 @@ export function validateProductCreatePayload(body: any): { errors: ValidationErr
 
 /**
  * Validates partial update payload for PATCH / PUT requests.
+ * Uses an explicit allowlist to prevent mass-assignment vulnerabilities.
  */
 export function validateProductUpdatePayload(body: any): { errors: ValidationError[]; data?: any } {
   const errors: ValidationError[] = [];
 
-  if (!body || typeof body !== 'object') {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
     return { errors: [{ field: 'body', message: 'Request body must be a valid JSON object' }] };
   }
 
-  const updateData: any = {};
+  const updateData: Record<string, any> = {};
 
   if (body.name !== undefined) {
-    if (typeof body.name !== 'string' || body.name.trim().length === 0) {
-      errors.push({ field: 'name', message: 'Name must be a non-empty string' });
+    if (!isValidString(body.name, 1, 200)) {
+      errors.push({ field: 'name', message: 'Name must be a string between 1 and 200 characters' });
     } else {
       updateData.name = body.name.trim();
     }
   }
 
   if (body.slug !== undefined) {
-    if (typeof body.slug !== 'string' || body.slug.trim().length === 0) {
-      errors.push({ field: 'slug', message: 'Slug must be a non-empty string' });
+    if (!isValidString(body.slug, 1, 150)) {
+      errors.push({ field: 'slug', message: 'Slug must be a non-empty string up to 150 characters' });
     } else if (!isValidSlug(body.slug.trim())) {
       errors.push({
         field: 'slug',
@@ -262,65 +265,55 @@ export function validateProductUpdatePayload(body: any): { errors: ValidationErr
   }
 
   if (body.category !== undefined) {
-    if (typeof body.category !== 'string' || body.category.trim().length === 0) {
-      errors.push({ field: 'category', message: 'Category must be a non-empty string' });
+    if (!isValidString(body.category, 1, 50)) {
+      errors.push({ field: 'category', message: 'Category must be a non-empty string up to 50 characters' });
     } else {
       updateData.category = body.category.trim();
     }
   }
 
   if (body.collectionId !== undefined) {
-    if (body.collectionId !== null && typeof body.collectionId !== 'string') {
-      errors.push({ field: 'collectionId', message: 'Collection ID must be a string or null' });
+    if (body.collectionId !== null && !isValidString(body.collectionId, 1, 50)) {
+      errors.push({ field: 'collectionId', message: 'Collection ID must be a string up to 50 characters or null' });
     } else {
       updateData.collectionId = body.collectionId ? String(body.collectionId).trim() : null;
     }
   }
 
   if (body.price !== undefined) {
-    if (typeof body.price !== 'number' || isNaN(body.price) || body.price < 0) {
-      errors.push({ field: 'price', message: 'Price must be a non-negative number' });
+    if (!isValidNumber(body.price, 0, MAX_PRODUCT_PRICE)) {
+      errors.push({ field: 'price', message: `Price must be a non-negative finite number (max ${MAX_PRODUCT_PRICE})` });
     } else {
       updateData.price = Number(body.price);
     }
   }
 
   if (body.originalPrice !== undefined) {
-    if (typeof body.originalPrice !== 'number' || isNaN(body.originalPrice) || body.originalPrice < 0) {
-      errors.push({ field: 'originalPrice', message: 'Original price must be a non-negative number' });
+    if (!isValidNumber(body.originalPrice, 0, MAX_PRODUCT_PRICE)) {
+      errors.push({ field: 'originalPrice', message: `Original price must be a non-negative finite number (max ${MAX_PRODUCT_PRICE})` });
     } else {
       updateData.originalPrice = Number(body.originalPrice);
     }
   }
 
   if (body.discountPercent !== undefined) {
-    if (
-      typeof body.discountPercent !== 'number' ||
-      isNaN(body.discountPercent) ||
-      body.discountPercent < 0 ||
-      body.discountPercent > 100
-    ) {
-      errors.push({ field: 'discountPercent', message: 'Discount percent must be a number between 0 and 100' });
+    if (!isValidInteger(body.discountPercent, 0, 100)) {
+      errors.push({ field: 'discountPercent', message: 'Discount percent must be an integer between 0 and 100' });
     } else {
       updateData.discountPercent = Math.round(body.discountPercent);
     }
   }
 
   if (body.rating !== undefined) {
-    if (typeof body.rating !== 'number' || isNaN(body.rating) || body.rating < 0 || body.rating > 5) {
-      errors.push({ field: 'rating', message: 'Rating must be a number between 0 and 5' });
+    if (!isValidNumber(body.rating, 0, 5)) {
+      errors.push({ field: 'rating', message: 'Rating must be a finite number between 0 and 5' });
     } else {
       updateData.rating = Number(body.rating);
     }
   }
 
   if (body.reviewCount !== undefined) {
-    if (
-      typeof body.reviewCount !== 'number' ||
-      isNaN(body.reviewCount) ||
-      body.reviewCount < 0 ||
-      !Number.isInteger(body.reviewCount)
-    ) {
+    if (!isValidInteger(body.reviewCount, 0, 10_000_000)) {
       errors.push({ field: 'reviewCount', message: 'Review count must be a non-negative integer' });
     } else {
       updateData.reviewCount = Math.round(body.reviewCount);
@@ -340,24 +333,24 @@ export function validateProductUpdatePayload(body: any): { errors: ValidationErr
   }
 
   if (body.image !== undefined) {
-    if (typeof body.image !== 'string' || body.image.trim().length === 0) {
-      errors.push({ field: 'image', message: 'Image must be a non-empty URL string' });
+    if (!isValidString(body.image, 1, MAX_IMAGE_URL_LENGTH)) {
+      errors.push({ field: 'image', message: 'Image must be a valid URL string up to 1000 characters' });
     } else {
       updateData.image = body.image.trim();
     }
   }
 
   if (body.hoverImage !== undefined) {
-    if (typeof body.hoverImage !== 'string' || body.hoverImage.trim().length === 0) {
-      errors.push({ field: 'hoverImage', message: 'Hover image must be a non-empty URL string' });
+    if (!isValidString(body.hoverImage, 1, MAX_IMAGE_URL_LENGTH)) {
+      errors.push({ field: 'hoverImage', message: 'Hover image must be a valid URL string up to 1000 characters' });
     } else {
       updateData.hoverImage = body.hoverImage.trim();
     }
   }
 
   if (body.description !== undefined) {
-    if (typeof body.description !== 'string' || body.description.trim().length === 0) {
-      errors.push({ field: 'description', message: 'Description must be a non-empty string' });
+    if (!isValidString(body.description, 1, MAX_DESCRIPTION_LENGTH)) {
+      errors.push({ field: 'description', message: 'Description must be a non-empty string up to 5000 characters' });
     } else {
       updateData.description = body.description.trim();
     }
@@ -365,8 +358,8 @@ export function validateProductUpdatePayload(body: any): { errors: ValidationErr
 
   const finish = body.finish !== undefined ? body.finish : body.details?.finish;
   if (finish !== undefined) {
-    if (typeof finish !== 'string' || finish.trim().length === 0) {
-      errors.push({ field: 'finish', message: 'Finish must be a non-empty string' });
+    if (!isValidString(finish, 1, 100)) {
+      errors.push({ field: 'finish', message: 'Finish must be a non-empty string up to 100 characters' });
     } else {
       updateData.finish = finish.trim();
     }
@@ -374,8 +367,8 @@ export function validateProductUpdatePayload(body: any): { errors: ValidationErr
 
   const baseMaterial = body.baseMaterial !== undefined ? body.baseMaterial : body.details?.baseMaterial;
   if (baseMaterial !== undefined) {
-    if (typeof baseMaterial !== 'string' || baseMaterial.trim().length === 0) {
-      errors.push({ field: 'baseMaterial', message: 'Base material must be a non-empty string' });
+    if (!isValidString(baseMaterial, 1, 100)) {
+      errors.push({ field: 'baseMaterial', message: 'Base material must be a non-empty string up to 100 characters' });
     } else {
       updateData.baseMaterial = baseMaterial.trim();
     }
@@ -383,8 +376,8 @@ export function validateProductUpdatePayload(body: any): { errors: ValidationErr
 
   const warranty = body.warranty !== undefined ? body.warranty : body.details?.warranty;
   if (warranty !== undefined) {
-    if (typeof warranty !== 'string' || warranty.trim().length === 0) {
-      errors.push({ field: 'warranty', message: 'Warranty must be a non-empty string' });
+    if (!isValidString(warranty, 1, 100)) {
+      errors.push({ field: 'warranty', message: 'Warranty must be a non-empty string up to 100 characters' });
     } else {
       updateData.warranty = warranty.trim();
     }
@@ -392,8 +385,8 @@ export function validateProductUpdatePayload(body: any): { errors: ValidationErr
 
   const stoneType = body.stoneType !== undefined ? body.stoneType : body.details?.stoneType;
   if (stoneType !== undefined) {
-    if (stoneType !== null && typeof stoneType !== 'string') {
-      errors.push({ field: 'stoneType', message: 'Stone type must be a string or null' });
+    if (stoneType !== null && !isValidString(stoneType, 1, 100)) {
+      errors.push({ field: 'stoneType', message: 'Stone type must be a string up to 100 characters or null' });
     } else {
       updateData.stoneType = stoneType ? String(stoneType).trim() : null;
     }
@@ -426,8 +419,14 @@ export function extractIdentifier(req: any, body: any): { id?: string; slug?: st
     } catch {}
   }
 
-  if (queryParams.id) return { id: String(queryParams.id).trim(), raw: String(queryParams.id).trim() };
-  if (queryParams.slug) return { slug: String(queryParams.slug).trim(), raw: String(queryParams.slug).trim() };
+  if (queryParams.id) {
+    const cleanId = String(queryParams.id).trim().slice(0, 100);
+    return { id: cleanId, raw: cleanId };
+  }
+  if (queryParams.slug) {
+    const cleanSlug = String(queryParams.slug).trim().slice(0, 150);
+    return { slug: cleanSlug, raw: cleanSlug };
+  }
 
   // Check sub-path segments, e.g. /api/products/prod-br-1
   if (req.url) {
@@ -436,7 +435,7 @@ export function extractIdentifier(req: any, body: any): { id?: string; slug?: st
       const segments = parsed.pathname.replace(/\/+$/, '').split('/').filter(Boolean);
       const productsIdx = segments.indexOf('products');
       if (productsIdx !== -1 && segments.length > productsIdx + 1) {
-        const seg = decodeURIComponent(segments[productsIdx + 1]).trim();
+        const seg = decodeURIComponent(segments[productsIdx + 1]).trim().slice(0, 150);
         if (seg && seg !== 'index') {
           return { raw: seg, id: seg, slug: seg };
         }
@@ -446,10 +445,12 @@ export function extractIdentifier(req: any, body: any): { id?: string; slug?: st
 
   if (body && typeof body === 'object') {
     if (body.id && typeof body.id === 'string' && body.id.trim()) {
-      return { id: body.id.trim(), raw: body.id.trim() };
+      const cleanId = body.id.trim().slice(0, 100);
+      return { id: cleanId, raw: cleanId };
     }
     if (body.slug && typeof body.slug === 'string' && body.slug.trim() && !body.name) {
-      return { slug: body.slug.trim(), raw: body.slug.trim() };
+      const cleanSlug = body.slug.trim().slice(0, 150);
+      return { slug: cleanSlug, raw: cleanSlug };
     }
   }
 
@@ -460,26 +461,56 @@ export function extractIdentifier(req: any, body: any): { id?: string; slug?: st
  * Server-side Product API Handler
  *
  * Supported methods:
- * - GET /api/products : List all products
+ * - GET /api/products : List all products with bounded pagination, filters, sorting, and search
  * - GET /api/products?id=<id> OR ?slug=<slug> OR /api/products/<id|slug> : Get single product
- * - POST /api/products : Create product (Protected session required; admin roles in next phase)
- * - PATCH / PUT /api/products : Update product (Protected session required; admin roles in next phase)
- * - DELETE /api/products : Delete product (Protected session required; admin roles in next phase)
+ * - POST /api/products : Create product (Protected admin session required)
+ * - PATCH / PUT /api/products : Update product (Protected admin session required)
+ * - DELETE /api/products : Delete product (Protected admin session required)
  */
 export default async function handler(req: any, res?: any) {
   const method = (req.method || 'GET').toUpperCase();
+  const requestId = getOrCreateRequestId(req);
+  if (res) res._requestId = requestId;
+  const startTime = Date.now();
 
   try {
     const body = await getRequestBody(req);
 
+    // Enforce payload size and JSON structure protection
+    if (isPayloadTooLarge(body)) {
+      logSecurityEvent({
+        event: 'payload_too_large',
+        endpoint: '/api/products',
+        method,
+        requestId,
+        statusCode: 413,
+      });
+      return respond(res, 413, { error: 'Payload too large: maximum allowed JSON body size is 1MB' });
+    }
+    if (isMalformedJson(body)) {
+      logSecurityEvent({
+        event: 'malformed_json',
+        endpoint: '/api/products',
+        method,
+        requestId,
+        statusCode: 400,
+      });
+      return respond(res, 400, { error: 'Invalid JSON payload format' });
+    }
+
     // ==========================================
-    // GET: Retrieve All Products or Single Product (Cached L1 + L2)
+    // GET: Retrieve All Products or Single Product (Redis L2 + PostgreSQL)
     // ==========================================
     if (method === 'GET') {
       const { id, slug, raw } = extractIdentifier(req, body);
 
       // Single Product Lookup
       if (id || slug || raw) {
+        const identifier = (id || slug || raw)!;
+        if (!isValidIdentifier(identifier) && !isValidSlug(identifier)) {
+          return respond(res, 400, { error: 'Invalid product identifier format' });
+        }
+
         const cacheKey = id
           ? CacheKey.productId(id)
           : slug
@@ -495,23 +526,38 @@ export default async function handler(req: any, res?: any) {
             {
               'X-Cache': 'HIT',
               'X-Cache-Source': cached.source,
-              'Cache-Control': 'public, s-maxage=600, stale-while-revalidate=1200',
+              'Cache-Control': 'private, no-cache, no-transform',
             }
           );
         }
 
+        // Capture cache version before DB read to detect race with mutations
+        const cacheVersion = await getCacheVersion();
+
         let product = null;
 
         if (id && !slug) {
-          product = await prisma.product.findUnique({ where: { id } });
+          product = await withTimeout(
+            prisma.product.findUnique({ where: { id } }),
+            8000,
+            'Find product by id'
+          );
         } else if (slug && !id) {
-          product = await prisma.product.findUnique({ where: { slug } });
+          product = await withTimeout(
+            prisma.product.findUnique({ where: { slug } }),
+            8000,
+            'Find product by slug'
+          );
         } else if (raw) {
-          product = await prisma.product.findFirst({
-            where: {
-              OR: [{ id: raw }, { slug: raw }],
-            },
-          });
+          product = await withTimeout(
+            prisma.product.findFirst({
+              where: {
+                OR: [{ id: raw }, { slug: raw }],
+              },
+            }),
+            8000,
+            'Find product by raw identifier'
+          );
         }
 
         if (!product) {
@@ -523,11 +569,15 @@ export default async function handler(req: any, res?: any) {
 
         const formatted = formatProductResponse(product);
 
-        // Cache single product (under id, slug, and raw if available for instant future hits)
-        if (product.id) await cacheSet(CacheKey.productId(product.id), formatted, TTL.PRODUCT_ONE);
-        if (product.slug) await cacheSet(CacheKey.productSlug(product.slug), formatted, TTL.PRODUCT_ONE);
-        if (raw && raw !== product.id && raw !== product.slug) {
-          await cacheSet(CacheKey.productRaw(raw), formatted, TTL.PRODUCT_ONE);
+        // Cache single product in Redis with version check to prevent stale GET race
+        try {
+          if (product.id) await cacheSet(CacheKey.productId(product.id), formatted, TTL.PRODUCT_ONE, cacheVersion);
+          if (product.slug) await cacheSet(CacheKey.productSlug(product.slug), formatted, TTL.PRODUCT_ONE, cacheVersion);
+          if (raw && raw !== product.id && raw !== product.slug) {
+            await cacheSet(CacheKey.productRaw(raw), formatted, TTL.PRODUCT_ONE, cacheVersion);
+          }
+        } catch (cacheErr) {
+          console.warn('[Cache] Non-critical cacheSet error:', cacheErr);
         }
 
         return respond(
@@ -536,28 +586,112 @@ export default async function handler(req: any, res?: any) {
           { product: formatted },
           {
             'X-Cache': 'MISS',
-            'Cache-Control': 'public, s-maxage=600, stale-while-revalidate=1200',
+            'Cache-Control': 'private, no-cache, no-transform',
           }
         );
       }
 
-      // Query parameter category / collection filtering if provided
+      // Query parameters for filtering, searching, sorting & pagination
       let categoryFilter: string | undefined = undefined;
       let collectionFilter: string | undefined = undefined;
+      let searchQuery: string | undefined = undefined;
+      let sortBy: string | undefined = undefined;
+      let inStockFilter: string | undefined = undefined;
+      let minPrice: number | undefined = undefined;
+      let maxPrice: number | undefined = undefined;
+      let page: number | undefined = undefined;
+      let limit: number | undefined = undefined;
 
-      if (req.query) {
-        if (req.query.category) categoryFilter = String(req.query.category).trim();
-        if (req.query.collectionId) collectionFilter = String(req.query.collectionId).trim();
+      const rawParams: Record<string, string> = {};
+      if (req.query && typeof req.query === 'object') {
+        Object.assign(rawParams, req.query);
       } else if (req.url) {
         try {
           const url = new URL(req.url, 'http://localhost');
-          if (url.searchParams.get('category')) categoryFilter = url.searchParams.get('category')!.trim();
-          if (url.searchParams.get('collectionId')) collectionFilter = url.searchParams.get('collectionId')!.trim();
+          url.searchParams.forEach((v, k) => {
+            rawParams[k] = v;
+          });
         } catch {}
       }
 
-      const listCacheKey = CacheKey.productsList(categoryFilter, collectionFilter);
-      const cachedList = await cacheGet<{ products: any[]; count: number }>(listCacheKey);
+      // Sanitization & Bounded Parameter Enforcement
+      if (rawParams.category) {
+        const cat = rawParams.category.trim().slice(0, 50);
+        if (cat.length > 0) categoryFilter = cat;
+      }
+      if (rawParams.collectionId) {
+        const col = rawParams.collectionId.trim().slice(0, 50);
+        if (col.length > 0) collectionFilter = col;
+      }
+      if (rawParams.search || rawParams.q) {
+        searchQuery = sanitizeSearchQuery(rawParams.search || rawParams.q, 100);
+      }
+      if (rawParams.sortBy || rawParams.sort) {
+        sortBy = sanitizeSortBy(rawParams.sortBy || rawParams.sort);
+      }
+      if (rawParams.inStock !== undefined) {
+        const stk = rawParams.inStock.trim().toLowerCase();
+        if (stk === 'true' || stk === 'false' || stk === 'all') {
+          inStockFilter = stk;
+        }
+      }
+      if (rawParams.minPrice) {
+        const num = parseFloat(rawParams.minPrice);
+        if (Number.isFinite(num) && !isNaN(num) && num >= 0 && num <= MAX_PRODUCT_PRICE) {
+          minPrice = num;
+        }
+      }
+      if (rawParams.maxPrice) {
+        const num = parseFloat(rawParams.maxPrice);
+        if (Number.isFinite(num) && !isNaN(num) && num >= 0 && num <= MAX_PRODUCT_PRICE) {
+          maxPrice = num;
+        }
+      }
+      if (rawParams.page) {
+        const p = parseInt(rawParams.page, 10);
+        if (!isNaN(p) && p >= 1 && p <= 10_000) {
+          page = p;
+        }
+      }
+      if (rawParams.limit) {
+        const l = parseInt(rawParams.limit, 10);
+        if (!isNaN(l) && l >= 1) {
+          limit = Math.min(100, Math.max(1, l));
+        }
+      }
+
+      // Rate limit abusive search attempts if needed (60 searches / minute per client)
+      if (searchQuery) {
+        const clientIp = req.headers?.['x-forwarded-for'] || req.socket?.remoteAddress || 'anonymous';
+        const rateCheck = await checkRateLimit(String(clientIp), {
+          keyPrefix: 'search',
+          limit: 60,
+          windowSeconds: 60,
+        });
+        if (!rateCheck.allowed) {
+          return respond(
+            res,
+            429,
+            { error: 'Too many search requests. Please slow down.' },
+            { 'Retry-After': String(rateCheck.resetSeconds) }
+          );
+        }
+      }
+
+      const filterOptions = {
+        category: categoryFilter,
+        collectionId: collectionFilter,
+        search: searchQuery,
+        sortBy,
+        inStock: inStockFilter,
+        minPrice,
+        maxPrice,
+        page,
+        limit,
+      };
+
+      const listCacheKey = CacheKey.productsList(filterOptions);
+      const cachedList = await cacheGet<any>(listCacheKey);
       if (cachedList.hit && cachedList.data) {
         return respond(
           res,
@@ -566,28 +700,109 @@ export default async function handler(req: any, res?: any) {
           {
             'X-Cache': 'HIT',
             'X-Cache-Source': cachedList.source,
-            'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+            'Cache-Control': 'private, no-cache, no-transform',
           }
         );
       }
 
-      const whereClause: any = {};
-      if (categoryFilter) whereClause.category = categoryFilter;
-      if (collectionFilter) whereClause.collectionId = collectionFilter;
+      // Capture cache version before DB query to guard against concurrent mutations
+      const cacheVersion = await getCacheVersion();
 
-      // List all products from database
-      const products = await prisma.product.findMany({
-        where: whereClause,
-        orderBy: { createdAt: 'desc' },
-      });
+      // Build database WHERE clause safely using typed Prisma builders
+      const whereClause: Prisma.ProductWhereInput = {};
+      if (categoryFilter && categoryFilter.toLowerCase() !== 'all') {
+        whereClause.category = categoryFilter;
+      }
+      if (collectionFilter && collectionFilter.toLowerCase() !== 'all') {
+        whereClause.collectionId = collectionFilter;
+      }
+      if (inStockFilter && inStockFilter.toLowerCase() !== 'all') {
+        whereClause.inStock = inStockFilter.toLowerCase() === 'true';
+      }
+      if (minPrice !== undefined || maxPrice !== undefined) {
+        whereClause.price = {
+          ...(minPrice !== undefined ? { gte: minPrice } : {}),
+          ...(maxPrice !== undefined ? { lte: maxPrice } : {}),
+        };
+      }
+      if (searchQuery) {
+        whereClause.OR = [
+          { name: { contains: searchQuery, mode: 'insensitive' } },
+          { description: { contains: searchQuery, mode: 'insensitive' } },
+          { category: { contains: searchQuery, mode: 'insensitive' } },
+        ];
+      }
 
-      const responseData = {
-        products: products.map(formatProductResponse),
-        count: products.length,
-      };
+      // Build database ORDER BY clause with strict allowlist
+      let orderByClause: Prisma.ProductOrderByWithRelationInput | Prisma.ProductOrderByWithRelationInput[] = { createdAt: 'desc' };
+      if (sortBy) {
+        const s = sortBy.toLowerCase();
+        if (s === 'price-asc' || s === 'price-low-to-high') {
+          orderByClause = { price: 'asc' };
+        } else if (s === 'price-desc' || s === 'price-high-to-low') {
+          orderByClause = { price: 'desc' };
+        } else if (s === 'rating') {
+          orderByClause = { rating: 'desc' };
+        } else if (s === 'bestseller' || s === 'popular') {
+          orderByClause = [{ isBestSeller: 'desc' }, { rating: 'desc' }, { createdAt: 'desc' }];
+        } else if (s === 'newest') {
+          orderByClause = { createdAt: 'desc' };
+        }
+      }
 
-      // Store in L1 + L2 Cache
-      await cacheSet(listCacheKey, responseData, TTL.PRODUCTS_ALL);
+      let responseData: any;
+
+      if (page !== undefined) {
+        const pageSize = limit || 20;
+        const skip = (page - 1) * pageSize;
+
+        // Run data query and total count query in parallel with timeout protection
+        const [products, totalCount] = await withTimeout(
+          Promise.all([
+            prisma.product.findMany({
+              where: whereClause,
+              orderBy: orderByClause,
+              skip,
+              take: pageSize,
+            }),
+            prisma.product.count({ where: whereClause }),
+          ]),
+          8000,
+          'Paginated products query'
+        );
+
+        responseData = {
+          products: products.map(formatProductResponse),
+          count: products.length,
+          total: totalCount,
+          page,
+          limit: pageSize,
+          totalPages: Math.ceil(totalCount / pageSize) || 1,
+        };
+      } else {
+        // Enforce safe maximum limit of 100 for unpaginated queries to protect DB
+        const products = await withTimeout(
+          prisma.product.findMany({
+            where: whereClause,
+            orderBy: orderByClause,
+            take: limit || 100,
+          }),
+          8000,
+          'Unpaginated products query'
+        );
+
+        responseData = {
+          products: products.map(formatProductResponse),
+          count: products.length,
+        };
+      }
+
+      // Store in Redis with cache generation verification to prevent stale overwrite
+      try {
+        await cacheSet(listCacheKey, responseData, TTL.PRODUCTS_ALL, cacheVersion);
+      } catch (cacheErr) {
+        console.warn('[Cache] Non-critical cacheSet error:', cacheErr);
+      }
 
       return respond(
         res,
@@ -595,7 +810,7 @@ export default async function handler(req: any, res?: any) {
         responseData,
         {
           'X-Cache': 'MISS',
-          'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600',
+          'Cache-Control': 'private, no-cache, no-transform',
         }
       );
     }
@@ -624,12 +839,20 @@ export default async function handler(req: any, res?: any) {
       }
 
       try {
-        const createdProduct = await prisma.product.create({
-          data,
-        });
+        const createdProduct = await withTimeout(
+          prisma.product.create({
+            data,
+          }),
+          8000,
+          'Create product'
+        );
 
-        // Invalidate product caches across L1 & L2
-        await invalidateProducts();
+        // Invalidate product caches gracefully
+        try {
+          await invalidateProducts();
+        } catch (cacheErr) {
+          console.warn('[Cache] Invalidation warning after product creation:', cacheErr);
+        }
 
         return respond(res, 201, {
           message: 'Product created successfully',
@@ -646,7 +869,12 @@ export default async function handler(req: any, res?: any) {
             field: isSlug ? 'slug' : 'id',
           });
         }
-        console.error('Prisma error during product creation:', error);
+        logServerError({
+          endpoint: '/api/products',
+          method: 'POST',
+          operation: 'create_product',
+          error,
+        });
         return respond(res, 500, { error: 'Failed to create product in database' });
       }
     }
@@ -664,11 +892,15 @@ export default async function handler(req: any, res?: any) {
       }
 
       // Find target product
-      const existingProduct = await prisma.product.findFirst({
-        where: {
-          OR: [{ id: id || raw || '' }, { slug: slug || raw || '' }],
-        },
-      });
+      const existingProduct = await withTimeout(
+        prisma.product.findFirst({
+          where: {
+            OR: [{ id: id || raw || '' }, { slug: slug || raw || '' }],
+          },
+        }),
+        8000,
+        'Find product before update'
+      );
 
       if (!existingProduct) {
         return respond(res, 404, {
@@ -692,16 +924,24 @@ export default async function handler(req: any, res?: any) {
       }
 
       try {
-        const updatedProduct = await prisma.product.update({
-          where: { id: existingProduct.id },
-          data: updateData,
-        });
+        const updatedProduct = await withTimeout(
+          prisma.product.update({
+            where: { id: existingProduct.id },
+            data: updateData,
+          }),
+          8000,
+          'Update product'
+        );
 
-        // Invalidate product catalog and specific item keys
-        await invalidateProducts();
-        await invalidateProductKeys(existingProduct.id, existingProduct.slug);
-        if (updatedProduct.id || updatedProduct.slug) {
-          await invalidateProductKeys(updatedProduct.id, updatedProduct.slug);
+        // Invalidate product catalog and specific item keys gracefully
+        try {
+          await invalidateProducts();
+          await invalidateProductKeys(existingProduct.id, existingProduct.slug);
+          if (updatedProduct.id || updatedProduct.slug) {
+            await invalidateProductKeys(updatedProduct.id, updatedProduct.slug);
+          }
+        } catch (cacheErr) {
+          console.warn('[Cache] Invalidation warning after product update:', cacheErr);
         }
 
         return respond(res, 200, {
@@ -715,7 +955,12 @@ export default async function handler(req: any, res?: any) {
             field: 'slug',
           });
         }
-        console.error('Prisma error during product update:', error);
+        logServerError({
+          endpoint: '/api/products',
+          method: 'PATCH',
+          operation: 'update_product',
+          error,
+        });
         return respond(res, 500, { error: 'Failed to update product in database' });
       }
     }
@@ -733,11 +978,15 @@ export default async function handler(req: any, res?: any) {
       }
 
       // Find target product
-      const existingProduct = await prisma.product.findFirst({
-        where: {
-          OR: [{ id: id || raw || '' }, { slug: slug || raw || '' }],
-        },
-      });
+      const existingProduct = await withTimeout(
+        prisma.product.findFirst({
+          where: {
+            OR: [{ id: id || raw || '' }, { slug: slug || raw || '' }],
+          },
+        }),
+        8000,
+        'Find product before deletion'
+      );
 
       if (!existingProduct) {
         return respond(res, 404, {
@@ -748,13 +997,21 @@ export default async function handler(req: any, res?: any) {
 
       try {
         // Cascade onDelete in schema handles CartItem & WishlistItem relationships cleanly
-        const deletedProduct = await prisma.product.delete({
-          where: { id: existingProduct.id },
-        });
+        const deletedProduct = await withTimeout(
+          prisma.product.delete({
+            where: { id: existingProduct.id },
+          }),
+          8000,
+          'Delete product'
+        );
 
-        // Invalidate product catalog and specific item keys
-        await invalidateProducts();
-        await invalidateProductKeys(existingProduct.id, existingProduct.slug);
+        // Invalidate product catalog and specific item keys gracefully
+        try {
+          await invalidateProducts();
+          await invalidateProductKeys(existingProduct.id, existingProduct.slug);
+        } catch (cacheErr) {
+          console.warn('[Cache] Invalidation warning after product deletion:', cacheErr);
+        }
 
         return respond(res, 200, {
           message: 'Product deleted successfully',
@@ -762,14 +1019,30 @@ export default async function handler(req: any, res?: any) {
           product: formatProductResponse(deletedProduct),
         });
       } catch (error) {
-        console.error('Prisma error during product deletion:', error);
+        logServerError({
+          endpoint: '/api/products',
+          method: 'DELETE',
+          operation: 'delete_product',
+          error,
+        });
         return respond(res, 500, { error: 'Failed to delete product from database' });
       }
     }
 
+    const durationMs = Date.now() - startTime;
+    logSlowRequest({ endpoint: '/api/products', method, durationMs, requestId });
     return respond(res, 405, { error: `Method ${method} Not Allowed` });
   } catch (error) {
-    console.error('Product API unhandled error:', error);
-    return respond(res, 500, { error: error instanceof Error ? error.message : String(error) });
+    const durationMs = Date.now() - startTime;
+    logServerError({
+      endpoint: '/api/products',
+      method,
+      operation: 'product_handler',
+      requestId,
+      durationMs,
+      statusCode: 500,
+      error,
+    });
+    return respond(res, 500, { error: getSafeErrorMessage(error, 'Internal Server Error') });
   }
 }

@@ -1,6 +1,14 @@
 import { requireAdmin, respond } from '../_utils/auth.js';
 import { parseMultipartForm } from '../_utils/multipart.js';
 import { cloudinary, isCloudinaryConfigured } from '../_utils/cloudinary.js';
+import {
+  getSafeErrorMessage,
+  logServerError,
+  getOrCreateRequestId,
+  logSlowRequest,
+  logSecurityEvent,
+  logDependencyFailure,
+} from '../_utils/security.js';
 import type { UploadApiResponse } from 'cloudinary';
 
 /**
@@ -47,6 +55,9 @@ async function uploadToCloudinary(
  */
 export default async function handler(req: any, res?: any) {
   const method = (req.method || 'GET').toUpperCase();
+  const requestId = getOrCreateRequestId(req);
+  if (res) res._requestId = requestId;
+  const startTime = Date.now();
 
   if (method !== 'POST') {
     return respond(res, 405, { error: `Method ${method} Not Allowed. Use POST.` });
@@ -56,6 +67,13 @@ export default async function handler(req: any, res?: any) {
     // 1. Verify Admin Authorization via Clerk session
     const authCheck = await requireAdmin(req);
     if (!authCheck.authorized) {
+      logSecurityEvent({
+        event: authCheck.status === 401 ? 'unauthorized_upload_access' : 'forbidden_upload_access',
+        endpoint: '/api/uploads/product-image',
+        method,
+        requestId,
+        statusCode: authCheck.status,
+      });
       return respond(res, authCheck.status, {
         error: authCheck.error || 'Authentication / Authorization required',
       });
@@ -81,6 +99,9 @@ export default async function handler(req: any, res?: any) {
     // 4. Upload Image to Cloudinary in alongkar/products
     const uploadResult = await uploadToCloudinary(file.buffer, file.filename);
 
+    const durationMs = Date.now() - startTime;
+    logSlowRequest({ endpoint: '/api/uploads/product-image', method, durationMs, requestId });
+
     // 5. Return secure delivery URL and metadata (never secrets!)
     return respond(res, 200, {
       success: true,
@@ -93,10 +114,22 @@ export default async function handler(req: any, res?: any) {
       bytes: uploadResult.bytes,
     });
   } catch (error: any) {
-    console.error('Image upload handler error:', error?.message || error);
+    const durationMs = Date.now() - startTime;
+    logDependencyFailure('cloudinary', 'upload_product_image', error, {
+      endpoint: '/api/uploads/product-image',
+      method,
+      requestId,
+      isFatal: true,
+    });
+    logServerError(error, {
+      endpoint: '/api/uploads/product-image',
+      method,
+      requestId,
+      durationMs,
+      statusCode: 500,
+    });
     return respond(res, 500, {
-      error: 'Failed to upload image to Cloudinary. Please try again.',
-      details: error?.message,
+      error: getSafeErrorMessage(error, 'Failed to upload image to Cloudinary. Please try again.'),
     });
   }
 }

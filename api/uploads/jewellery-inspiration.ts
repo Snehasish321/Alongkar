@@ -1,6 +1,15 @@
 import { getAuthenticatedUser, respond } from '../_utils/auth.js';
 import { parseMultipartForm } from '../_utils/multipart.js';
 import { cloudinary, isCloudinaryConfigured } from '../_utils/cloudinary.js';
+import {
+  checkRateLimit,
+  getSafeErrorMessage,
+  logServerError,
+  getOrCreateRequestId,
+  logSlowRequest,
+  logSecurityEvent,
+  logDependencyFailure,
+} from '../_utils/security.js';
 import type { UploadApiResponse } from 'cloudinary';
 
 const MAX_INSPIRATION_SIZE_BYTES = 5 * 1024 * 1024; // 5MB limit for customer inspiration images
@@ -46,6 +55,9 @@ async function uploadInspirationToCloudinary(
  */
 export default async function handler(req: any, res?: any) {
   const method = (req.method || 'GET').toUpperCase();
+  const requestId = getOrCreateRequestId(req);
+  if (res) res._requestId = requestId;
+  const startTime = Date.now();
 
   if (method !== 'POST') {
     return respond(res, 405, {
@@ -58,13 +70,39 @@ export default async function handler(req: any, res?: any) {
     // 1. Verify Authenticated Customer via Clerk session
     const user = await getAuthenticatedUser(req);
     if (!user) {
+      logSecurityEvent({
+        event: 'unauthorized_inspiration_upload',
+        endpoint: '/api/uploads/jewellery-inspiration',
+        method,
+        requestId,
+        statusCode: 401,
+      });
       return respond(res, 401, {
         success: false,
         error: 'Unauthorized: Valid Clerk session required to upload inspiration images.',
       });
     }
 
-    // 2. Parse Multipart Form & Validate Image
+    // 2. Rate Limiting: 10 uploads per 10 minutes per authenticated user
+    const rateCheck = await checkRateLimit(user.id, {
+      keyPrefix: 'insp_upload',
+      limit: 10,
+      windowSeconds: 600,
+    });
+
+    if (!rateCheck.allowed) {
+      return respond(
+        res,
+        429,
+        {
+          success: false,
+          error: 'Upload limit exceeded. Please wait a few minutes before uploading another inspiration image.',
+        },
+        { 'Retry-After': String(rateCheck.resetSeconds) }
+      );
+    }
+
+    // 3. Parse Multipart Form & Validate Image
     const { file, error: parseError } = await parseMultipartForm(req);
 
     if (parseError || !file) {
@@ -74,7 +112,7 @@ export default async function handler(req: any, res?: any) {
       });
     }
 
-    // 3. Enforce 5MB limit for inspiration photos
+    // 4. Enforce 5MB limit for inspiration photos
     if (file.size > MAX_INSPIRATION_SIZE_BYTES) {
       return respond(res, 400, {
         success: false,
@@ -85,7 +123,7 @@ export default async function handler(req: any, res?: any) {
       });
     }
 
-    // 4. Verify Cloudinary Configuration
+    // 5. Verify Cloudinary Configuration
     if (!isCloudinaryConfigured()) {
       return respond(res, 503, {
         success: false,
@@ -94,10 +132,13 @@ export default async function handler(req: any, res?: any) {
       });
     }
 
-    // 5. Upload Image to Cloudinary folder: alongkar/jewellery-requests
+    // 6. Upload Image to Cloudinary folder: alongkar/jewellery-requests
     const uploadResult = await uploadInspirationToCloudinary(file.buffer);
 
-    // 6. Return secure delivery URL and metadata (never secrets!)
+    const durationMs = Date.now() - startTime;
+    logSlowRequest({ endpoint: '/api/uploads/jewellery-inspiration', method, durationMs, requestId });
+
+    // 7. Return secure delivery URL and metadata (never secrets!)
     return respond(res, 200, {
       success: true,
       url: uploadResult.secure_url,
@@ -107,11 +148,23 @@ export default async function handler(req: any, res?: any) {
       bytes: uploadResult.bytes,
     });
   } catch (error: any) {
-    console.error('Inspiration image upload error:', error?.message || error);
+    const durationMs = Date.now() - startTime;
+    logDependencyFailure('cloudinary', 'upload_inspiration_image', error, {
+      endpoint: '/api/uploads/jewellery-inspiration',
+      method,
+      requestId,
+      isFatal: true,
+    });
+    logServerError(error, {
+      endpoint: '/api/uploads/jewellery-inspiration',
+      method,
+      requestId,
+      durationMs,
+      statusCode: 500,
+    });
     return respond(res, 500, {
       success: false,
-      error: 'Failed to upload inspiration image to Cloudinary. Please try again.',
-      details: error?.message,
+      error: getSafeErrorMessage(error, 'Failed to upload inspiration image to Cloudinary. Please try again.'),
     });
   }
 }

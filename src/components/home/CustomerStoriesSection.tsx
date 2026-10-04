@@ -1,6 +1,5 @@
 import React from 'react';
-import { motion } from 'framer-motion';
-import { QuoteDown, Sparkles, TickCircle } from 'reicon-react';
+import { Quote, Sparkles, CheckCircle2 } from 'lucide-react';
 import { testimonialsData } from '../../data/testimonials';
 import { StarRating } from '../ui/StarRating';
 import { SectionHeading } from '../ui/SectionHeading';
@@ -15,16 +14,12 @@ export const CustomerStoriesSection: React.FC = () => {
         />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-8 mt-12">
-          {testimonialsData.map((review, index) => (
-            <motion.div
+          {testimonialsData.map((review) => (
+            <div
               key={review.id}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: index * 0.1 }}
               className="p-8 sm:p-10 bg-white rounded-2xl border border-[#E8C98A]/30 shadow-[0_6px_28px_rgba(0,0,0,0.03)] hover:shadow-[0_16px_40px_rgba(42,0,8,0.07),0_0_20px_rgba(232,201,138,0.12)] transition-all duration-500 flex flex-col justify-between relative group"
             >
-              <QuoteDown className="absolute top-8 right-8 text-[#E8C98A]/25 w-12 h-12 group-hover:text-[#E8C98A]/40 transition-colors pointer-events-none" />
+              <Quote className="absolute top-8 right-8 text-[#E8C98A]/25 w-12 h-12 group-hover:text-[#E8C98A]/40 transition-colors pointer-events-none" />
 
               <div>
                 <div className="flex items-center gap-2 mb-4">
@@ -47,7 +42,7 @@ export const CustomerStoriesSection: React.FC = () => {
                   <div>
                     <h4 className="font-serif text-sm font-bold text-[#211A17] flex items-center gap-1.5">
                       <span>{review.customerName}</span>
-                      <TickCircle size={13} className="text-emerald-700" />
+                      <CheckCircle2 size={13} className="text-emerald-700" />
                     </h4>
                     <p className="text-[11px] text-gray-500 font-light">{review.location}</p>
                   </div>
@@ -60,7 +55,7 @@ export const CustomerStoriesSection: React.FC = () => {
                   </span>
                 )}
               </div>
-            </motion.div>
+            </div>
           ))}
         </div>
       </div>

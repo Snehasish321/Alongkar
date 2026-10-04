@@ -1,5 +1,18 @@
 import prisma from '../../src/lib/prisma.js';
-import { requireAdmin, getRequestBody, respond } from '../_utils/auth.js';
+import { requireAdmin, getRequestBody, respond, isPayloadTooLarge, isMalformedJson } from '../_utils/auth.js';
+import {
+  isValidIdentifier,
+  sanitizeSearchQuery,
+  isValidString,
+  isValidNumber,
+  getSafeErrorMessage,
+  withTimeout,
+  logServerError,
+  getOrCreateRequestId,
+  logSlowRequest,
+  logSecurityEvent,
+} from '../_utils/security.js';
+import { Prisma } from '@prisma/client';
 
 export const ALL_REQUEST_STATUSES = [
   'PENDING',
@@ -18,7 +31,7 @@ export const ALL_REQUEST_STATUSES = [
 export type RequestStatusType = (typeof ALL_REQUEST_STATUSES)[number];
 
 /**
- * Valid initial status transitions enforced for Task 5.
+ * Valid initial status transitions enforced for admin workflow.
  */
 export const ALLOWED_STATUS_TRANSITIONS: Record<string, string[]> = {
   PENDING: ['UNDER_REVIEW', 'NOT_SOURCEABLE'],
@@ -30,25 +43,28 @@ export const ALLOWED_STATUS_TRANSITIONS: Record<string, string[]> = {
  */
 export function extractRequestId(req: any, body?: any): string | null {
   if (body && typeof body === 'object' && body.id && typeof body.id === 'string') {
-    return body.id.trim();
+    const clean = body.id.trim().slice(0, 100);
+    return isValidIdentifier(clean) ? clean : null;
   }
 
   if (req.query && req.query.id && typeof req.query.id === 'string') {
-    return req.query.id.trim();
+    const clean = req.query.id.trim().slice(0, 100);
+    return isValidIdentifier(clean) ? clean : null;
   }
 
   if (req.url) {
     try {
       const url = new URL(req.url, 'http://localhost');
       if (url.searchParams.get('id')) {
-        return url.searchParams.get('id')!.trim();
+        const clean = url.searchParams.get('id')!.trim().slice(0, 100);
+        return isValidIdentifier(clean) ? clean : null;
       }
       const segments = url.pathname.replace(/\/+$/, '').split('/').filter(Boolean);
       const idx = segments.indexOf('jewellery-requests');
       if (idx !== -1 && segments.length > idx + 1) {
-        const seg = decodeURIComponent(segments[idx + 1]).trim();
+        const seg = decodeURIComponent(segments[idx + 1]).trim().slice(0, 100);
         if (seg && seg !== 'index') {
-          return seg;
+          return isValidIdentifier(seg) ? seg : null;
         }
       }
     } catch {}
@@ -112,17 +128,54 @@ export function formatAdminJewelleryRequest(r: any) {
  * Supported methods:
  * - GET  /api/admin/jewellery-requests      : List & filter all requests with stats
  * - GET  /api/admin/jewellery-requests/:id  : Get single request details
- * - PATCH /api/admin/jewellery-requests/:id : Update status and/or admin notes
+ * - PATCH /api/admin/jewellery-requests/:id : Update status, financial fields and/or admin notes
  */
 export default async function handler(req: any, res?: any) {
   const method = (req.method || 'GET').toUpperCase();
+  const requestId = getOrCreateRequestId(req);
+  if (res) res._requestId = requestId;
+  const startTime = Date.now();
 
   try {
     const body = await getRequestBody(req);
 
+    if (isPayloadTooLarge(body)) {
+      logSecurityEvent({
+        event: 'payload_too_large',
+        endpoint: '/api/admin/jewellery-requests',
+        method,
+        requestId,
+        statusCode: 413,
+      });
+      return respond(res, 413, {
+        success: false,
+        error: 'Payload too large: maximum allowed JSON body size is 1MB',
+      });
+    }
+    if (isMalformedJson(body)) {
+      logSecurityEvent({
+        event: 'malformed_json',
+        endpoint: '/api/admin/jewellery-requests',
+        method,
+        requestId,
+        statusCode: 400,
+      });
+      return respond(res, 400, {
+        success: false,
+        error: 'Invalid JSON payload format',
+      });
+    }
+
     // 1. Enforce strict server-side Admin Authorization (Clerk metadata role === 'admin')
     const authCheck = await requireAdmin(req, body);
     if (!authCheck.authorized) {
+      logSecurityEvent({
+        event: authCheck.status === 401 ? 'unauthorized_admin_access' : 'forbidden_admin_access',
+        endpoint: '/api/admin/jewellery-requests',
+        method,
+        requestId,
+        statusCode: authCheck.status,
+      });
       return respond(res, authCheck.status, {
         success: false,
         error: authCheck.error || 'Forbidden: Administrator privileges required',
@@ -137,18 +190,22 @@ export default async function handler(req: any, res?: any) {
 
       // Single Request Lookup
       if (requestId) {
-        const singleRequest = await (prisma as any).jewelleryRequest.findUnique({
-          where: { id: requestId },
-          include: {
-            user: {
-              select: {
-                id: true,
-                clerkUserId: true,
-                email: true,
+        const singleRequest = await withTimeout(
+          (prisma as any).jewelleryRequest.findUnique({
+            where: { id: requestId },
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  clerkUserId: true,
+                  email: true,
+                },
               },
             },
-          },
-        });
+          }),
+          8000,
+          'Admin jewellery request lookup timed out.'
+        );
 
         if (!singleRequest) {
           return respond(res, 404, {
@@ -170,21 +227,21 @@ export default async function handler(req: any, res?: any) {
       let limit = 50;
 
       if (req.query) {
-        if (req.query.status) statusFilter = String(req.query.status).trim();
-        if (req.query.search) searchQuery = String(req.query.search).trim();
-        if (req.query.page) page = Math.max(1, parseInt(String(req.query.page), 10) || 1);
+        if (req.query.status) statusFilter = String(req.query.status).trim().toUpperCase();
+        if (req.query.search) searchQuery = sanitizeSearchQuery(req.query.search, 100);
+        if (req.query.page) page = Math.max(1, Math.min(10_000, parseInt(String(req.query.page), 10) || 1));
         if (req.query.limit) limit = Math.min(100, Math.max(1, parseInt(String(req.query.limit), 10) || 50));
       } else if (req.url) {
         try {
           const url = new URL(req.url, 'http://localhost');
-          if (url.searchParams.get('status')) statusFilter = url.searchParams.get('status')!.trim();
-          if (url.searchParams.get('search')) searchQuery = url.searchParams.get('search')!.trim();
-          if (url.searchParams.get('page')) page = Math.max(1, parseInt(url.searchParams.get('page')!, 10) || 1);
+          if (url.searchParams.get('status')) statusFilter = url.searchParams.get('status')!.trim().toUpperCase();
+          if (url.searchParams.get('search')) searchQuery = sanitizeSearchQuery(url.searchParams.get('search'), 100);
+          if (url.searchParams.get('page')) page = Math.max(1, Math.min(10_000, parseInt(url.searchParams.get('page')!, 10) || 1));
           if (url.searchParams.get('limit')) limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get('limit')!, 10) || 50));
         } catch {}
       }
 
-      // Build Prisma where filter
+      // Build Prisma where filter safely
       const whereClause: Record<string, any> = {};
 
       if (statusFilter && statusFilter !== 'ALL' && (ALL_REQUEST_STATUSES as readonly string[]).includes(statusFilter)) {
@@ -203,31 +260,35 @@ export default async function handler(req: any, res?: any) {
 
       const skip = (page - 1) * limit;
 
-      const [requests, totalCount, statsData] = await Promise.all([
-        (prisma as any).jewelleryRequest.findMany({
-          where: whereClause,
-          include: {
-            user: {
-              select: {
-                id: true,
-                clerkUserId: true,
-                email: true,
+      const [requests, totalCount, statsData] = await withTimeout(
+        Promise.all([
+          (prisma as any).jewelleryRequest.findMany({
+            where: whereClause,
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  clerkUserId: true,
+                  email: true,
+                },
               },
             },
-          },
-          orderBy: { createdAt: 'desc' },
-          skip,
-          take: limit,
-        }),
-        (prisma as any).jewelleryRequest.count({ where: whereClause }),
-        // Global aggregate stats for metrics dashboard
-        (prisma as any).jewelleryRequest.groupBy({
-          by: ['status'],
-          _count: {
-            status: true,
-          },
-        }),
-      ]);
+            orderBy: { createdAt: 'desc' },
+            skip,
+            take: limit,
+          }),
+          (prisma as any).jewelleryRequest.count({ where: whereClause }),
+          // Global aggregate stats for metrics dashboard
+          (prisma as any).jewelleryRequest.groupBy({
+            by: ['status'],
+            _count: {
+              status: true,
+            },
+          }),
+        ]),
+        8000,
+        'Admin jewellery requests query timed out.'
+      );
 
       const stats = {
         total: 0,
@@ -258,7 +319,7 @@ export default async function handler(req: any, res?: any) {
     }
 
     // ==========================================
-    // PATCH: Update Request Status & Admin Note
+    // PATCH: Update Request Status & Admin Fields
     // ==========================================
     if (method === 'PATCH' || method === 'PUT') {
       const requestId = extractRequestId(req, body);
@@ -266,22 +327,26 @@ export default async function handler(req: any, res?: any) {
       if (!requestId) {
         return respond(res, 400, {
           success: false,
-          error: 'Missing required request identifier (:id or ?id=...).',
+          error: 'Missing or invalid request identifier (:id or ?id=...).',
         });
       }
 
-      const existingRequest = await (prisma as any).jewelleryRequest.findUnique({
-        where: { id: requestId },
-        include: {
-          user: {
-            select: {
-              id: true,
-              clerkUserId: true,
-              email: true,
+      const existingRequest = await withTimeout(
+        (prisma as any).jewelleryRequest.findUnique({
+          where: { id: requestId },
+          include: {
+            user: {
+              select: {
+                id: true,
+                clerkUserId: true,
+                email: true,
+              },
             },
           },
-        },
-      });
+        }),
+        8000,
+        'Admin jewellery request lookup timed out.'
+      );
 
       if (!existingRequest) {
         return respond(res, 404, {
@@ -318,12 +383,19 @@ export default async function handler(req: any, res?: any) {
         }
       }
 
-      // 2. Admin Note Update
+      // 2. Admin Note Update (max 2000 chars)
       if (body.adminNote !== undefined) {
         if (body.adminNote === null) {
           updateData.adminNote = null;
         } else if (typeof body.adminNote === 'string') {
-          updateData.adminNote = body.adminNote.trim();
+          const trimmed = body.adminNote.trim();
+          if (trimmed.length > 2000) {
+            return respond(res, 400, {
+              success: false,
+              error: 'adminNote cannot exceed 2000 characters.',
+            });
+          }
+          updateData.adminNote = trimmed;
         } else {
           return respond(res, 400, {
             success: false,
@@ -332,26 +404,70 @@ export default async function handler(req: any, res?: any) {
         }
       }
 
+      // 3. Quoted Price, Advance Amount, Remaining Amount (optional admin financial updates)
+      if (body.quotedPrice !== undefined) {
+        if (body.quotedPrice === null) {
+          updateData.quotedPrice = null;
+        } else if (isValidNumber(body.quotedPrice, 0, 100_000_000)) {
+          updateData.quotedPrice = new Prisma.Decimal(body.quotedPrice);
+        } else {
+          return respond(res, 400, {
+            success: false,
+            error: 'quotedPrice must be a non-negative finite number (max 100,000,000).',
+          });
+        }
+      }
+
+      if (body.advanceAmount !== undefined) {
+        if (body.advanceAmount === null) {
+          updateData.advanceAmount = null;
+        } else if (isValidNumber(body.advanceAmount, 0, 100_000_000)) {
+          updateData.advanceAmount = new Prisma.Decimal(body.advanceAmount);
+        } else {
+          return respond(res, 400, {
+            success: false,
+            error: 'advanceAmount must be a non-negative finite number (max 100,000,000).',
+          });
+        }
+      }
+
+      if (body.remainingAmount !== undefined) {
+        if (body.remainingAmount === null) {
+          updateData.remainingAmount = null;
+        } else if (isValidNumber(body.remainingAmount, 0, 100_000_000)) {
+          updateData.remainingAmount = new Prisma.Decimal(body.remainingAmount);
+        } else {
+          return respond(res, 400, {
+            success: false,
+            error: 'remainingAmount must be a non-negative finite number (max 100,000,000).',
+          });
+        }
+      }
+
       if (Object.keys(updateData).length === 0) {
         return respond(res, 400, {
           success: false,
-          error: 'No valid update fields provided (status or adminNote).',
+          error: 'No valid update fields provided.',
         });
       }
 
-      const updatedRecord = await (prisma as any).jewelleryRequest.update({
-        where: { id: existingRequest.id },
-        data: updateData,
-        include: {
-          user: {
-            select: {
-              id: true,
-              clerkUserId: true,
-              email: true,
+      const updatedRecord = await withTimeout(
+        (prisma as any).jewelleryRequest.update({
+          where: { id: existingRequest.id },
+          data: updateData,
+          include: {
+            user: {
+              select: {
+                id: true,
+                clerkUserId: true,
+                email: true,
+              },
             },
           },
-        },
-      });
+        }),
+        8000,
+        'Admin jewellery request update timed out.'
+      );
 
       return respond(res, 200, {
         success: true,
@@ -360,15 +476,24 @@ export default async function handler(req: any, res?: any) {
       });
     }
 
+    const durationMs = Date.now() - startTime;
+    logSlowRequest({ endpoint: '/api/admin/jewellery-requests', method, durationMs, requestId });
     return respond(res, 405, {
       success: false,
       error: `Method ${method} Not Allowed`,
     });
   } catch (error: any) {
-    console.error('Admin Jewellery Request API error:', error);
+    const durationMs = Date.now() - startTime;
+    logServerError(error, {
+      endpoint: '/api/admin/jewellery-requests',
+      method,
+      requestId,
+      durationMs,
+      statusCode: 500,
+    });
     return respond(res, 500, {
       success: false,
-      error: 'Internal server error while processing admin request.',
+      error: getSafeErrorMessage(error, 'Internal server error while processing admin request.'),
     });
   }
 }

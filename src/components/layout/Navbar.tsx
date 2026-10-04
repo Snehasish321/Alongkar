@@ -214,6 +214,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMobileMenu }
             {/* Search Trigger */}
             <button
               onClick={onOpenSearch}
+              onMouseEnter={() => import('./SearchModal')}
               className="p-2 text-[#F8F1E3]/90 hover:text-[#E8C98A] transition-colors rounded-full hover:bg-white/10 cursor-pointer"
               aria-label="Search Products"
             >
@@ -223,6 +224,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMobileMenu }
             {/* Wishlist Button */}
             <button
               onClick={() => setIsWishlistOpen(true)}
+              onMouseEnter={() => import('./WishlistDrawer')}
               className="relative p-2 text-[#F8F1E3]/90 hover:text-[#E8C98A] transition-colors rounded-full hover:bg-white/10 cursor-pointer"
               aria-label="View Wishlist"
             >
@@ -254,6 +256,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMobileMenu }
             {/* Cart Button with Numeric Badge */}
             <button
               onClick={() => setIsCartOpen(true)}
+              onMouseEnter={() => import('./CartDrawer')}
               className="relative p-2 text-[#F8F1E3] hover:text-[#E8C98A] transition-transform active:scale-95 cursor-pointer rounded-full hover:bg-white/10"
               aria-label="Shopping Cart"
             >

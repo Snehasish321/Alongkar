@@ -1,6 +1,5 @@
 import React from 'react';
 import { cn } from '../../lib/utils';
-import { motion } from 'framer-motion';
 
 interface SectionHeadingProps {
   title: string;
@@ -33,15 +32,9 @@ export const SectionHeading: React.FC<SectionHeadingProps> = ({
           {subtitle}
         </span>
       )}
-      <motion.h2
-        initial={{ opacity: 0, y: 15 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.6 }}
-        className="text-2xl sm:text-3xl md:text-4xl font-serif text-espresso font-medium tracking-tight"
-      >
+      <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif text-espresso font-medium tracking-tight">
         {title}
-      </motion.h2>
+      </h2>
 
       <div className="w-12 h-[1.5px] bg-gold/50 my-3" />
 

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { ArrowLeft, ArrowRight } from 'reicon-react';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { formatPrice } from '../../lib/utils';
 
 export interface ShowcaseItem {
@@ -102,15 +101,10 @@ export const ShowcaseSlider: React.FC<ShowcaseSliderProps> = ({ title, items }) 
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
-        <motion.div
-          className="flex -mx-2 sm:-mx-3 lg:-mx-4"
-          animate={{
-            x: `-${currentIndex * (100 / itemsPerView)}%`,
-          }}
-          transition={{
-            type: 'spring',
-            stiffness: 260,
-            damping: 30,
+        <div
+          className="flex -mx-2 sm:-mx-3 lg:-mx-4 transition-transform duration-500 ease-out will-change-transform"
+          style={{
+            transform: `translateX(-${currentIndex * (100 / itemsPerView)}%)`,
           }}
         >
           {items.map((item, idx) => (
@@ -159,7 +153,7 @@ export const ShowcaseSlider: React.FC<ShowcaseSliderProps> = ({ title, items }) 
               </Link>
             </div>
           ))}
-        </motion.div>
+        </div>
       </div>
 
       {/* Clean Subtle Pagination Indicators */}

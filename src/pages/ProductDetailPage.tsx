@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import {
   Heart,
   ShoppingBag,
@@ -218,10 +217,7 @@ export const ProductDetailPage: React.FC = () => {
                 {/* Left Column: Image Presentation Gallery */}
                 <div className="lg:col-span-6 space-y-4">
                   {/* Primary Large Image Frame */}
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.98 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 0.4 }}
+                  <div
                     className="relative aspect-square w-full bg-[#FAF7F2] rounded-2xl overflow-hidden border border-[#E8C98A]/30 shadow-md group"
                   >
                     {/* Luxury Badges */}
@@ -262,7 +258,7 @@ export const ProductDetailPage: React.FC = () => {
                       alt={product.name}
                       className="w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-105"
                     />
-                  </motion.div>
+                  </div>
 
                   {/* Thumbnail Selector */}
                   <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">

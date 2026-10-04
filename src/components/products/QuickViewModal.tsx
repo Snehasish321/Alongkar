@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Heart, ShoppingBag, ShieldTick, Refresh, Check } from 'reicon-react';
+import { X, Heart, ShoppingBag, ShieldCheck, RefreshCw, Check } from 'lucide-react';
 import type { Product } from '../../types';
 import { formatPrice } from '../../lib/utils';
 import { StarRating } from '../ui/StarRating';
@@ -41,27 +40,18 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ product, onClose
     toggleWishlist(product);
   };
 
-
   return (
-    <AnimatePresence>
-      <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 sm:p-6" data-lenis-prevent>
-        {/* Backdrop */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={onClose}
-          className="fixed inset-0 bg-espresso/70 backdrop-blur-sm"
-        />
+    <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 sm:p-6 animate-fade-in" data-lenis-prevent>
+      {/* Backdrop */}
+      <div
+        onClick={onClose}
+        className="fixed inset-0 bg-espresso/70 backdrop-blur-sm"
+      />
 
-        {/* Modal Window */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          transition={{ type: 'spring', damping: 25, stiffness: 250 }}
-          className="relative w-full max-w-4xl bg-ivory rounded-brand shadow-2xl border border-gold/30 overflow-hidden z-10 my-8"
-        >
+      {/* Modal Window */}
+      <div
+        className="relative w-full max-w-4xl bg-ivory rounded-brand shadow-2xl border border-gold/30 overflow-hidden z-10 my-8 animate-modal-pop"
+      >
           {/* Close Button */}
           <button
             onClick={onClose}
@@ -202,17 +192,16 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ product, onClose
 
                 <div className="flex items-center justify-around text-[11px] text-gray-500 pt-2 border-t border-gold/10">
                   <span className="flex items-center gap-1">
-                    <ShieldTick size={14} className="text-gold" /> Quality Inspected
+                    <ShieldCheck size={14} className="text-gold" /> Quality Inspected
                   </span>
                   <span className="flex items-center gap-1">
-                    <Refresh size={14} className="text-gold" /> 7-Day Replacement
+                    <RefreshCw size={14} className="text-gold" /> 7-Day Replacement
                   </span>
                 </div>
               </div>
             </div>
           </div>
-        </motion.div>
+        </div>
       </div>
-    </AnimatePresence>
   );
 };

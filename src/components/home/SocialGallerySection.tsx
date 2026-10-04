@@ -1,6 +1,5 @@
 import React from 'react';
-import { motion } from 'framer-motion';
-import { Heart } from 'reicon-react';
+import { Heart } from 'lucide-react';
 import { SectionHeading } from '../ui/SectionHeading';
 import { InstagramIcon } from '../ui/SocialIcons';
 
@@ -53,13 +52,9 @@ export const SocialGallerySection: React.FC = () => {
         />
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
-          {galleryImages.map((item, index) => (
-            <motion.div
+          {galleryImages.map((item) => (
+            <div
               key={item.id}
-              initial={{ opacity: 0, scale: 0.95 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.4, delay: index * 0.08 }}
               className="group relative aspect-square rounded-brand overflow-hidden shadow-soft cursor-pointer border border-gold/20"
             >
               <img
@@ -74,7 +69,7 @@ export const SocialGallerySection: React.FC = () => {
                   <Heart size={10} className="fill-gold" /> {item.likes}
                 </span>
               </div>
-            </motion.div>
+            </div>
           ))}
         </div>
       </div>

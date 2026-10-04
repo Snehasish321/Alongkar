@@ -132,10 +132,14 @@ export const RequestJewelleryPage: React.FC = () => {
       newErrors.quantity = 'Quantity must be at least 1.';
     }
 
-    const cleanedPhone = formData.phone.replace(/[\s\-()]/g, '');
-    if (!cleanedPhone) {
+    const phoneVal = formData.phone.trim();
+    if (!phoneVal) {
       newErrors.phone = 'Phone number is required.';
-    } else if (!/^(?:\+?91|0)?[6-9]\d{9}$/.test(cleanedPhone)) {
+    } else if (!/^[6-9]/.test(phoneVal)) {
+      newErrors.phone = 'Phone number must start with 6, 7, 8, or 9.';
+    } else if (phoneVal.length < 10) {
+      newErrors.phone = 'Phone number must be exactly 10 digits.';
+    } else if (!/^[6-9][0-9]{9}$/.test(phoneVal)) {
       newErrors.phone = 'Please enter a valid 10-digit mobile number.';
     }
 
@@ -634,10 +638,15 @@ export const RequestJewelleryPage: React.FC = () => {
                       <input
                         id="phone"
                         type="tel"
+                        inputMode="numeric"
+                        maxLength={10}
                         required
                         disabled={isSubmitting}
                         value={formData.phone}
-                        onChange={(e) => handleFieldChange('phone', e.target.value)}
+                        onChange={(e) => {
+                          const sanitized = e.target.value.replace(/\D/g, '').slice(0, 10);
+                          handleFieldChange('phone', sanitized);
+                        }}
                         placeholder="e.g. 98765 43210"
                         className={`w-full bg-ivory text-xs text-espresso px-3.5 py-3 rounded-brand border transition-colors focus:outline-none focus:ring-2 ${
                           errors.phone

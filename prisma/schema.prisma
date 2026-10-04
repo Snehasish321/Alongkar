@@ -42,6 +42,7 @@ model CartItem {
   updatedAt DateTime @updatedAt
 
   @@unique([cartId, productId])
+  @@index([productId])
 }
 
 model Wishlist {
@@ -62,6 +63,7 @@ model WishlistItem {
   createdAt  DateTime @default(now())
 
   @@unique([wishlistId, productId])
+  @@index([productId])
 }
 
 model Product {
@@ -90,6 +92,12 @@ model Product {
   updatedAt       DateTime       @updatedAt
   cartItems       CartItem[]
   wishlistItems   WishlistItem[]
+
+  @@index([category, createdAt])
+  @@index([collectionId, createdAt])
+  @@index([createdAt])
+  @@index([price])
+  @@index([inStock])
 }
 
 enum RequestStatus {
@@ -131,6 +139,7 @@ model JewelleryRequest {
   updatedAt              DateTime      @updatedAt
 
   @@index([userId])
+  @@index([status, createdAt])
   @@index([status])
   @@index([createdAt])
 }

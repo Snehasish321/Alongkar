@@ -1,70 +1,118 @@
 import { Redis as UpstashRedis } from '@upstash/redis';
 import IORedis from 'ioredis';
+import { logDependencyFailure } from './logger.js';
 
-// ─── Cache TTLs (seconds) ───────────────────────────────────────────────────
+// ─── Centralized Cache TTLs (seconds) ─────────────────────────────────────────
 export const TTL = {
-  PRODUCTS_ALL: 60 * 5,   // 5 minutes (distributed L2)
-  PRODUCT_ONE: 60 * 10,   // 10 minutes (distributed L2)
-  L1_MICRO: 30,           // 30 seconds (in-memory L1)
+  PRODUCTS_ALL: 60 * 5, // 5 minutes (distributed Redis cache)
+  PRODUCT_ONE: 60 * 10, // 10 minutes (distributed Redis cache)
 } as const;
 
-// ─── Cache Keys ─────────────────────────────────────────────────────────────
+export interface ProductListFilterOptions {
+  category?: string | null;
+  collectionId?: string | null;
+  search?: string | null;
+  sortBy?: string | null;
+  inStock?: boolean | string | null;
+  minPrice?: number | string | null;
+  maxPrice?: number | string | null;
+  page?: number | string | null;
+  limit?: number | string | null;
+}
+
+// ─── Deterministic Cache Key Generators ───────────────────────────────────────
 export const CacheKey = {
-  productsList: (category?: string, collectionId?: string) => {
-    const cat = category ? category.toLowerCase().trim() : 'all';
-    const col = collectionId ? collectionId.toLowerCase().trim() : 'all';
-    return `products:list:${cat}:${col}`;
+  /**
+   * Generates a canonical, deterministic cache key for product listings.
+   * Parameter order, casing, whitespace, and default values are strictly normalized.
+   */
+  productsList: (
+    categoryOrOptions?: string | null | ProductListFilterOptions,
+    collectionId?: string | null
+  ): string => {
+    let cat = 'all';
+    let col = 'all';
+    let search = '';
+    let sort = 'default';
+    let stock = 'all';
+    let minP = '';
+    let maxP = '';
+    let page = '';
+    let limit = '';
+
+    if (typeof categoryOrOptions === 'object' && categoryOrOptions !== null) {
+      const opts = categoryOrOptions;
+      if (opts.category && opts.category.trim().toLowerCase() !== 'all') cat = opts.category.trim().toLowerCase();
+      if (opts.collectionId && opts.collectionId.trim().toLowerCase() !== 'all') col = opts.collectionId.trim().toLowerCase();
+      if (opts.search && opts.search.trim()) search = opts.search.trim().toLowerCase();
+      if (opts.sortBy && opts.sortBy.trim()) sort = opts.sortBy.trim().toLowerCase();
+      if (opts.inStock !== undefined && opts.inStock !== null && String(opts.inStock).trim().toLowerCase() !== 'all') {
+        stock = String(opts.inStock).trim().toLowerCase();
+      }
+      if (opts.minPrice !== undefined && opts.minPrice !== null && String(opts.minPrice).trim()) {
+        minP = String(opts.minPrice).trim();
+      }
+      if (opts.maxPrice !== undefined && opts.maxPrice !== null && String(opts.maxPrice).trim()) {
+        maxP = String(opts.maxPrice).trim();
+      }
+      if (opts.page !== undefined && opts.page !== null && String(opts.page).trim()) {
+        page = String(opts.page).trim();
+      }
+      if (opts.limit !== undefined && opts.limit !== null && String(opts.limit).trim()) {
+        limit = String(opts.limit).trim();
+      }
+    } else {
+      if (categoryOrOptions && categoryOrOptions.trim().toLowerCase() !== 'all') cat = categoryOrOptions.trim().toLowerCase();
+      if (collectionId && collectionId.trim().toLowerCase() !== 'all') col = collectionId.trim().toLowerCase();
+    }
+
+    if (!search && sort === 'default' && stock === 'all' && !minP && !maxP && !page && !limit) {
+      return `products:list:${cat}:${col}`;
+    }
+
+    return `products:list:${cat}:${col}:q=${encodeURIComponent(search)}:s=${sort}:stk=${stock}:p=${minP}-${maxP}:pg=${page}:${limit}`;
   },
-  productId: (id: string) => `products:id:${id.trim()}`,
-  productSlug: (slug: string) => `products:slug:${slug.toLowerCase().trim()}`,
-  productRaw: (raw: string) => `products:raw:${raw.toLowerCase().trim()}`,
+
+  /**
+   * Generates a canonical cache key for a product by its ID.
+   */
+  productId: (id: string): string => {
+    return `products:id:${id.trim()}`;
+  },
+
+  /**
+   * Generates a canonical cache key for a product by its slug.
+   */
+  productSlug: (slug: string): string => {
+    return `products:slug:${slug.trim().toLowerCase()}`;
+  },
+
+  /**
+   * Fallback identifier key.
+   */
+  productRaw: (raw: string): string => {
+    return `products:raw:${raw.trim().toLowerCase()}`;
+  },
+
+  /**
+   * Global version key to prevent stale GET race conditions.
+   */
+  version: (): string => 'products:cache_version',
 } as const;
 
-// ─── L1 In-Memory Cache ─────────────────────────────────────────────────────
-interface L1Entry {
-  val: any;
-  exp: number;
-}
-const l1Cache = new Map<string, L1Entry>();
-const L1_MAX_SIZE = 500;
-
-function l1Get<T>(key: string): T | null {
-  const entry = l1Cache.get(key);
-  if (!entry) return null;
-  if (Date.now() > entry.exp) {
-    l1Cache.delete(key);
-    return null;
-  }
-  return entry.val as T;
-}
-
-function l1Set(key: string, val: any, ttlSec: number): void {
-  if (l1Cache.size >= L1_MAX_SIZE) {
-    // Evict oldest entries
-    const firstKey = l1Cache.keys().next().value;
-    if (firstKey) l1Cache.delete(firstKey);
-  }
-  l1Cache.set(key, { val, exp: Date.now() + ttlSec * 1000 });
-}
-
-function l1Del(key: string): void {
-  l1Cache.delete(key);
-}
-
-function l1ClearPrefix(prefix: string): void {
-  for (const k of l1Cache.keys()) {
-    if (k.startsWith(prefix)) {
-      l1Cache.delete(k);
-    }
-  }
-}
-
-// ─── L2 Distributed Redis Client (Upstash REST or ioredis TCP) ─────────────
+// ─── Redis Client & In-Memory Fallback Store ──────────────────────────────────
 let _upstash: UpstashRedis | null = null;
 let _ioredis: IORedis | null = null;
 let _initialized = false;
 
-function getRedisClient(): { upstash?: UpstashRedis; io?: IORedis } | null {
+interface MemoryStoreEntry {
+  val: any;
+  exp: number;
+}
+const _fallbackMemoryStore = new Map<string, MemoryStoreEntry>();
+let _localMemoryVersion = 1;
+
+export function getRedisClient(): { upstash?: UpstashRedis; io?: IORedis } | null {
   if (_initialized) {
     if (_upstash) return { upstash: _upstash };
     if (_ioredis) return { io: _ioredis };
@@ -84,7 +132,7 @@ function getRedisClient(): { upstash?: UpstashRedis; io?: IORedis } | null {
       });
       return { upstash: _upstash };
     } catch (e) {
-      console.warn('[Cache] Failed to initialize Upstash client:', e);
+      logDependencyFailure('redis', 'init_upstash_client', e, { isFatal: false });
     }
   }
 
@@ -97,40 +145,67 @@ function getRedisClient(): { upstash?: UpstashRedis; io?: IORedis } | null {
         lazyConnect: true,
         enableOfflineQueue: false,
       });
-      _ioredis.on('error', () => {
-        // Suppress connection errors to avoid breaking API
+      _ioredis.on('error', (err) => {
+        // Suppress connection errors to prevent breaking API requests
+        logDependencyFailure('redis', 'ioredis_runtime_error', err, { isFatal: false });
       });
       return { io: _ioredis };
     } catch (e) {
-      console.warn('[Cache] Failed to initialize ioredis client:', e);
+      logDependencyFailure('redis', 'init_ioredis_client', e, { isFatal: false });
     }
   }
 
   return null;
 }
 
-// ─── Public Multi-Layer Cache Helpers ───────────────────────────────────────
-
 export interface CacheResult<T> {
   data: T | null;
   hit: boolean;
-  source: 'memory' | 'redis' | 'miss';
+  source: 'redis' | 'miss';
+  version?: number;
 }
 
 /**
- * Retrieves data from L1 in-memory cache first, then L2 Redis.
- * Populates L1 if found in L2. Returns null on miss or error.
+ * Retrieves the current cache generation/version counter from Redis (or fallback store).
  */
-export async function cacheGet<T = unknown>(key: string): Promise<CacheResult<T>> {
-  // 1. Check L1 Memory (0ms)
-  const l1Val = l1Get<T>(key);
-  if (l1Val !== null) {
-    return { data: l1Val, hit: true, source: 'memory' };
+export async function getCacheVersion(): Promise<number> {
+  const client = getRedisClient();
+  if (!client) return _localMemoryVersion;
+
+  try {
+    if (client.upstash) {
+      const v = await client.upstash.get<number>(CacheKey.version());
+      if (typeof v === 'number') return v;
+    } else if (client.io) {
+      const raw = await client.io.get(CacheKey.version());
+      if (raw) {
+        const parsed = parseInt(raw, 10);
+        if (!isNaN(parsed)) return parsed;
+      }
+    }
+  } catch {
+    // Return fallback version on error
   }
 
-  // 2. Check L2 Redis
+  return _localMemoryVersion;
+}
+
+/**
+ * Retrieves data from the shared Redis cache (or fallback memory store).
+ * Returns { data, hit: true, source: 'redis' } on hit, or { data: null, hit: false, source: 'miss' } on miss/error.
+ */
+export async function cacheGet<T = unknown>(key: string): Promise<CacheResult<T>> {
   const client = getRedisClient();
+
+  // If Redis is not configured, check local fallback store
   if (!client) {
+    const entry = _fallbackMemoryStore.get(key);
+    if (entry) {
+      if (Date.now() <= entry.exp) {
+        return { data: entry.val as T, hit: true, source: 'redis' };
+      }
+      _fallbackMemoryStore.delete(key);
+    }
     return { data: null, hit: false, source: 'miss' };
   }
 
@@ -138,15 +213,12 @@ export async function cacheGet<T = unknown>(key: string): Promise<CacheResult<T>
     if (client.upstash) {
       const data = await client.upstash.get<T>(key);
       if (data !== null && data !== undefined) {
-        // Populate L1 micro-cache
-        l1Set(key, data, TTL.L1_MICRO);
         return { data, hit: true, source: 'redis' };
       }
     } else if (client.io) {
       const raw = await client.io.get(key);
       if (raw) {
         const parsed = JSON.parse(raw) as T;
-        l1Set(key, parsed, TTL.L1_MICRO);
         return { data: parsed, hit: true, source: 'redis' };
       }
     }
@@ -158,32 +230,58 @@ export async function cacheGet<T = unknown>(key: string): Promise<CacheResult<T>
 }
 
 /**
- * Stores data in both L1 (micro-cache) and L2 (Redis with TTL).
+ * Stores data in Redis with a specified TTL.
+ * Prevents Stale GET races: if expectedVersion is provided, the write is aborted
+ * if a concurrent mutation incremented the cache version during the database query.
  */
-export async function cacheSet(key: string, value: unknown, ttlSeconds: number): Promise<void> {
-  // Populate L1
-  l1Set(key, value, Math.min(ttlSeconds, TTL.L1_MICRO));
+export async function cacheSet(
+  key: string,
+  value: unknown,
+  ttlSeconds: number,
+  expectedVersion?: number
+): Promise<boolean> {
+  // If version check requested, ensure no mutation occurred during GET query
+  if (expectedVersion !== undefined) {
+    const currentVersion = await getCacheVersion();
+    if (currentVersion !== expectedVersion) {
+      // Stale GET race detected: drop this write to preserve cache consistency
+      return false;
+    }
+  }
 
-  // Populate L2 Redis
   const client = getRedisClient();
-  if (!client) return;
+
+  // If Redis is not configured, write to local fallback store
+  if (!client) {
+    _fallbackMemoryStore.set(key, {
+      val: value,
+      exp: Date.now() + ttlSeconds * 1000,
+    });
+    return true;
+  }
 
   try {
     if (client.upstash) {
       await client.upstash.set(key, value, { ex: ttlSeconds });
+      return true;
     } else if (client.io) {
       await client.io.set(key, JSON.stringify(value), 'EX', ttlSeconds);
+      return true;
     }
   } catch (err) {
-    // Graceful degradation: never throw on cache write error
+    // Graceful degradation: log warning without crashing caller
+    logDependencyFailure('redis', 'cache_write', err, { isFatal: false, extra: { key } });
   }
+
+  return false;
 }
 
 /**
- * Deletes a key from both L1 and L2.
+ * Deletes a single key from Redis (or fallback store).
  */
 export async function cacheDel(key: string): Promise<void> {
-  l1Del(key);
+  _fallbackMemoryStore.delete(key);
+
   const client = getRedisClient();
   if (!client) return;
 
@@ -193,45 +291,54 @@ export async function cacheDel(key: string): Promise<void> {
     } else if (client.io) {
       await client.io.del(key);
     }
-  } catch {}
+  } catch (err) {
+    logDependencyFailure('redis', 'cache_delete', err, { isFatal: false, extra: { key } });
+  }
 }
 
 /**
- * Invalidates all product keys across L1 and L2 (call after any product creation/update/deletion).
+ * Invalidates all product catalog caches across Redis and increments the cache version.
+ * Call after any product creation, update, or deletion.
  */
 export async function invalidateProducts(): Promise<void> {
-  l1ClearPrefix('products:');
+  _localMemoryVersion++;
+  _fallbackMemoryStore.clear();
 
   const client = getRedisClient();
   if (!client) return;
 
   try {
     if (client.upstash) {
+      // 1. Increment cache version to immediately invalidate any in-flight GET queries
+      await client.upstash.incr(CacheKey.version());
+
+      // 2. Scan and delete all product cache keys
       const keys = await client.upstash.keys('products:*');
-      if (keys && keys.length > 0) {
-        await client.upstash.del(...keys);
+      const keysToDelete = (keys || []).filter((k) => k !== CacheKey.version());
+      if (keysToDelete.length > 0) {
+        await client.upstash.del(...keysToDelete);
       }
     } else if (client.io) {
+      await client.io.incr(CacheKey.version());
       const keys = await scanIoRedisKeys(client.io, 'products:*');
-      if (keys.length > 0) {
-        await client.io.del(...keys);
+      const keysToDelete = keys.filter((k) => k !== CacheKey.version());
+      if (keysToDelete.length > 0) {
+        await client.io.del(...keysToDelete);
       }
     }
   } catch (err) {
-    console.warn('[Cache] Error invalidating product cache:', err);
+    logDependencyFailure('redis', 'invalidate_products', err, { isFatal: false });
   }
 }
 
 /**
- * Invalidate specific product keys (id and slug).
+ * Invalidates specific product item keys (ID and slug).
  */
 export async function invalidateProductKeys(id?: string, slug?: string): Promise<void> {
   if (id) {
-    l1Del(CacheKey.productId(id));
     await cacheDel(CacheKey.productId(id));
   }
   if (slug) {
-    l1Del(CacheKey.productSlug(slug));
     await cacheDel(CacheKey.productSlug(slug));
   }
 }

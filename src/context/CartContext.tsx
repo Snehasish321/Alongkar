@@ -1,4 +1,12 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useRef,
+  type ReactNode,
+} from 'react';
 import { useAuth } from '@clerk/react';
 import type { Product, CartItem } from '../types';
 import { fetchProductById, fetchProducts } from '../services/productApi';
@@ -16,38 +24,42 @@ interface CartContextType {
   lastAddedProduct: Product | null;
 }
 
-const LOCAL_STORAGE_KEY = 'alongkar_cart_items_v2';
+const GUEST_CART_STORAGE_KEY = 'alongkar_guest_cart_v1';
+const MAX_ITEM_QUANTITY = 99;
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { isSignedIn, isLoaded, getToken } = useAuth();
-  const [cart, setCart] = useState<CartItem[]>(() => {
+
+  // Helper to load unauthenticated guest cart from localStorage
+  const loadGuestCart = (): CartItem[] => {
     try {
-      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+      const saved = localStorage.getItem(GUEST_CART_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          return parsed.filter((item) => item?.product?.id && typeof item?.quantity === 'number');
+          return parsed.filter(
+            (item) => item?.product?.id && typeof item?.quantity === 'number' && item.quantity > 0
+          );
         }
       }
     } catch {
       // Ignore localStorage parse errors
     }
     return [];
+  };
+
+  const [cart, setCart] = useState<CartItem[]>(() => {
+    // Initial state: start with guest cart if not yet signed in
+    return loadGuestCart();
   });
 
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [lastAddedProduct, setLastAddedProduct] = useState<Product | null>(null);
 
-  // Sync state to localStorage for offline / guest persistence
-  useEffect(() => {
-    try {
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(cart));
-    } catch {
-      // Ignore storage limit errors
-    }
-  }, [cart]);
+  // Track authentication state transitions to handle login and logout cleanly
+  const prevIsSignedInRef = useRef<boolean | null>(null);
 
   // Helper to map API server items ({ productId, quantity }) to frontend CartItem[]
   const mapServerItemsToCart = useCallback(
@@ -77,11 +89,20 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       const result: CartItem[] = [];
       for (const item of serverItems) {
-        const product = productMap.get(item.productId);
+        let product = productMap.get(item.productId);
+        if (!product) {
+          try {
+            const fetched = await fetchProductById(item.productId);
+            if (fetched) {
+              product = fetched;
+              productMap.set(fetched.id, fetched);
+            }
+          } catch {}
+        }
         if (product) {
           result.push({
             product,
-            quantity: item.quantity,
+            quantity: Math.min(MAX_ITEM_QUANTITY, Math.max(1, item.quantity)),
           });
         }
       }
@@ -90,67 +111,100 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     []
   );
 
-  // Fetch cart from server when signed in
+  // ─── Authentication Lifecycle Effect ──────────────────────────────────────────
+  // Strict separation: When logged in, fetch ONLY the user's PostgreSQL cart.
+  // When logged out, switch to the isolated guest cart without writing server items.
   useEffect(() => {
     let isCancelled = false;
 
-    async function loadServerCart() {
-      if (!isLoaded || !isSignedIn) {
-        return;
+    if (!isLoaded) return;
+
+    const wasSignedIn = prevIsSignedInRef.current;
+    prevIsSignedInRef.current = isSignedIn;
+
+    if (isSignedIn) {
+      // User is authenticated (either on page load or on sign-in)
+      // Fetch authoritative server cart from PostgreSQL via GET /api/cart
+      async function loadServerCart() {
+        try {
+          const token = await getToken();
+          if (!token || isCancelled) return;
+
+          const res = await fetch('/api/cart', {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            if (!isCancelled && data.items) {
+              const mapped = await mapServerItemsToCart(data.items);
+              if (!isCancelled) {
+                setCart(mapped);
+              }
+            }
+          } else {
+            console.error('Failed to load server cart, status:', res.status);
+          }
+        } catch (err) {
+          console.error('Failed to fetch authenticated cart from server:', err);
+        }
       }
 
-      try {
-        const token = await getToken();
-        if (!token) return;
-
-        const res = await fetch('/api/cart', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!res.ok) return;
-
-        const data = await res.json();
-        if (!isCancelled && data.items) {
-          const mapped = await mapServerItemsToCart(data.items);
-          if (!isCancelled) {
-            setCart(mapped);
-          }
-        }
-      } catch (err) {
-        console.error('Failed to load cart from server:', err);
+      loadServerCart();
+    } else {
+      // User is unauthenticated (either initial guest or logged out)
+      // If user just logged out, immediately remove authenticated cart and restore guest cart
+      if (wasSignedIn === true) {
+        setCart(loadGuestCart());
       }
     }
-
-    loadServerCart();
 
     return () => {
       isCancelled = true;
     };
   }, [isLoaded, isSignedIn, getToken, mapServerItemsToCart]);
 
+  // ─── Guest Cart Persistence Effect ───────────────────────────────────────────
+  // ONLY persist to localStorage when unauthenticated so authenticated database carts
+  // are never copied or leaked into the guest cart storage.
+  useEffect(() => {
+    if (isLoaded && !isSignedIn) {
+      try {
+        localStorage.setItem(GUEST_CART_STORAGE_KEY, JSON.stringify(cart));
+      } catch {
+        // Ignore storage limit errors
+      }
+    }
+  }, [cart, isLoaded, isSignedIn]);
+
+  // ─── Add to Cart ─────────────────────────────────────────────────────────────
   const addToCart = async (product: Product, quantity: number = 1) => {
     setLastAddedProduct(product);
     setIsCartOpen(true);
 
-    const safeQty = Math.max(1, Math.floor(quantity));
+    const safeQty = Math.min(MAX_ITEM_QUANTITY, Math.max(1, Math.floor(quantity)));
 
-    // Update local state immediately
+    // Update active React cart state
     setCart((prevCart) => {
       const existingIndex = prevCart.findIndex((item) => item.product.id === product.id);
       if (existingIndex > -1) {
         const updated = [...prevCart];
+        const combinedQty = Math.min(
+          MAX_ITEM_QUANTITY,
+          updated[existingIndex].quantity + safeQty
+        );
         updated[existingIndex] = {
           ...updated[existingIndex],
-          quantity: updated[existingIndex].quantity + safeQty,
+          quantity: combinedQty,
         };
         return updated;
       }
       return [...prevCart, { product, quantity: safeQty }];
     });
 
-    // If signed in, sync with server
+    // If signed in, synchronize exclusively with the authenticated user's PostgreSQL cart
     if (isSignedIn) {
       try {
         const token = await getToken();
@@ -178,11 +232,12 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // ─── Remove from Cart ────────────────────────────────────────────────────────
   const removeFromCart = async (productId: string) => {
-    // Update local state immediately
+    // Update active React cart state
     setCart((prevCart) => prevCart.filter((item) => item.product.id !== productId));
 
-    // If signed in, sync with server
+    // If signed in, remove from authenticated user's database cart
     if (isSignedIn) {
       try {
         const token = await getToken();
@@ -210,22 +265,23 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // ─── Update Quantity ─────────────────────────────────────────────────────────
   const updateQuantity = async (productId: string, quantity: number) => {
     if (quantity <= 0) {
       removeFromCart(productId);
       return;
     }
 
-    const safeQty = Math.floor(quantity);
+    const safeQty = Math.min(MAX_ITEM_QUANTITY, Math.max(1, Math.floor(quantity)));
 
-    // Update local state immediately
+    // Update active React cart state
     setCart((prevCart) =>
       prevCart.map((item) =>
         item.product.id === productId ? { ...item, quantity: safeQty } : item
       )
     );
 
-    // If signed in, sync with server
+    // If signed in, update authenticated user's database cart
     if (isSignedIn) {
       try {
         const token = await getToken();
@@ -253,29 +309,27 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // ─── Clear Cart ──────────────────────────────────────────────────────────────
   const clearCart = async () => {
-    const itemsToClear = [...cart];
     setCart([]);
-    try {
-      localStorage.removeItem(LOCAL_STORAGE_KEY);
-    } catch {}
 
-    if (isSignedIn && itemsToClear.length > 0) {
+    if (!isSignedIn) {
+      try {
+        localStorage.removeItem(GUEST_CART_STORAGE_KEY);
+      } catch {}
+    } else {
+      // Clear authenticated database cart via atomic DELETE
       try {
         const token = await getToken();
         if (token) {
-          await Promise.all(
-            itemsToClear.map((item) =>
-              fetch('/api/cart', {
-                method: 'DELETE',
-                headers: {
-                  'Content-Type': 'application/json',
-                  Authorization: `Bearer ${token}`,
-                },
-                body: JSON.stringify({ productId: item.product.id }),
-              })
-            )
-          );
+          await fetch('/api/cart', {
+            method: 'DELETE',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ clearAll: true }),
+          });
         }
       } catch (err) {
         console.error('Failed to clear cart on server:', err);

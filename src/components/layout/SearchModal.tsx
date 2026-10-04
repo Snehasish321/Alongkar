@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Search, X, ArrowRight, Sparkles, Loader } from 'reicon-react';
+import { Search, X, ArrowRight, Sparkles, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { fetchProducts } from '../../services/productApi';
 import type { Product } from '../../types';
@@ -46,6 +45,16 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose, onSel
     };
   }, [isOpen]);
 
+  // Handle Escape key to close modal
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   const filteredProducts = query.trim()
     ? products.filter(
         (p) =>
@@ -57,32 +66,25 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose, onSel
 
   const popularSearches = ['Choker Set', 'Chandbali Jhumkas', 'Solitaire Ring', 'Emerald Kundan', 'Gold Kadas'];
 
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="fixed inset-0 bg-[#2A0008]/70 backdrop-blur-md z-50 flex items-start justify-center pt-16 sm:pt-24 px-4"
-          />
+  if (!isOpen) return null;
 
-          {/* Modal Container */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: -20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: -20 }}
-            transition={{ type: 'spring', damping: 25, stiffness: 250 }}
-            className="fixed top-12 sm:top-20 z-50 w-full max-w-2xl bg-[#FFFDF8] rounded-xl shadow-2xl border border-[#E8C98A]/30 overflow-hidden"
-            data-lenis-prevent
-          >
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        onClick={onClose}
+        className="fixed inset-0 bg-[#2A0008]/70 backdrop-blur-md z-50 flex items-start justify-center pt-16 sm:pt-24 px-4 animate-fade-in"
+      />
+
+      {/* Modal Container */}
+      <div
+        className="fixed top-12 sm:top-20 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-2xl bg-[#FFFDF8] rounded-xl shadow-2xl border border-[#E8C98A]/30 overflow-hidden animate-modal-pop"
+        data-lenis-prevent
+      >
             {/* Input Bar */}
             <div className="p-4 sm:p-5 border-b border-[#E8C98A]/20 flex items-center gap-3 bg-[#FAF7F2]">
               {isLoading ? (
-                <Loader size={22} className="text-[#B08D57] animate-spin flex-shrink-0" />
+                <Loader2 size={22} className="text-[#B08D57] animate-spin flex-shrink-0" />
               ) : (
                 <Search size={22} className="text-[#B08D57] flex-shrink-0" />
               )}
@@ -177,9 +179,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose, onSel
                 </div>
               )}
             </div>
-          </motion.div>
+          </div>
         </>
-      )}
-    </AnimatePresence>
   );
 };

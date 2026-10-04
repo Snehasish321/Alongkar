@@ -1,6 +1,5 @@
-import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Trash, Plus, Minus, ShoppingBag, ShieldTick, ArrowRight } from 'reicon-react';
+import React, { useEffect } from 'react';
+import { X, Trash2, Plus, Minus, ShoppingBag, ShieldCheck, ArrowRight } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { formatPrice } from '../../lib/utils';
 import { Button } from '../ui/Button';
@@ -12,28 +11,31 @@ export const CartDrawer: React.FC = () => {
   const progressToFreeShipping = Math.min(100, (totalAmount / freeShippingThreshold) * 100);
   const remainingForFreeShipping = Math.max(0, freeShippingThreshold - totalAmount);
 
-  return (
-    <AnimatePresence>
-      {isCartOpen && (
-        <>
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={() => setIsCartOpen(false)}
-            className="fixed inset-0 bg-espresso/60 backdrop-blur-sm z-50"
-          />
+  // Close drawer on Escape key
+  useEffect(() => {
+    if (!isCartOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsCartOpen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isCartOpen, setIsCartOpen]);
 
-          {/* Slide-over Drawer */}
-          <motion.aside
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="fixed top-0 right-0 bottom-0 w-full sm:w-[420px] bg-ivory text-espresso z-50 flex flex-col justify-between shadow-2xl border-l border-gold/20"
-            data-lenis-prevent
-          >
+  if (!isCartOpen) return null;
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        onClick={() => setIsCartOpen(false)}
+        className="fixed inset-0 bg-espresso/60 backdrop-blur-sm z-50 animate-fade-in"
+      />
+
+      {/* Slide-over Drawer */}
+      <aside
+        className="fixed top-0 right-0 bottom-0 w-full sm:w-[420px] bg-ivory text-espresso z-50 flex flex-col justify-between shadow-2xl border-l border-gold/20 animate-drawer-slide-right"
+        data-lenis-prevent
+      >
             {/* Header */}
             <div className="p-5 border-b border-gold/20 flex items-center justify-between bg-ivory-pearl">
               <div className="flex items-center gap-2">
@@ -109,7 +111,7 @@ export const CartDrawer: React.FC = () => {
                             className="text-gray-400 hover:text-burgundy transition-colors p-1"
                             aria-label="Remove item"
                           >
-                            <Trash size={15} />
+                            <Trash2 size={15} />
                           </button>
                         </div>
                         <p className="text-[11px] text-gold font-medium mt-1">
@@ -184,14 +186,12 @@ export const CartDrawer: React.FC = () => {
                 </Button>
 
                 <div className="flex items-center justify-center gap-2 text-[10px] text-gray-500 pt-1">
-                  <ShieldTick size={14} className="text-gold" />
+                  <ShieldCheck size={14} className="text-gold" />
                   <span>100% Secure Checkout • Quality Guaranteed</span>
                 </div>
               </div>
             )}
-          </motion.aside>
+          </aside>
         </>
-      )}
-    </AnimatePresence>
   );
 };
