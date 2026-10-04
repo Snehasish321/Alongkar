@@ -30,7 +30,15 @@ async function uploadInspirationToCloudinary(
         folder: 'alongkar/jewellery-requests',
         resource_type: 'image',
         public_id: publicId,
-        transformation: [{ quality: 'auto', fetch_format: 'auto' }],
+        transformation: [
+          {
+            width: 1600,
+            height: 1600,
+            crop: 'limit',
+            quality: 'auto',
+            fetch_format: 'auto',
+          },
+        ],
       },
       (error, result) => {
         if (error) {

@@ -2,6 +2,7 @@ import React from 'react';
 import { Heart } from 'lucide-react';
 import { SectionHeading } from '../ui/SectionHeading';
 import { InstagramIcon } from '../ui/SocialIcons';
+import { getOptimizedImageUrl, IMAGE_PRESETS } from '../../lib/image';
 
 export const SocialGallerySection: React.FC = () => {
   const galleryImages = [
@@ -58,9 +59,11 @@ export const SocialGallerySection: React.FC = () => {
               className="group relative aspect-square rounded-brand overflow-hidden shadow-soft cursor-pointer border border-gold/20"
             >
               <img
-                src={item.image}
+                src={getOptimizedImageUrl(item.image, IMAGE_PRESETS.CARD)}
                 alt="Alongkar Social Post"
                 className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                loading="lazy"
+                decoding="async"
               />
               <div className="absolute inset-0 bg-espresso/70 backdrop-blur-xs opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-ivory-pearl p-2 text-center space-y-1">
                 <InstagramIcon size={24} className="text-gold" />

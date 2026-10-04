@@ -18,6 +18,7 @@ import {
 import { fetchProductByIdOrSlug, fetchProducts } from '../services/productApi';
 import type { Product } from '../types';
 import { formatPrice } from '../lib/utils';
+import { getOptimizedImageUrl, getResponsiveSrcSet, IMAGE_PRESETS } from '../lib/image';
 import { StarRating } from '../components/ui/StarRating';
 import { useCart } from '../context/CartContext';
 import { useWishlist } from '../context/WishlistContext';
@@ -254,9 +255,14 @@ export const ProductDetailPage: React.FC = () => {
                     </button>
 
                     <img
-                      src={selectedImage || product.image}
+                      src={getOptimizedImageUrl(selectedImage || product.image, IMAGE_PRESETS.DETAIL_HERO)}
+                      srcSet={getResponsiveSrcSet(selectedImage || product.image, [480, 640, 800, 1000, 1200])}
+                      sizes="(max-width: 1024px) 100vw, 50vw"
                       alt={product.name}
                       className="w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-105"
+                      loading="eager"
+                      fetchPriority="high"
+                      decoding="async"
                     />
                   </div>
 
@@ -272,9 +278,11 @@ export const ProductDetailPage: React.FC = () => {
                         }`}
                       >
                         <img
-                          src={product.image}
+                          src={getOptimizedImageUrl(product.image, IMAGE_PRESETS.THUMB_MD)}
                           alt={`${product.name} main view`}
                           className="w-full h-full object-cover"
+                          loading="lazy"
+                          decoding="async"
                         />
                       </button>
                     )}
@@ -288,9 +296,11 @@ export const ProductDetailPage: React.FC = () => {
                         }`}
                       >
                         <img
-                          src={product.hoverImage}
+                          src={getOptimizedImageUrl(product.hoverImage, IMAGE_PRESETS.THUMB_MD)}
                           alt={`${product.name} alternate view`}
                           className="w-full h-full object-cover"
+                          loading="lazy"
+                          decoding="async"
                         />
                       </button>
                     )}

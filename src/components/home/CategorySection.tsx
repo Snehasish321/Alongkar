@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { getOptimizedImageUrl, getResponsiveSrcSet, IMAGE_PRESETS } from '../../lib/image';
 
 const categories = [
   {
@@ -50,10 +51,13 @@ export const CategorySection: React.FC = () => {
             className="group relative aspect-[4/5] rounded-2xl sm:rounded-3xl overflow-hidden bg-neutral-100 shadow-xs"
           >
             <img
-              src={cat.image}
+              src={getOptimizedImageUrl(cat.image, IMAGE_PRESETS.CARD)}
+              srcSet={getResponsiveSrcSet(cat.image, [320, 480, 600])}
+              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 400px"
               alt={cat.name}
               className="w-full h-full object-cover object-center transition-transform duration-700 ease-out group-hover:scale-105"
               loading="lazy"
+              decoding="async"
             />
             {/* Dark gradient overlay */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent pointer-events-none" />
@@ -81,10 +85,13 @@ export const CategorySection: React.FC = () => {
           className="group relative block w-full aspect-[2.4/1] sm:aspect-[3.2/1] md:aspect-[3.8/1] rounded-2xl sm:rounded-3xl overflow-hidden bg-neutral-950 shadow-xs"
         >
           <img
-            src="https://images.unsplash.com/photo-1611591475819-79b8b730ab8c?q=80&w=1800&auto=format&fit=crop"
+            src={getOptimizedImageUrl('https://images.unsplash.com/photo-1611591475819-79b8b730ab8c?q=80&w=1800&auto=format&fit=crop', IMAGE_PRESETS.BANNER)}
+            srcSet={getResponsiveSrcSet('https://images.unsplash.com/photo-1611591475819-79b8b730ab8c?q=80&w=1800&auto=format&fit=crop', [640, 960, 1280, 1600])}
+            sizes="(max-width: 768px) 100vw, 1400px"
             alt="Bridal & Heritage Jewellery"
             className="w-full h-full object-cover object-center transition-transform duration-700 ease-out group-hover:scale-102"
             loading="lazy"
+            decoding="async"
           />
           {/* Subtle gradient overlay */}
           <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/35 to-transparent pointer-events-none" />

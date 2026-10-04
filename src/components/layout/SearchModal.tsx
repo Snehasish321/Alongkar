@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { fetchProducts } from '../../services/productApi';
 import type { Product } from '../../types';
 import { formatPrice } from '../../lib/utils';
+import { getOptimizedImageUrl, IMAGE_PRESETS } from '../../lib/image';
 
 interface SearchModalProps {
   isOpen: boolean;
@@ -160,9 +161,11 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose, onSel
                           className="flex items-center gap-3 p-2.5 rounded-xl bg-[#FAF7F2] border border-[#E8C98A]/20 hover:border-[#B08D57]/60 hover:shadow-sm cursor-pointer transition-all"
                         >
                           <img
-                            src={product.image}
+                            src={getOptimizedImageUrl(product.image, IMAGE_PRESETS.THUMB_SM)}
                             alt={product.name}
                             className="w-12 h-14 object-cover rounded-lg border border-[#E8C98A]/20 bg-white"
+                            loading="lazy"
+                            decoding="async"
                           />
                           <div className="min-w-0 flex-1">
                             <h4 className="text-xs font-serif font-semibold text-[#211A17] truncate">

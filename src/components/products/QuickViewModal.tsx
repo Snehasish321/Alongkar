@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Heart, ShoppingBag, ShieldCheck, RefreshCw, Check } from 'lucide-react';
 import type { Product } from '../../types';
 import { formatPrice } from '../../lib/utils';
+import { getOptimizedImageUrl, getResponsiveSrcSet, IMAGE_PRESETS } from '../../lib/image';
 import { StarRating } from '../ui/StarRating';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
@@ -26,7 +27,7 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ product, onClose
   const images = [product.image, product.hoverImage].filter(Boolean);
   const isLiked = wishlist.some((p) => p.id === product.id);
 
-  const getImageUrl = (url: string, idx: number) => {
+  const getRawImageUrl = (url: string, idx: number) => {
     return imageErrors[idx] ? fallbackImage : (url || fallbackImage);
   };
 
@@ -66,10 +67,13 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ product, onClose
             <div className="p-6 bg-ivory-pearl flex flex-col items-center justify-between border-b md:border-b-0 md:border-r border-gold/15">
               <div className="relative w-full aspect-square rounded-brand overflow-hidden border border-gold/20 mb-4 bg-ivory-soft">
                 <img
-                  src={getImageUrl(images[activeImageIndex], activeImageIndex)}
+                  src={getOptimizedImageUrl(getRawImageUrl(images[activeImageIndex], activeImageIndex), IMAGE_PRESETS.DETAIL_HERO)}
+                  srcSet={getResponsiveSrcSet(getRawImageUrl(images[activeImageIndex], activeImageIndex), [360, 500, 700, 900])}
+                  sizes="(max-width: 768px) 90vw, 450px"
                   alt={product.name}
                   onError={() => setImageErrors((prev) => ({ ...prev, [activeImageIndex]: true }))}
                   className="w-full h-full object-cover transition-all duration-300"
+                  decoding="async"
                 />
                 <button
                   onClick={handleToggleWishlist}
@@ -93,10 +97,12 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ product, onClose
                       }`}
                     >
                       <img
-                        src={getImageUrl(img, idx)}
+                        src={getOptimizedImageUrl(getRawImageUrl(img, idx), IMAGE_PRESETS.THUMB_MD)}
                         alt="thumbnail"
                         onError={() => setImageErrors((prev) => ({ ...prev, [idx]: true }))}
                         className="w-full h-full object-cover"
+                        loading="lazy"
+                        decoding="async"
                       />
                     </button>
                   ))}

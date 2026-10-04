@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Heart, Eye, ShoppingBag, Check, Sparkles } from 'lucide-react';
 import type { Product } from '../../types';
 import { formatPrice } from '../../lib/utils';
+import { getOptimizedImageUrl, getResponsiveSrcSet, IMAGE_PRESETS } from '../../lib/image';
 import { StarRating } from '../ui/StarRating';
 import { useCart } from '../../context/CartContext';
 import { useWishlist } from '../../context/WishlistContext';
@@ -97,22 +98,28 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
         {/* Dual High-Resolution Image Presentation Linking to /product/:slug */}
         <Link to={productUrl} className="w-full h-full block relative cursor-pointer">
           <img
-            src={displayImage}
+            src={getOptimizedImageUrl(displayImage, IMAGE_PRESETS.CARD)}
+            srcSet={getResponsiveSrcSet(displayImage, [320, 480, 600, 800])}
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
             alt={product.name}
             onError={() => setImageError(true)}
             className={`w-full h-full object-cover transition-all duration-700 ${
               isHovered ? 'opacity-0 scale-105' : 'opacity-100 scale-100'
             }`}
             loading="lazy"
+            decoding="async"
           />
           <img
-            src={displayHoverImage}
+            src={getOptimizedImageUrl(displayHoverImage, IMAGE_PRESETS.CARD)}
+            srcSet={getResponsiveSrcSet(displayHoverImage, [320, 480, 600, 800])}
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
             alt={`${product.name} alternate view`}
             onError={() => setHoverImageError(true)}
             className={`w-full h-full object-cover absolute inset-0 transition-all duration-700 ${
               isHovered ? 'opacity-100 scale-105' : 'opacity-0 scale-100'
             }`}
             loading="lazy"
+            decoding="async"
           />
           {/* Subtle warm luxury vignette */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />

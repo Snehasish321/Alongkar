@@ -9,6 +9,7 @@ import {
   Trash,
   TickCircle,
 } from 'reicon-react';
+import { getOptimizedImageUrl, IMAGE_PRESETS } from '../../lib/image';
 
 interface ProductImageUploaderProps {
   label: string;
@@ -178,13 +179,15 @@ export const ProductImageUploader: React.FC<ProductImageUploaderProps> = ({
         <div className="relative rounded-xl bg-black/40 border border-[#D6B878]/30 overflow-hidden p-3 flex flex-col sm:flex-row items-center gap-4 group">
           <div className="relative w-24 h-24 sm:w-20 sm:h-20 rounded-lg overflow-hidden bg-black/80 shrink-0 border border-white/10 shadow-inner">
             <img
-              src={value}
+              src={getOptimizedImageUrl(value, IMAGE_PRESETS.THUMB_MD)}
               alt={label}
               className="w-full h-full object-cover"
               onError={(e) => {
                 (e.target as HTMLImageElement).src =
                   'https://placehold.co/120x120?text=Invalid+URL';
               }}
+              loading="lazy"
+              decoding="async"
             />
             {isUploading && (
               <div className="absolute inset-0 bg-black/80 flex items-center justify-center">

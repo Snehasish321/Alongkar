@@ -1,6 +1,7 @@
 import React from 'react';
 import { Warning, Trash, X, Loader } from 'reicon-react';
 import type { Product } from '../../types';
+import { getOptimizedImageUrl, IMAGE_PRESETS } from '../../lib/image';
 
 interface DeleteConfirmModalProps {
   isOpen: boolean;
@@ -53,12 +54,14 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
         {/* Product preview card */}
         <div className="flex items-center gap-3.5 p-3 rounded-xl bg-black/40 border border-white/10">
           <img
-            src={product.image}
+            src={getOptimizedImageUrl(product.image, IMAGE_PRESETS.THUMB_SM)}
             alt={product.name}
             className="w-14 h-14 object-cover rounded-lg bg-black/60 shrink-0 border border-white/10"
             onError={(e) => {
               (e.target as HTMLImageElement).src = 'https://placehold.co/100x100?text=No+Image';
             }}
+            loading="lazy"
+            decoding="async"
           />
           <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold text-[#F8F4EC] truncate">

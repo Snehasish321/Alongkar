@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { X, Trash2, Plus, Minus, ShoppingBag, ShieldCheck, ArrowRight } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { formatPrice } from '../../lib/utils';
+import { getOptimizedImageUrl, IMAGE_PRESETS } from '../../lib/image';
 import { Button } from '../ui/Button';
 
 export const CartDrawer: React.FC = () => {
@@ -95,9 +96,11 @@ export const CartDrawer: React.FC = () => {
                 cart.map(({ product, quantity }) => (
                   <div key={product.id} className="pt-4 first:pt-0 flex gap-4">
                     <img
-                      src={product.image}
+                      src={getOptimizedImageUrl(product.image, IMAGE_PRESETS.THUMB_MD)}
                       alt={product.name}
                       className="w-20 h-24 object-cover rounded-brand border border-gold/20 flex-shrink-0 bg-ivory-soft"
+                      loading="lazy"
+                      decoding="async"
                     />
 
                     <div className="flex-1 flex flex-col justify-between">

@@ -10,6 +10,7 @@ import {
   Link as LinkIcon,
 } from 'reicon-react';
 import { getStatusBadgeInfo } from '../../lib/jewellery-request-status';
+import { getOptimizedImageUrl, IMAGE_PRESETS } from '../../lib/image';
 
 export interface CustomerJewelleryRequest {
   id: string;
@@ -227,13 +228,15 @@ export const CustomerRequestDetailModal: React.FC<CustomerRequestDetailModalProp
               <div className="rounded-xl border border-[#E8C98A]/30 bg-[#FAF6F0] overflow-hidden p-3 flex flex-col sm:flex-row items-center gap-4">
                 <div className="w-full sm:w-44 h-44 rounded-lg bg-white border border-[#E8C98A]/20 overflow-hidden shrink-0 flex items-center justify-center shadow-xs">
                   <img
-                    src={request.inspirationImageUrl}
+                    src={getOptimizedImageUrl(request.inspirationImageUrl, IMAGE_PRESETS.INSPIRATION_PREVIEW)}
                     alt="Inspiration Preview"
                     className="w-full h-full object-contain"
                     onError={(e) => {
                       (e.target as HTMLImageElement).src =
                         'https://placehold.co/300x300?text=Inspiration+Link';
                     }}
+                    loading="lazy"
+                    decoding="async"
                   />
                 </div>
                 <div className="flex-1 min-w-0 space-y-2 w-full">
