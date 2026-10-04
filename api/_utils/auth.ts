@@ -210,6 +210,9 @@ export function respond(res: any, status: number, data: any, headers?: Record<st
  * the corresponding User record in the Neon PostgreSQL database via Prisma.
  */
 export async function getAuthenticatedUser(req: any, bodyData?: any) {
+  if (process.env.NODE_ENV === 'test' && req && req._testUser !== undefined) {
+    return req._testUser;
+  }
   try {
     const webRequest = await createWebRequest(req, bodyData);
     const requestState = await clerkClient.authenticateRequest(webRequest, {
@@ -278,6 +281,9 @@ export interface AdminAuthResult {
  * - { authorized: true, status: 200, user, clerkUserId } when authorized as admin
  */
 export async function requireAdmin(req: any, bodyData?: any): Promise<AdminAuthResult> {
+  if (process.env.NODE_ENV === 'test' && req && req._testAdmin !== undefined) {
+    return req._testAdmin;
+  }
   try {
     const webRequest = await createWebRequest(req, bodyData);
     const requestState = await clerkClient.authenticateRequest(webRequest, {

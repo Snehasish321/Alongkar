@@ -20,6 +20,7 @@ model User {
   cart              Cart?
   wishlist          Wishlist?
   jewelleryRequests JewelleryRequest[]
+  orders            Order[]
 }
 
 model Cart {
@@ -92,6 +93,7 @@ model Product {
   updatedAt       DateTime       @updatedAt
   cartItems       CartItem[]
   wishlistItems   WishlistItem[]
+  orderItems      OrderItem[]
 
   @@index([category, createdAt])
   @@index([collectionId, createdAt])
@@ -142,6 +144,137 @@ model JewelleryRequest {
   @@index([status, createdAt])
   @@index([status])
   @@index([createdAt])
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  CANCELLED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum ShippingStatus {
+  NOT_READY
+  READY
+  PROCESSING
+  SHIPPED
+  IN_TRANSIT
+  DELIVERED
+  CANCELLED
+  RETURNED
+}
+
+model Order {
+  id                     String         @id @default(cuid())
+  orderNumber            String         @unique
+  userId                 String
+  user                   User           @relation(fields: [userId], references: [id], onDelete: Restrict)
+  status                 OrderStatus    @default(PENDING_PAYMENT)
+  paymentStatus          PaymentStatus  @default(PENDING)
+  shippingStatus         ShippingStatus @default(NOT_READY)
+
+  // Financial snapshots (Decimal to prevent float rounding errors)
+  subtotal               Decimal        @db.Decimal(10, 2)
+  discountTotal          Decimal        @default(0) @db.Decimal(10, 2)
+  shippingFee            Decimal        @default(0) @db.Decimal(10, 2)
+  taxTotal               Decimal        @default(0) @db.Decimal(10, 2)
+  grandTotal             Decimal        @db.Decimal(10, 2)
+  currency               String         @default("INR")
+
+  // Customer snapshot (immutable history)
+  customerName           String
+  customerEmail          String
+  customerPhone          String
+
+  // Shipping address snapshot
+  shippingAddressLine1   String
+  shippingAddressLine2   String?
+  shippingCity           String
+  shippingState          String
+  shippingPincode        String
+  shippingCountry        String         @default("India")
+
+  // Billing address snapshot (optional)
+  billingAddressLine1    String?
+  billingAddressLine2    String?
+  billingCity            String?
+  billingState           String?
+  billingPincode         String?
+  billingCountry         String?
+
+  // Idempotency key for duplicate order protection
+  idempotencyKey         String?        @unique
+
+  // Future Payment Integration fields (Cashfree compatible)
+  paymentProvider        String?
+  paymentSessionId       String?
+  paymentOrderId         String?
+  paymentTransactionId   String?
+  paidAt                 DateTime?
+  paymentFailureReason   String?
+
+  // Future Shipping Integration fields (Shiprocket compatible)
+  shipmentProvider       String?
+  shipmentOrderId        String?
+  shipmentTrackingNumber String?
+  shipmentAwbCode        String?
+  shippedAt              DateTime?
+  deliveredAt            DateTime?
+
+  // Notes & cancellation metadata
+  cancelReason           String?
+  cancelledAt            DateTime?
+  customerNotes          String?
+  adminNotes             String?
+
+  // Timestamps
+  createdAt              DateTime       @default(now())
+  updatedAt              DateTime       @updatedAt
+
+  // Relations
+  items                  OrderItem[]
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([paymentStatus])
+  @@index([shippingStatus])
+  @@index([createdAt])
+  @@index([orderNumber])
+}
+
+model OrderItem {
+  id                     String         @id @default(cuid())
+  orderId                String
+  order                  Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId              String?
+  product                Product?       @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  // Historical product snapshot
+  productName            String
+  productSlug            String
+  productImage           String
+  productSku             String?
+  unitPrice              Decimal        @db.Decimal(10, 2)
+  originalPrice          Decimal?       @db.Decimal(10, 2)
+  discountPercent        Int            @default(0)
+  quantity               Int            @default(1)
+  lineTotal              Decimal        @db.Decimal(10, 2)
+
+  createdAt              DateTime       @default(now())
+
+  @@index([orderId])
+  @@index([productId])
 }
 
 
