@@ -173,6 +173,7 @@ export function getSafeErrorMessage(error: unknown, fallbackMessage = 'Internal 
 }
 
 export * from './logger.js';
+export * from './env.js';
 
 // ─── Database Query Timeout Guard ─────────────────────────────────────────────
 
