@@ -288,7 +288,7 @@ export default async function handler(req: any, res?: any) {
     // ==========================================
     if (method === 'GET') {
       const requests = await withTimeout(
-        (prisma as any).jewelleryRequest.findMany({
+        prisma.jewelleryRequest.findMany({
           where: { userId: user.id },
           orderBy: { createdAt: 'desc' },
         }),
@@ -344,7 +344,7 @@ export default async function handler(req: any, res?: any) {
           const requestNumber = generateRequestNumber();
 
           const createdRequest = await withTimeout(
-            (prisma as any).jewelleryRequest.create({
+            prisma.jewelleryRequest.create({
               data: {
                 requestNumber,
                 userId: user.id, // Strictly server-controlled from authenticated session

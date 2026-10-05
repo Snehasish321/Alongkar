@@ -1,5 +1,5 @@
 import { Redis as UpstashRedis } from '@upstash/redis';
-import IORedis from 'ioredis';
+import { Redis as IORedis } from 'ioredis';
 import { logDependencyFailure } from './logger.js';
 
 // ─── Centralized Cache TTLs (seconds) ─────────────────────────────────────────
@@ -62,7 +62,7 @@ export const CacheKey = {
         limit = String(opts.limit).trim();
       }
     } else {
-      if (categoryOrOptions && categoryOrOptions.trim().toLowerCase() !== 'all') cat = categoryOrOptions.trim().toLowerCase();
+      if (typeof categoryOrOptions === 'string' && categoryOrOptions.trim().toLowerCase() !== 'all') cat = categoryOrOptions.trim().toLowerCase();
       if (collectionId && collectionId.trim().toLowerCase() !== 'all') col = collectionId.trim().toLowerCase();
     }
 
@@ -145,7 +145,7 @@ export function getRedisClient(): { upstash?: UpstashRedis; io?: IORedis } | nul
         lazyConnect: true,
         enableOfflineQueue: false,
       });
-      _ioredis.on('error', (err) => {
+      _ioredis.on('error', (err: any) => {
         // Suppress connection errors to prevent breaking API requests
         logDependencyFailure('redis', 'ioredis_runtime_error', err, { isFatal: false });
       });

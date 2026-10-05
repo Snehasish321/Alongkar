@@ -166,13 +166,41 @@ export function logEvent(level: LogLevel, ctx: LogContext): void {
 
 export interface ServerErrorContext extends LogContext {}
 
+export interface SlowRequestContext {
+  endpoint: string;
+  method?: string;
+  durationMs: number;
+  thresholdMs?: number;
+  requestId?: string;
+  statusCode?: number;
+  operation?: string;
+  extra?: Record<string, any>;
+  [key: string]: any;
+}
+
+export interface SecurityEventContext {
+  event: string;
+  endpoint: string;
+  method?: string;
+  requestId?: string;
+  statusCode?: number;
+  userId?: string;
+  details?: string;
+  extra?: Record<string, any>;
+  [key: string]: any;
+}
+
 /**
  * Structured server-side error logging with automatic redaction of sensitive credentials.
- * Preserves full backward compatibility with existing callers.
+ * Supports:
+ * - logServerError(ctx)
+ * - logServerError(error, ctx)
+ * - logServerError(title, error, ctx)
  */
 export function logServerError(
-  firstArg: ServerErrorContext | unknown,
-  secondArg?: {
+  firstArg: string | ServerErrorContext | unknown,
+  secondArg?: unknown,
+  thirdArg?: {
     endpoint?: string;
     method?: string;
     operation?: string;
@@ -194,7 +222,17 @@ export function logServerError(
   let durationMs: number | undefined;
   let extra: any;
 
-  if (firstArg && typeof firstArg === 'object' && 'endpoint' in (firstArg as any)) {
+  if (typeof firstArg === 'string' && thirdArg) {
+    operation = firstArg;
+    error = secondArg;
+    endpoint = thirdArg.endpoint || 'UNKNOWN';
+    method = thirdArg.method || 'UNKNOWN';
+    userId = thirdArg.userId;
+    requestId = thirdArg.requestId;
+    statusCode = thirdArg.statusCode || 500;
+    durationMs = thirdArg.durationMs;
+    extra = thirdArg.extra || thirdArg.context;
+  } else if (firstArg && typeof firstArg === 'object' && 'endpoint' in (firstArg as any)) {
     const ctx = firstArg as ServerErrorContext;
     endpoint = ctx.endpoint;
     method = ctx.method || 'UNKNOWN';
@@ -205,15 +243,16 @@ export function logServerError(
     statusCode = ctx.statusCode || 500;
     durationMs = ctx.durationMs;
     extra = ctx.extra || ctx.context;
-  } else if (secondArg) {
-    endpoint = secondArg.endpoint || 'UNKNOWN';
-    method = secondArg.method || 'UNKNOWN';
-    operation = secondArg.operation || 'OPERATION';
-    userId = secondArg.userId;
-    requestId = secondArg.requestId;
-    statusCode = secondArg.statusCode || 500;
-    durationMs = secondArg.durationMs;
-    extra = secondArg.extra || secondArg.context;
+  } else if (secondArg && typeof secondArg === 'object') {
+    const sec = secondArg as any;
+    endpoint = sec.endpoint || 'UNKNOWN';
+    method = sec.method || 'UNKNOWN';
+    operation = sec.operation || (typeof firstArg === 'string' ? firstArg : 'OPERATION');
+    userId = sec.userId;
+    requestId = sec.requestId;
+    statusCode = sec.statusCode || 500;
+    durationMs = sec.durationMs;
+    extra = sec.extra || sec.context;
   }
 
   logEvent('ERROR', {
@@ -232,16 +271,45 @@ export function logServerError(
 
 /**
  * Measures API duration and emits a WARN log if execution time exceeds threshold.
+ * Supports:
+ * - logSlowRequest(ctx)
+ * - logSlowRequest(durationMs, ctx)
+ * - logSlowRequest(req, durationMs, ctx)
  */
-export function logSlowRequest(ctx: {
-  endpoint: string;
-  method?: string;
-  durationMs: number;
-  thresholdMs?: number;
-  requestId?: string;
-  statusCode?: number;
-  operation?: string;
-}): boolean {
+export function logSlowRequest(
+  firstArg: number | any | SlowRequestContext,
+  secondArg?: number | Partial<SlowRequestContext>,
+  thirdArg?: Partial<SlowRequestContext>
+): boolean {
+  let ctx: SlowRequestContext;
+
+  if (typeof firstArg === 'number' && secondArg && typeof secondArg === 'object') {
+    ctx = {
+      durationMs: firstArg,
+      endpoint: (secondArg as any).endpoint || 'UNKNOWN',
+      method: (secondArg as any).method,
+      operation: (secondArg as any).operation,
+      requestId: (secondArg as any).requestId,
+      thresholdMs: (secondArg as any).thresholdMs,
+      statusCode: (secondArg as any).statusCode,
+    };
+  } else if (typeof secondArg === 'number' && thirdArg && typeof thirdArg === 'object') {
+    const req = firstArg;
+    ctx = {
+      durationMs: secondArg,
+      endpoint: thirdArg.endpoint || (req?.url ? String(req.url) : 'UNKNOWN'),
+      method: thirdArg.method || req?.method,
+      operation: thirdArg.operation,
+      requestId: thirdArg.requestId || req?._requestId,
+      thresholdMs: thirdArg.thresholdMs,
+      statusCode: thirdArg.statusCode,
+    };
+  } else if (firstArg && typeof firstArg === 'object') {
+    ctx = firstArg as SlowRequestContext;
+  } else {
+    return false;
+  }
+
   const threshold = ctx.thresholdMs || getSlowRequestThresholdMs();
   if (ctx.durationMs >= threshold) {
     logEvent('WARN', {
@@ -261,17 +329,33 @@ export function logSlowRequest(ctx: {
 
 /**
  * Structured security event logging (401/403/429/413/malformed/spoofing).
+ * Supports:
+ * - logSecurityEvent(ctx)
+ * - logSecurityEvent(event, ctx)
  */
-export function logSecurityEvent(ctx: {
-  event: string;
-  endpoint: string;
-  method?: string;
-  requestId?: string;
-  statusCode?: number;
-  userId?: string;
-  details?: string;
-  extra?: Record<string, any>;
-}) {
+export function logSecurityEvent(
+  firstArg: string | SecurityEventContext,
+  secondArg?: Partial<SecurityEventContext>
+) {
+  let ctx: SecurityEventContext;
+
+  if (typeof firstArg === 'string' && secondArg && typeof secondArg === 'object') {
+    ctx = {
+      event: firstArg,
+      endpoint: secondArg.endpoint || 'UNKNOWN',
+      method: secondArg.method,
+      requestId: secondArg.requestId,
+      statusCode: secondArg.statusCode || 400,
+      userId: secondArg.userId,
+      details: secondArg.details,
+      extra: secondArg.extra,
+    };
+  } else if (firstArg && typeof firstArg === 'object') {
+    ctx = firstArg as SecurityEventContext;
+  } else {
+    return;
+  }
+
   logEvent('WARN', {
     endpoint: ctx.endpoint,
     method: ctx.method,

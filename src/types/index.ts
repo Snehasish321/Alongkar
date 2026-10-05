@@ -207,3 +207,66 @@ export interface RazorpayPaymentOrderResponse {
   amount: number;
   currency: string;
 }
+
+export interface RazorpayPaymentSuccessResponse {
+  razorpay_payment_id: string;
+  razorpay_order_id: string;
+  razorpay_signature: string;
+}
+
+export interface RazorpayPaymentFailureResponse {
+  error: {
+    code: string;
+    description: string;
+    source?: string;
+    step?: string;
+    reason?: string;
+    metadata?: {
+      order_id?: string;
+      payment_id?: string;
+    };
+  };
+}
+
+export interface RazorpayPrefillOptions {
+  name?: string;
+  email?: string;
+  contact?: string;
+}
+
+export interface RazorpayCheckoutModalOptions {
+  ondismiss?: () => void;
+  escape?: boolean;
+  backdropclose?: boolean;
+  confirm_close?: boolean;
+}
+
+export interface RazorpayCheckoutOptions {
+  key: string;
+  amount: number;
+  currency: string;
+  name: string;
+  description: string;
+  image?: string;
+  order_id: string;
+  prefill?: RazorpayPrefillOptions;
+  notes?: Record<string, string>;
+  theme?: {
+    color?: string;
+    backdrop_color?: string;
+  };
+  modal?: RazorpayCheckoutModalOptions;
+  handler?: (response: RazorpayPaymentSuccessResponse) => void;
+}
+
+export interface RazorpayInstance {
+  open: () => void;
+  on: (event: string, handler: (response: any) => void) => void;
+  close?: () => void;
+}
+
+declare global {
+  interface Window {
+    Razorpay?: new (options: RazorpayCheckoutOptions) => RazorpayInstance;
+  }
+}
