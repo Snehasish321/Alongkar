@@ -194,4 +194,16 @@ export interface CreateOrderInput {
   idempotencyKey: string;
 }
 
+export interface CreateRazorpayPaymentOrderInput {
+  orderId: string;
+}
 
+export interface RazorpayPaymentOrderResponse {
+  success: boolean;
+  razorpayKeyId: string;
+  razorpayOrderId: string;
+  alongkarOrderId: string;
+  orderNumber: string;
+  amount: number;
+  currency: string;
+}

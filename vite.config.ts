@@ -43,6 +43,22 @@ function apiDevServerPlugin(): Plugin {
             const { default: handler } = await server.ssrLoadModule('/api/uploads/product-image.ts');
             return await handler(req, res);
           }
+          if (pathname.startsWith('/api/payments/razorpay/order')) {
+            const { default: handler } = await server.ssrLoadModule('/api/payments/razorpay/order.ts');
+            return await handler(req, res);
+          }
+          if (pathname.startsWith('/api/admin/orders')) {
+            const { default: handler } = await server.ssrLoadModule('/api/admin/orders.ts');
+            return await handler(req, res);
+          }
+          if (pathname.startsWith('/api/orders') || pathname === '/api/order' || pathname === '/api/order/') {
+            const { default: handler } = await server.ssrLoadModule('/api/orders.ts');
+            return await handler(req, res);
+          }
+          if (pathname === '/api/health' || pathname === '/api/health/') {
+            const { default: handler } = await server.ssrLoadModule('/api/health.ts');
+            return await handler(req, res);
+          }
           next();
         } catch (error) {
           console.error(`Error handling ${req.url}:`, error);

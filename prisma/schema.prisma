@@ -216,7 +216,7 @@ model Order {
   // Idempotency key for duplicate order protection
   idempotencyKey         String?        @unique
 
-  // Future Payment Integration fields (Cashfree compatible)
+  // Payment Gateway Integration fields (Generic / Razorpay compatible)
   paymentProvider        String?
   paymentSessionId       String?
   paymentOrderId         String?
