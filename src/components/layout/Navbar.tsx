@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Search, ShoppingBag, Menu, User, Heart, ChevronDown, ArrowRight } from 'reicon-react';
 import { useScrollPosition } from '../../hooks/useScrollPosition';
 import { useCart } from '../../context/CartContext';
@@ -8,15 +8,17 @@ import { SignInButton, Show } from '@clerk/react';
 import { CustomerMenu } from './CustomerMenu';
 
 interface NavbarProps {
-  onOpenSearch: () => void;
   onOpenMobileMenu: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMobileMenu }) => {
+export const Navbar: React.FC<NavbarProps> = ({ onOpenMobileMenu }) => {
   const { scrolled } = useScrollPosition(10);
   const location = useLocation();
-  const { totalItems, setIsCartOpen } = useCart();
-  const { wishlist, setIsWishlistOpen } = useWishlist();
+  const navigate = useNavigate();
+  const { totalItems } = useCart();
+  const { wishlist } = useWishlist();
+
+  const handleSearchClick = () => navigate('/search');
 
   const [isShopDropdownOpen, setIsShopDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -86,7 +88,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMobileMenu }
               <Menu size={22} strokeWidth={1.75} />
             </button>
             <button
-              onClick={onOpenSearch}
+              onClick={handleSearchClick}
               className="p-2 text-[#F8F1E3]/85 hover:text-[#E8C98A] transition-colors rounded-lg hover:bg-white/5 cursor-pointer"
               aria-label="Search Catalogue"
             >
@@ -213,18 +215,16 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMobileMenu }
           <div className="hidden lg:flex items-center justify-end gap-5 xl:gap-6 flex-1">
             {/* Search Trigger */}
             <button
-              onClick={onOpenSearch}
-              onMouseEnter={() => import('./SearchModal')}
+              onClick={handleSearchClick}
               className="p-2 text-[#F8F1E3]/90 hover:text-[#E8C98A] transition-colors rounded-full hover:bg-white/10 cursor-pointer"
               aria-label="Search Products"
             >
               <Search size={19} strokeWidth={1.8} />
             </button>
 
-            {/* Wishlist Button */}
-            <button
-              onClick={() => setIsWishlistOpen(true)}
-              onMouseEnter={() => import('./WishlistDrawer')}
+            {/* Wishlist Link */}
+            <Link
+              to="/wishlist"
               className="relative p-2 text-[#F8F1E3]/90 hover:text-[#E8C98A] transition-colors rounded-full hover:bg-white/10 cursor-pointer"
               aria-label="View Wishlist"
             >
@@ -234,7 +234,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMobileMenu }
                   {wishlist.length}
                 </span>
               )}
-            </button>
+            </Link>
 
             {/* Clerk Authentication / Profile Button */}
             <div className="flex items-center">
@@ -253,24 +253,25 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMobileMenu }
               </Show>
             </div>
 
-            {/* Cart Button with Numeric Badge */}
-            <button
-              onClick={() => setIsCartOpen(true)}
-              onMouseEnter={() => import('./CartDrawer')}
+            {/* Cart Link with Numeric Badge */}
+            <Link
+              to="/cart"
               className="relative p-2 text-[#F8F1E3] hover:text-[#E8C98A] transition-transform active:scale-95 cursor-pointer rounded-full hover:bg-white/10"
               aria-label="Shopping Cart"
             >
               <ShoppingBag size={20} strokeWidth={1.8} />
-              <span className="absolute top-0.5 right-0.5 bg-[#E8C98A] text-[#2A0008] text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-xs">
-                {totalItems}
-              </span>
-            </button>
+              {totalItems > 0 && (
+                <span className="absolute top-0.5 right-0.5 bg-[#E8C98A] text-[#2A0008] text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-xs">
+                  {totalItems}
+                </span>
+              )}
+            </Link>
           </div>
 
           {/* Mobile Right: Wishlist & Cart */}
           <div className="flex items-center justify-end lg:hidden gap-1.5 flex-1">
-            <button
-              onClick={() => setIsWishlistOpen(true)}
+            <Link
+              to="/wishlist"
               className="relative p-2 text-[#F8F1E3] hover:text-[#E8C98A] cursor-pointer"
               aria-label="View Wishlist"
             >
@@ -280,17 +281,19 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenSearch, onOpenMobileMenu }
                   {wishlist.length}
                 </span>
               )}
-            </button>
-            <button
-              onClick={() => setIsCartOpen(true)}
+            </Link>
+            <Link
+              to="/cart"
               className="relative p-2 text-[#F8F1E3] hover:text-[#E8C98A] cursor-pointer"
               aria-label="Shopping Cart"
             >
               <ShoppingBag size={21} strokeWidth={1.8} />
-              <span className="absolute top-0.5 right-0.5 bg-[#E8C98A] text-[#2A0008] text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-xs">
-                {totalItems}
-              </span>
-            </button>
+              {totalItems > 0 && (
+                <span className="absolute top-0.5 right-0.5 bg-[#E8C98A] text-[#2A0008] text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-xs">
+                  {totalItems}
+                </span>
+              )}
+            </Link>
           </div>
 
         </div>

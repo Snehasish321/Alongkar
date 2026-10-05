@@ -16,6 +16,9 @@ import {
   Logout,
 } from 'reicon-react';
 import { SignInButton, Show, useUser, useClerk } from '@clerk/react';
+import { Heart } from 'lucide-react';
+import { useCart } from '../../context/CartContext';
+import { useWishlist } from '../../context/WishlistContext';
 
 interface MobileMenuProps {
   isOpen: boolean;
@@ -26,6 +29,8 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
   const location = useLocation();
   const { user } = useUser();
   const clerk = useClerk();
+  const { totalItems } = useCart();
+  const { wishlist } = useWishlist();
   const [isShopExpanded, setIsShopExpanded] = useState(false);
 
   // Close drawer on Escape key
@@ -92,6 +97,50 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
 
               {/* Primary Navigation Links */}
               <nav className="p-4 space-y-2">
+                {/* Search Catalogue Trigger */}
+                <Link
+                  to="/search"
+                  onClick={onClose}
+                  className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 border border-[#E8C98A]/30 text-[#FFE3C7] text-sm font-medium transition-all mb-2"
+                >
+                  <SearchNormal size={17} className="text-[#E8C98A]" />
+                  <span className="text-[#F8F1E3]/70 text-xs">Search jewellery, Kundan, Jhumkas...</span>
+                </Link>
+
+                {/* Shopping Bag Direct Link */}
+                <Link
+                  to="/cart"
+                  onClick={onClose}
+                  className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-[#E8C98A]/20 text-[#FFE3C7] text-sm font-medium transition-all mb-2"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <ShoppingBag size={17} className="text-[#E8C98A]" />
+                    <span className="text-xs">Shopping Bag</span>
+                  </span>
+                  {totalItems > 0 && (
+                    <span className="bg-[#E8C98A] text-[#2A0008] text-[10px] font-bold px-2 py-0.5 rounded-full">
+                      {totalItems}
+                    </span>
+                  )}
+                </Link>
+
+                {/* Saved Wishlist Direct Link */}
+                <Link
+                  to="/wishlist"
+                  onClick={onClose}
+                  className="flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-[#E8C98A]/20 text-[#FFE3C7] text-sm font-medium transition-all mb-3"
+                >
+                  <span className="flex items-center gap-2.5">
+                    <Heart size={17} className="text-[#E8C98A]" />
+                    <span className="text-xs">Saved Wishlist</span>
+                  </span>
+                  {wishlist.length > 0 && (
+                    <span className="bg-[#E8C98A] text-[#2A0008] text-[10px] font-bold px-2 py-0.5 rounded-full">
+                      {wishlist.length}
+                    </span>
+                  )}
+                </Link>
+
                 {/* 1. Shop (Expandable Category Accordion) */}
                 <div className="border-b border-white/10 pb-2">
                   <button
