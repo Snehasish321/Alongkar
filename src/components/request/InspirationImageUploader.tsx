@@ -89,7 +89,7 @@ export const InspirationImageUploader: React.FC<InspirationImageUploaderProps> =
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch('/api/upload/jewellery-inspiration', {
+      const response = await fetch('/api/uploads/jewellery-inspiration', {
         method: 'POST',
         headers,
         body: formData,
