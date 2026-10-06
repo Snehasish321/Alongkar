@@ -24,6 +24,8 @@ import {
   validateRazorpayCheckoutSignature,
   validateRazorpayWebhookSignature,
   rupeesToPaise,
+  transitionOrderToPaid,
+  fetchAndReconcileGatewayOrder,
 } from '../_utils/razorpay.js';
 import { logEvent } from '../_utils/logger.js';
 
@@ -188,7 +190,96 @@ export async function handleCreatePaymentOrder(req: any, res: any, inRequestId?:
 
     const publicRazorpayKeyId = getRazorpayPublicClientKey();
 
+    // If order already has a Razorpay paymentOrderId, verify gateway status before reuse
     if (order.paymentProvider === 'RAZORPAY' && order.paymentOrderId && order.paymentOrderId.startsWith('order_')) {
+      const razorpay = getRazorpayClient();
+      const rzpCheck = await fetchAndReconcileGatewayOrder(
+        order,
+        razorpay,
+        {
+          testRazorpayOrder: req._testRazorpayOrder,
+          testRazorpayPayments: req._testRazorpayPayments,
+          testPayment: req._testPayment,
+        }
+      );
+
+      if (rzpCheck.status === 'paid') {
+        const updatedOrder = await transitionOrderToPaid(prisma, order.id, rzpCheck.paymentId || null);
+        logEvent('INFO', {
+          endpoint: '/api/payments/razorpay/order',
+          operation: 'order_already_paid_reconciled_on_init',
+          userId: user.id,
+          extra: {
+            orderId: updatedOrder.id,
+            orderNumber: updatedOrder.orderNumber,
+            paymentTransactionId: rzpCheck.paymentId,
+            grandTotal: updatedOrder.grandTotal,
+          },
+          message: `Order #${updatedOrder.orderNumber} was already paid on Razorpay and has been automatically reconciled to CONFIRMED/PAID.`,
+        });
+
+        const durationMs = Date.now() - startTime;
+        logSlowRequest(durationMs, {
+          endpoint: '/api/payments/razorpay/order',
+          method: 'POST',
+          operation: 'reconcile_existing_paid_razorpay_order',
+          requestId,
+        });
+
+        return respond(
+          res,
+          200,
+          {
+            success: true,
+            alreadyPaid: true,
+            message: 'Payment has already been received and order confirmed.',
+            order: {
+              id: updatedOrder.id,
+              orderNumber: updatedOrder.orderNumber,
+              status: updatedOrder.status,
+              paymentStatus: updatedOrder.paymentStatus,
+              shippingStatus: updatedOrder.shippingStatus,
+              paidAt: updatedOrder.paidAt,
+              grandTotal: updatedOrder.grandTotal,
+              currency: updatedOrder.currency,
+            },
+          },
+          { 'X-Request-ID': requestId }
+        );
+      }
+
+      if (rzpCheck.status === 'gateway_error') {
+        logServerError(new Error(rzpCheck.error || 'Gateway query failed during order reuse check'), {
+          endpoint: '/api/payments/razorpay/order',
+          operation: 'reconcile_gateway_error_on_reuse',
+          userId: user.id,
+          requestId,
+        });
+        return respond(
+          res,
+          502,
+          { error: 'Payment gateway is temporarily unavailable to check order status. Please try again in a few moments.' },
+          { 'X-Request-ID': requestId }
+        );
+      }
+
+      if (rzpCheck.status === 'validation_error') {
+        logSecurityEvent('razorpay_order_reuse_validation_failed', {
+          endpoint: '/api/payments/razorpay/order',
+          orderId: order.id,
+          userId: user.id,
+          error: rzpCheck.error,
+          requestId,
+        });
+        return respond(
+          res,
+          400,
+          { error: rzpCheck.error || 'Payment order validation failed.' },
+          { 'X-Request-ID': requestId }
+        );
+      }
+
+      // If unpaid, safely reuse existing order
       const durationMs = Date.now() - startTime;
       logSlowRequest(durationMs, {
         endpoint: '/api/payments/razorpay/order',
@@ -644,40 +735,7 @@ export async function handleVerifyPayment(req: any, res: any, inRequestId?: stri
       );
     }
 
-    const now = new Date();
-    const updatedOrder = await withTimeout(
-      prisma.$transaction(async (tx) => {
-        const freshOrder = await tx.order.findUnique({
-          where: { id: order.id },
-        });
-
-        if (!freshOrder) {
-          throw new Error('ORDER_NOT_FOUND');
-        }
-
-        if (freshOrder.paymentStatus === 'PAID' && freshOrder.status === 'CONFIRMED') {
-          return freshOrder;
-        }
-
-        if (freshOrder.status === 'CANCELLED' || freshOrder.paymentStatus === 'CANCELLED') {
-          throw new Error('ORDER_CANCELLED');
-        }
-
-        return await tx.order.update({
-          where: { id: freshOrder.id },
-          data: {
-            paymentStatus: 'PAID',
-            status: 'CONFIRMED',
-            shippingStatus: 'READY',
-            paymentTransactionId: razorpayPaymentId,
-            paidAt: freshOrder.paidAt || now,
-            paymentFailureReason: null,
-          },
-        });
-      }),
-      DEFAULT_DB_TIMEOUT_MS,
-      'commit_verified_payment_transaction'
-    );
+    const updatedOrder = await transitionOrderToPaid(prisma, order.id, razorpayPaymentId);
 
     logEvent('INFO', {
       endpoint: '/api/payments/razorpay/verify',
@@ -739,7 +797,244 @@ export async function handleVerifyPayment(req: any, res: any, inRequestId?: stri
 }
 
 // ============================================================================
-// 3. SERVER-TO-SERVER WEBHOOK HANDLER (POST /api/payments/razorpay/webhook)
+// 3. EXPLICIT PAYMENT RECONCILIATION HANDLER (POST /api/payments/razorpay/reconcile)
+// ============================================================================
+export async function handleReconcilePayment(req: any, res: any, inRequestId?: string, inStartTime?: number) {
+  const startTime = inStartTime || Date.now();
+  const requestId = inRequestId || getOrCreateRequestId(req);
+  try {
+    if (req.method !== 'POST') {
+      return respond(
+        res,
+        405,
+        { error: 'Method Not Allowed. Only POST is supported for payment reconciliation.' },
+        { 'X-Request-ID': requestId, Allow: 'POST' }
+      );
+    }
+
+    const bodyData = await getRequestBody(req);
+
+    if (isPayloadTooLarge(bodyData)) {
+      logSecurityEvent('payload_too_large', { endpoint: '/api/payments/razorpay/reconcile', requestId });
+      return respond(res, 413, { error: 'Payload Too Large: Maximum body size is 1MB.' }, { 'X-Request-ID': requestId });
+    }
+
+    if (isMalformedJson(bodyData)) {
+      logSecurityEvent('malformed_json', { endpoint: '/api/payments/razorpay/reconcile', requestId });
+      return respond(res, 400, { error: 'Bad Request: Malformed JSON payload.' }, { 'X-Request-ID': requestId });
+    }
+
+    const user = await getAuthenticatedUser(req, bodyData);
+    if (!user) {
+      logSecurityEvent('unauthorized_payment_reconcile_access', {
+        endpoint: '/api/payments/razorpay/reconcile',
+        requestId,
+      });
+      return respond(
+        res,
+        401,
+        { error: 'Unauthorized: Valid authenticated session required.' },
+        { 'X-Request-ID': requestId }
+      );
+    }
+
+    const orderId = bodyData?.orderId;
+    if (!orderId || !isValidIdentifier(orderId)) {
+      return respond(
+        res,
+        400,
+        { error: 'Bad Request: A valid orderId string is required.' },
+        { 'X-Request-ID': requestId }
+      );
+    }
+
+    const order = await withTimeout(
+      prisma.order.findUnique({
+        where: { id: orderId },
+      }),
+      DEFAULT_DB_TIMEOUT_MS,
+      'fetch_order_for_reconciliation'
+    );
+
+    if (!order || order.userId !== user.id) {
+      return respond(
+        res,
+        404,
+        { error: 'Order not found.' },
+        { 'X-Request-ID': requestId }
+      );
+    }
+
+    if (order.status === 'CANCELLED' || order.paymentStatus === 'CANCELLED') {
+      return respond(
+        res,
+        400,
+        { error: 'Order is not eligible for reconciliation: This order has been cancelled.' },
+        { 'X-Request-ID': requestId }
+      );
+    }
+
+    if (order.paymentStatus === 'REFUNDED' || order.paymentStatus === 'PARTIALLY_REFUNDED') {
+      return respond(
+        res,
+        400,
+        { error: 'Order is not eligible for reconciliation: This order has been refunded.' },
+        { 'X-Request-ID': requestId }
+      );
+    }
+
+    if (order.paymentStatus === 'PAID' && order.status === 'CONFIRMED') {
+      return respond(
+        res,
+        200,
+        {
+          success: true,
+          alreadyPaid: true,
+          reconciled: true,
+          message: 'Order has already been confirmed and paid.',
+          order: {
+            id: order.id,
+            orderNumber: order.orderNumber,
+            status: order.status,
+            paymentStatus: order.paymentStatus,
+            shippingStatus: order.shippingStatus,
+            paidAt: order.paidAt,
+            grandTotal: order.grandTotal,
+            currency: order.currency,
+          },
+        },
+        { 'X-Request-ID': requestId }
+      );
+    }
+
+    if (order.paymentProvider !== 'RAZORPAY' || !order.paymentOrderId || !order.paymentOrderId.startsWith('order_')) {
+      return respond(
+        res,
+        400,
+        { error: 'Order is not associated with an active Razorpay payment order.' },
+        { 'X-Request-ID': requestId }
+      );
+    }
+
+    const razorpay = getRazorpayClient();
+    const rzpCheck = await fetchAndReconcileGatewayOrder(
+      order,
+      razorpay,
+      {
+        testRazorpayOrder: req._testRazorpayOrder,
+        testRazorpayPayments: req._testRazorpayPayments,
+        testPayment: req._testPayment,
+      }
+    );
+
+    if (rzpCheck.status === 'paid') {
+      const updatedOrder = await transitionOrderToPaid(prisma, order.id, rzpCheck.paymentId || null);
+
+      logEvent('INFO', {
+        endpoint: '/api/payments/razorpay/reconcile',
+        operation: 'payment_reconciled_and_confirmed',
+        userId: user.id,
+        extra: {
+          orderId: updatedOrder.id,
+          orderNumber: updatedOrder.orderNumber,
+          paymentTransactionId: rzpCheck.paymentId,
+          grandTotal: updatedOrder.grandTotal,
+        },
+        message: `Order #${updatedOrder.orderNumber} successfully reconciled & transitioned to CONFIRMED/PAID.`,
+      });
+
+      const durationMs = Date.now() - startTime;
+      logSlowRequest(durationMs, {
+        endpoint: '/api/payments/razorpay/reconcile',
+        method: 'POST',
+        operation: 'reconcile_razorpay_payment',
+        requestId,
+      });
+
+      return respond(
+        res,
+        200,
+        {
+          success: true,
+          reconciled: true,
+          message: 'Payment successfully verified with gateway and order confirmed.',
+          order: {
+            id: updatedOrder.id,
+            orderNumber: updatedOrder.orderNumber,
+            status: updatedOrder.status,
+            paymentStatus: updatedOrder.paymentStatus,
+            shippingStatus: updatedOrder.shippingStatus,
+            paidAt: updatedOrder.paidAt,
+            grandTotal: updatedOrder.grandTotal,
+            currency: updatedOrder.currency,
+          },
+        },
+        { 'X-Request-ID': requestId }
+      );
+    }
+
+    if (rzpCheck.status === 'gateway_error') {
+      logServerError(new Error(rzpCheck.error || 'Gateway query failed during reconciliation'), {
+        endpoint: '/api/payments/razorpay/reconcile',
+        operation: 'reconcile_gateway_error',
+        userId: user.id,
+        requestId,
+      });
+      return respond(
+        res,
+        502,
+        { error: 'Payment gateway is temporarily unavailable to check payment status. Please try again in a few moments.' },
+        { 'X-Request-ID': requestId }
+      );
+    }
+
+    if (rzpCheck.status === 'validation_error') {
+      logSecurityEvent('razorpay_reconcile_validation_failed', {
+        endpoint: '/api/payments/razorpay/reconcile',
+        orderId: order.id,
+        userId: user.id,
+        error: rzpCheck.error,
+        requestId,
+      });
+      return respond(
+        res,
+        400,
+        { error: rzpCheck.error || 'Payment reconciliation validation failed.' },
+        { 'X-Request-ID': requestId }
+      );
+    }
+
+    return respond(
+      res,
+      200,
+      {
+        success: false,
+        reconciled: false,
+        message: 'No completed captured payment was found on the payment gateway for this order. Payment remains pending.',
+      },
+      { 'X-Request-ID': requestId }
+    );
+  } catch (error: any) {
+    const durationMs = Date.now() - startTime;
+    logServerError(error, {
+      endpoint: '/api/payments/razorpay/reconcile',
+      method: 'POST',
+      operation: 'razorpay_reconcile_unhandled',
+      durationMs,
+      requestId,
+    });
+
+    return respond(
+      res,
+      500,
+      { error: getSafeErrorMessage(error, 'An internal error occurred while reconciling payment.') },
+      { 'X-Request-ID': requestId }
+    );
+  }
+}
+
+// ============================================================================
+// 4. SERVER-TO-SERVER WEBHOOK HANDLER (POST /api/payments/razorpay/webhook)
 // ============================================================================
 export async function handleWebhook(req: any, res: any, inRequestId?: string, inStartTime?: number) {
   const startTime = inStartTime || Date.now();
@@ -885,36 +1180,7 @@ export async function handleWebhook(req: any, res: any, inRequestId?: string, in
         return respond(res, 200, { received: true, status: 'payment_not_captured' }, { 'X-Request-ID': requestId });
       }
 
-      const now = new Date();
-      await withTimeout(
-        prisma.$transaction(async (tx) => {
-          const freshOrder = await tx.order.findUnique({
-            where: { id: order.id },
-          });
-
-          if (!freshOrder || freshOrder.status === 'CANCELLED') {
-            return;
-          }
-
-          if (freshOrder.paymentStatus === 'PAID' && freshOrder.status === 'CONFIRMED') {
-            return;
-          }
-
-          await tx.order.update({
-            where: { id: freshOrder.id },
-            data: {
-              paymentStatus: 'PAID',
-              status: 'CONFIRMED',
-              shippingStatus: 'READY',
-              paymentTransactionId: razorpayPaymentId,
-              paidAt: freshOrder.paidAt || now,
-              paymentFailureReason: null,
-            },
-          });
-        }),
-        DEFAULT_DB_TIMEOUT_MS,
-        'webhook_commit_payment_captured'
-      );
+      await transitionOrderToPaid(prisma, order.id, razorpayPaymentId);
 
       return respond(res, 200, { received: true, status: 'processed', orderId: order.id }, { 'X-Request-ID': requestId });
     }
@@ -929,7 +1195,6 @@ export async function handleWebhook(req: any, res: any, inRequestId?: string, in
 
       const razorpayOrderId = orderEntity.id;
       const razorpayPaymentId = paymentEntity?.id || null;
-      const razorpayOrderStatus = orderEntity.status;
 
       if (!razorpayOrderId) {
         return respond(res, 400, { error: 'Missing razorpayOrderId in order.paid webhook.' }, { 'X-Request-ID': requestId });
@@ -973,36 +1238,7 @@ export async function handleWebhook(req: any, res: any, inRequestId?: string, in
         return respond(res, 400, { error: 'Order paid amount mismatch.' }, { 'X-Request-ID': requestId });
       }
 
-      const now = new Date();
-      await withTimeout(
-        prisma.$transaction(async (tx) => {
-          const freshOrder = await tx.order.findUnique({
-            where: { id: order.id },
-          });
-
-          if (!freshOrder || freshOrder.status === 'CANCELLED') {
-            return;
-          }
-
-          if (freshOrder.paymentStatus === 'PAID' && freshOrder.status === 'CONFIRMED') {
-            return;
-          }
-
-          await tx.order.update({
-            where: { id: freshOrder.id },
-            data: {
-              paymentStatus: 'PAID',
-              status: 'CONFIRMED',
-              shippingStatus: 'READY',
-              paymentTransactionId: razorpayPaymentId || freshOrder.paymentTransactionId,
-              paidAt: freshOrder.paidAt || now,
-              paymentFailureReason: null,
-            },
-          });
-        }),
-        DEFAULT_DB_TIMEOUT_MS,
-        'webhook_commit_order_paid'
-      );
+      await transitionOrderToPaid(prisma, order.id, razorpayPaymentId || order.paymentTransactionId || null);
 
       return respond(res, 200, { received: true, status: 'processed', orderId: order.id }, { 'X-Request-ID': requestId });
     }
@@ -1093,6 +1329,7 @@ export default async function handler(req: any, res: any) {
     const pathname = urlObj.pathname;
     if (pathname.endsWith('/order') || pathname.includes('/order/')) action = 'order';
     else if (pathname.endsWith('/verify') || pathname.includes('/verify/')) action = 'verify';
+    else if (pathname.endsWith('/reconcile') || pathname.includes('/reconcile/')) action = 'reconcile';
     else if (pathname.endsWith('/webhook') || pathname.includes('/webhook/')) action = 'webhook';
   }
 
@@ -1104,6 +1341,8 @@ export default async function handler(req: any, res: any) {
     return handleCreatePaymentOrder(req, res, requestId, startTime);
   } else if (action === 'verify') {
     return handleVerifyPayment(req, res, requestId, startTime);
+  } else if (action === 'reconcile') {
+    return handleReconcilePayment(req, res, requestId, startTime);
   } else if (action === 'webhook') {
     return handleWebhook(req, res, requestId, startTime);
   } else {

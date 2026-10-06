@@ -2,6 +2,8 @@ import type {
   Order,
   VerifyRazorpayPaymentInput,
   VerifyRazorpayPaymentResponse,
+  ReconcileRazorpayPaymentInput,
+  ReconcileRazorpayPaymentResponse,
 } from '../types';
 
 export interface CustomerOrdersResponse {
@@ -145,5 +147,47 @@ export async function verifyRazorpayPayment(
     success: Boolean(data.success),
     alreadyPaid: data.alreadyPaid,
     order: data.order,
+    message: data.message,
+  };
+}
+
+/**
+ * Reconciles an existing Razorpay order server-side via POST /api/payments/razorpay?action=reconcile.
+ * Checks the gateway directly for captured payment status without needing browser signature.
+ */
+export async function reconcileRazorpayPayment(
+  token: string | null,
+  input: ReconcileRazorpayPaymentInput
+): Promise<ReconcileRazorpayPaymentResponse> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch('/api/payments/razorpay?action=reconcile', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(input),
+  });
+
+  if (response.status === 401) {
+    throw new Error('Authentication required to reconcile payment.');
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `Payment reconciliation failed (HTTP ${response.status})`);
+  }
+
+  const data = await response.json();
+  return {
+    success: Boolean(data.success),
+    reconciled: Boolean(data.reconciled),
+    alreadyPaid: Boolean(data.alreadyPaid),
+    order: data.order,
+    message: data.message,
   };
 }

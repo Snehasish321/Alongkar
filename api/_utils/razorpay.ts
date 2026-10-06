@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import Razorpay from 'razorpay';
 import { Prisma } from '@prisma/client';
+import { withTimeout, DEFAULT_DB_TIMEOUT_MS, getSafeErrorMessage } from './security.js';
 
 /**
  * Validates and retrieves server-side Razorpay configuration.
@@ -160,4 +161,237 @@ export function validateRazorpayWebhookSignature(
   }
 
   return crypto.timingSafeEqual(expectedBuf, actualBuf);
+}
+
+/**
+ * Atomically transitions an Alongkar order to CONFIRMED + PAID + READY.
+ * Idempotent: If already PAID and CONFIRMED, returns the fresh order without modifying it.
+ * Rejects cancelled or refunded orders.
+ */
+export async function transitionOrderToPaid(
+  prismaClient: any,
+  orderId: string,
+  paymentTransactionId: string | null,
+  paidAt?: Date
+): Promise<any> {
+  const now = paidAt || new Date();
+  return await withTimeout(
+    prismaClient.$transaction(async (tx: any) => {
+      const freshOrder = await tx.order.findUnique({
+        where: { id: orderId },
+      });
+
+      if (!freshOrder) {
+        throw new Error('ORDER_NOT_FOUND');
+      }
+
+      if (freshOrder.paymentStatus === 'PAID' && freshOrder.status === 'CONFIRMED') {
+        return freshOrder;
+      }
+
+      if (freshOrder.status === 'CANCELLED' || freshOrder.paymentStatus === 'CANCELLED') {
+        throw new Error('ORDER_CANCELLED');
+      }
+
+      if (freshOrder.paymentStatus === 'REFUNDED' || freshOrder.paymentStatus === 'PARTIALLY_REFUNDED') {
+        throw new Error('ORDER_REFUNDED');
+      }
+
+      return await tx.order.update({
+        where: { id: freshOrder.id },
+        data: {
+          paymentStatus: 'PAID',
+          status: 'CONFIRMED',
+          shippingStatus: 'READY',
+          paymentTransactionId: paymentTransactionId || freshOrder.paymentTransactionId,
+          paidAt: freshOrder.paidAt || now,
+          paymentFailureReason: null,
+        },
+      });
+    }),
+    DEFAULT_DB_TIMEOUT_MS,
+    'transition_order_to_paid_tx'
+  );
+}
+
+export interface GatewayReconciliationResult {
+  status: 'paid' | 'unpaid' | 'gateway_error' | 'validation_error';
+  paymentId?: string;
+  razorpayOrder?: any;
+  paymentDetails?: any;
+  error?: string;
+  isRetryable?: boolean;
+}
+
+/**
+ * Server-side helper to query the Razorpay API, inspect the status of a Razorpay order,
+ * and identify any valid captured payments that match the Alongkar order.
+ */
+export async function fetchAndReconcileGatewayOrder(
+  order: {
+    id: string;
+    orderNumber?: string;
+    paymentOrderId: string | null;
+    grandTotal: any;
+    currency?: string;
+  },
+  razorpayClient?: any,
+  mockOverrides?: {
+    testRazorpayOrder?: any;
+    testRazorpayPayments?: any;
+    testPayment?: any;
+  }
+): Promise<GatewayReconciliationResult> {
+  if (!order.paymentOrderId || typeof order.paymentOrderId !== 'string' || !order.paymentOrderId.startsWith('order_')) {
+    return {
+      status: 'validation_error',
+      error: 'Order does not have a valid Razorpay order ID.',
+    };
+  }
+
+  const expectedCurrency = order.currency || 'INR';
+  let expectedAmountPaise: number;
+  try {
+    expectedAmountPaise = rupeesToPaise(order.grandTotal);
+  } catch (err: any) {
+    return {
+      status: 'validation_error',
+      error: `Invalid order payable amount: ${err.message}`,
+    };
+  }
+
+  const rzp = razorpayClient || getRazorpayClient();
+
+  // 1. Fetch Razorpay Order from gateway
+  let rzpOrder: any;
+  try {
+    if (mockOverrides?.testRazorpayOrder) {
+      rzpOrder = mockOverrides.testRazorpayOrder;
+    } else {
+      rzpOrder = await withTimeout(
+        rzp.orders.fetch(order.paymentOrderId),
+        DEFAULT_DB_TIMEOUT_MS,
+        'razorpay_orders_fetch'
+      );
+    }
+  } catch (err: any) {
+    return {
+      status: 'gateway_error',
+      error: getSafeErrorMessage(err, 'Failed to fetch order status from payment gateway.'),
+      isRetryable: true,
+    };
+  }
+
+  if (!rzpOrder || rzpOrder.id !== order.paymentOrderId) {
+    return {
+      status: 'validation_error',
+      error: 'Gateway order ID does not match expected Alongkar order record.',
+    };
+  }
+
+  if (rzpOrder.currency && rzpOrder.currency !== expectedCurrency) {
+    return {
+      status: 'validation_error',
+      error: `Gateway order currency mismatch: expected ${expectedCurrency}, got ${rzpOrder.currency}.`,
+    };
+  }
+
+  // 2. If order status is paid or amount_paid >= expected or attempts > 0, fetch payments
+  const isMarkedPaid = rzpOrder.status === 'paid' || Number(rzpOrder.amount_paid) >= expectedAmountPaise;
+  const hasAttempts = isMarkedPaid || (typeof rzpOrder.attempts === 'number' && rzpOrder.attempts > 0);
+
+  if (!hasAttempts && !isMarkedPaid) {
+    return {
+      status: 'unpaid',
+      razorpayOrder: rzpOrder,
+    };
+  }
+
+  // Fetch payments list for this order
+  let paymentsCollection: any;
+  try {
+    if (mockOverrides?.testRazorpayPayments) {
+      paymentsCollection = mockOverrides.testRazorpayPayments;
+    } else if (mockOverrides?.testPayment) {
+      paymentsCollection = { items: [mockOverrides.testPayment] };
+    } else {
+      paymentsCollection = await withTimeout(
+        rzp.orders.fetchPayments(order.paymentOrderId),
+        DEFAULT_DB_TIMEOUT_MS,
+        'razorpay_orders_fetch_payments'
+      );
+    }
+  } catch (err: any) {
+    if (isMarkedPaid) {
+      return {
+        status: 'gateway_error',
+        error: getSafeErrorMessage(err, 'Failed to fetch payment details from payment gateway.'),
+        isRetryable: true,
+      };
+    }
+    return {
+      status: 'gateway_error',
+      error: getSafeErrorMessage(err, 'Failed to query gateway payments.'),
+      isRetryable: true,
+    };
+  }
+
+  const items = Array.isArray(paymentsCollection?.items)
+    ? paymentsCollection.items
+    : Array.isArray(paymentsCollection)
+    ? paymentsCollection
+    : [];
+
+  // Look for a captured payment that matches this order, amount, and currency
+  const capturedPayments = items.filter((p: any) => p && (p.status === 'captured' || p.captured === true));
+
+  for (const p of capturedPayments) {
+    // Validate order_id if present on payment entity
+    if (p.order_id && p.order_id !== order.paymentOrderId) {
+      continue;
+    }
+
+    // Validate currency
+    if (p.currency && p.currency !== expectedCurrency) {
+      return {
+        status: 'validation_error',
+        error: `Payment currency mismatch: expected ${expectedCurrency}, received ${p.currency}.`,
+        paymentDetails: p,
+      };
+    }
+
+    // Validate amount
+    if (Number(p.amount) !== expectedAmountPaise) {
+      return {
+        status: 'validation_error',
+        error: `Payment amount mismatch: expected ${expectedAmountPaise} paise, received ${p.amount} paise.`,
+        paymentDetails: p,
+      };
+    }
+
+    // Valid captured payment found!
+    return {
+      status: 'paid',
+      paymentId: p.id,
+      razorpayOrder: rzpOrder,
+      paymentDetails: p,
+    };
+  }
+
+  // If order itself is marked paid on gateway, but no captured payment matched:
+  if (isMarkedPaid) {
+    if (items.length > 0) {
+      const failedPayment = items.find((p: any) => p && (p.status === 'failed' || p.error_description));
+      return {
+        status: 'validation_error',
+        error: failedPayment?.error_description || 'Gateway order marked paid but no valid captured payment found.',
+        razorpayOrder: rzpOrder,
+      };
+    }
+  }
+
+  return {
+    status: 'unpaid',
+    razorpayOrder: rzpOrder,
+  };
 }

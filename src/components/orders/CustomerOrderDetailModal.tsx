@@ -25,7 +25,7 @@ import {
 } from '../../lib/order-status';
 import { getOptimizedImageUrl, IMAGE_PRESETS } from '../../lib/image';
 import { loadRazorpayScript, openRazorpayCheckout } from '../../lib/razorpay';
-import { verifyRazorpayPayment } from '../../services/orderApi';
+import { verifyRazorpayPayment, reconcileRazorpayPayment } from '../../services/orderApi';
 import { Button } from '../ui/Button';
 
 interface CustomerOrderDetailModalProps {
@@ -147,6 +147,20 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
 
       const paymentData: RazorpayPaymentOrderResponse = await paymentOrderRes.json();
 
+      // If server confirmed order was already paid on gateway, reconcile without reopening checkout
+      if (paymentData.alreadyPaid) {
+        setPaymentNotice(paymentData.message || `Payment verified & Order #${order.orderNumber} confirmed!`);
+        if (onPaymentSuccess) {
+          onPaymentSuccess();
+        }
+        setIsProcessingPayment(false);
+        return;
+      }
+
+      if (!paymentData.razorpayKeyId || !paymentData.razorpayOrderId) {
+        throw new Error('Invalid payment configuration received from server.');
+      }
+
       // Step 2: Load Razorpay Checkout.js
       const scriptReady = await loadRazorpayScript();
       if (!scriptReady) {
@@ -161,10 +175,10 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
 
       const checkoutOptions: RazorpayCheckoutOptions = {
         key: paymentData.razorpayKeyId,
-        amount: paymentData.amount,
+        amount: paymentData.amount || 0,
         currency: paymentData.currency || 'INR',
         name: 'Alongkar',
-        description: `Order ${paymentData.orderNumber}`,
+        description: `Order ${paymentData.orderNumber || order.orderNumber}`,
         order_id: paymentData.razorpayOrderId,
         prefill: {
           name: prefillName,
@@ -197,6 +211,19 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
               }
             }
           } catch (verifyErr: any) {
+            // Attempt server-side reconciliation recovery before displaying permanent error
+            try {
+              const reconcileResult = await reconcileRazorpayPayment(token, { orderId: order.id });
+              if (reconcileResult.success && (reconcileResult.reconciled || reconcileResult.alreadyPaid)) {
+                setPaymentNotice(`Payment verified & Order #${order.orderNumber} confirmed!`);
+                if (onPaymentSuccess) {
+                  onPaymentSuccess();
+                }
+                return;
+              }
+            } catch {
+              // Ignore fallback error
+            }
             setPaymentError(verifyErr.message || 'Payment verification failed. Please try again.');
           } finally {
             setIsProcessingPayment(false);
