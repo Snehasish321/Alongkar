@@ -17,6 +17,7 @@ import {
   Package,
 } from 'reicon-react';
 import type { Product } from '../../types';
+import { getOptimizedImageUrl, IMAGE_PRESETS } from '../../lib/image';
 import { ProductFormModal } from '../../components/admin/ProductFormModal';
 import { DeleteConfirmModal } from '../../components/admin/DeleteConfirmModal';
 import { clearProductApiCache } from '../../services/productApi';
@@ -401,12 +402,14 @@ export const AdminProductsPage: React.FC = () => {
                     <td className="py-3.5 px-4">
                       <div className="flex items-center gap-3">
                         <img
-                          src={product.image}
+                          src={getOptimizedImageUrl(product.image, IMAGE_PRESETS.THUMB_SM)}
                           alt={product.name}
                           className="w-12 h-12 rounded-xl object-cover bg-black/60 shrink-0 border border-white/10"
                           onError={(e) => {
                             (e.target as HTMLImageElement).src = 'https://placehold.co/100x100?text=No+Img';
                           }}
+                          loading="lazy"
+                          decoding="async"
                         />
                         <div className="min-w-0 max-w-xs">
                           <p className="font-semibold text-white truncate text-xs group-hover:text-[#FFE3C7] transition">

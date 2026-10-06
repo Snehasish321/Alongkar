@@ -34,6 +34,9 @@ const WishlistPage = lazy(() =>
 const PlaceholderPage = lazy(() =>
   import('./pages/PlaceholderPage').then((m) => ({ default: m.PlaceholderPage }))
 );
+const OrdersPage = lazy(() =>
+  import('./pages/OrdersPage').then((m) => ({ default: m.OrdersPage }))
+);
 const AdminRouteGuard = lazy(() =>
   import('./components/admin/AdminRouteGuard').then((m) => ({ default: m.AdminRouteGuard }))
 );
@@ -112,15 +115,7 @@ export const AppContent: React.FC = () => {
               />
             }
           />
-          <Route
-            path="/orders"
-            element={
-              <PlaceholderPage
-                title="My Orders"
-                subtitle="View and track your jewellery purchases and order shipments."
-              />
-            }
-          />
+          <Route path="/orders" element={<OrdersPage />} />
           <Route
             path="/jewellery-requests"
             element={<JewelleryRequestsPage />}

@@ -18,6 +18,7 @@ import {
   JewelleryRequestDetailModal,
   type AdminJewelleryRequest,
 } from '../../components/admin/JewelleryRequestDetailModal';
+import { getOptimizedImageUrl, IMAGE_PRESETS } from '../../lib/image';
 
 export const AdminJewelleryRequestsPage: React.FC = () => {
   const { getToken } = useAuth();
@@ -455,9 +456,11 @@ export const AdminJewelleryRequestsPage: React.FC = () => {
                         <div className="w-11 h-11 rounded-lg bg-[#0F0814] border border-white/10 overflow-hidden shrink-0 relative group-hover:border-[#D6B878]/40 transition">
                           {req.inspirationImageUrl ? (
                             <img
-                              src={req.inspirationImageUrl}
+                              src={getOptimizedImageUrl(req.inspirationImageUrl, IMAGE_PRESETS.THUMB_SM)}
                               alt={req.jewelleryType}
                               className="w-full h-full object-cover"
+                              loading="lazy"
+                              decoding="async"
                             />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-white/20">

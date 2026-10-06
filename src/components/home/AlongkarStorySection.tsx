@@ -1,6 +1,7 @@
 import React from 'react';
 import { Sparkles, Wand2, ShieldCheck, HeartHandshake } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { getOptimizedImageUrl, getResponsiveSrcSet, IMAGE_PRESETS } from '../../lib/image';
 
 export const AlongkarStorySection: React.FC = () => {
   const craftPillars = [
@@ -43,9 +44,13 @@ export const AlongkarStorySection: React.FC = () => {
           <div className="lg:col-span-5 relative">
             <div className="relative aspect-[4/5] rounded-xl overflow-hidden shadow-2xl border-2 border-[#D6B878]/30">
               <img
-                src="https://images.unsplash.com/photo-1535632787350-4e68ef0ac584?q=80&w=1000&auto=format&fit=crop"
+                src={getOptimizedImageUrl('https://images.unsplash.com/photo-1535632787350-4e68ef0ac584?q=80&w=1000&auto=format&fit=crop', IMAGE_PRESETS.BANNER)}
+                srcSet={getResponsiveSrcSet('https://images.unsplash.com/photo-1535632787350-4e68ef0ac584?q=80&w=1000&auto=format&fit=crop', [480, 720, 1000])}
+                sizes="(max-width: 1024px) 100vw, 500px"
                 alt="ALONGKAR Craftsmanship & Heritage"
                 className="w-full h-full object-cover"
+                loading="lazy"
+                decoding="async"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-[#2A0008]/70 via-transparent to-transparent" />
 

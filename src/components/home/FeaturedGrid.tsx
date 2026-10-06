@@ -4,6 +4,7 @@ import { Heart } from 'reicon-react';
 import { useCart } from '../../context/CartContext';
 import { useWishlist } from '../../context/WishlistContext';
 import { formatPrice } from '../../lib/utils';
+import { getOptimizedImageUrl, getResponsiveSrcSet, IMAGE_PRESETS } from '../../lib/image';
 import type { Product } from '../../types';
 
 interface FeaturedGridProps {
@@ -65,17 +66,23 @@ export const FeaturedGrid: React.FC<FeaturedGridProps> = ({
               <div className="relative aspect-square w-full rounded-xl sm:rounded-2xl overflow-hidden bg-neutral-100 mb-3">
                 <Link to={`/product/${product.slug || product.id}`} className="block w-full h-full">
                   <img
-                    src={product.image}
+                    src={getOptimizedImageUrl(product.image, IMAGE_PRESETS.CARD)}
+                    srcSet={getResponsiveSrcSet(product.image, [320, 480, 600])}
+                    sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 380px"
                     alt={product.name}
                     className="w-full h-full object-cover object-center transition-transform duration-500 ease-out group-hover:scale-105"
                     loading="lazy"
+                    decoding="async"
                   />
                   {product.hoverImage && (
                     <img
-                      src={product.hoverImage}
+                      src={getOptimizedImageUrl(product.hoverImage, IMAGE_PRESETS.CARD)}
+                      srcSet={getResponsiveSrcSet(product.hoverImage, [320, 480, 600])}
+                      sizes="(max-width: 640px) 50vw, (max-width: 1024px) 25vw, 380px"
                       alt={`${product.name} alternate view`}
                       className="absolute inset-0 w-full h-full object-cover object-center opacity-0 group-hover:opacity-100 transition-opacity duration-300"
                       loading="lazy"
+                      decoding="async"
                     />
                   )}
                 </Link>

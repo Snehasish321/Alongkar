@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { formatPrice } from '../../lib/utils';
+import { getOptimizedImageUrl, getResponsiveSrcSet, IMAGE_PRESETS } from '../../lib/image';
 
 export interface ShowcaseItem {
   id?: string;
@@ -117,10 +118,13 @@ export const ShowcaseSlider: React.FC<ShowcaseSliderProps> = ({ title, items }) 
                 className="group relative block aspect-[4/5] sm:aspect-square w-full rounded-2xl overflow-hidden bg-neutral-100 shadow-xs hover:shadow-md transition-shadow"
               >
                 <img
-                  src={item.image}
+                  src={getOptimizedImageUrl(item.image, IMAGE_PRESETS.CARD)}
+                  srcSet={getResponsiveSrcSet(item.image, [360, 500, 700])}
+                  sizes="(max-width: 768px) 90vw, (max-width: 1200px) 45vw, 600px"
                   alt={item.title}
                   className="w-full h-full object-cover object-center transition-transform duration-700 ease-out group-hover:scale-103"
                   loading="lazy"
+                  decoding="async"
                 />
 
                 {/* Minimal Clean Badge */}

@@ -3,6 +3,7 @@ import { X, Heart, ShoppingBag, Trash2 } from 'lucide-react';
 import { useWishlist } from '../../context/WishlistContext';
 import { useCart } from '../../context/CartContext';
 import { formatPrice } from '../../lib/utils';
+import { getOptimizedImageUrl, IMAGE_PRESETS } from '../../lib/image';
 import { Button } from '../ui/Button';
 
 export const WishlistDrawer: React.FC = () => {
@@ -75,9 +76,11 @@ export const WishlistDrawer: React.FC = () => {
                 className="p-3 bg-ivory-pearl rounded-brand border border-gold/15 flex gap-3 items-center shadow-soft"
               >
                 <img
-                  src={product.image}
+                  src={getOptimizedImageUrl(product.image, IMAGE_PRESETS.THUMB_MD)}
                   alt={product.name}
                   className="w-16 h-20 object-cover rounded-brand border border-gold/10 bg-ivory-soft flex-shrink-0"
+                  loading="lazy"
+                  decoding="async"
                 />
 
                 <div className="flex-1 min-w-0">

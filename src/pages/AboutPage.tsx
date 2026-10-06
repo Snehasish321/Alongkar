@@ -2,6 +2,7 @@ import React from 'react';
 import { Trophy, Sparkles, Heart, TickCircle } from 'reicon-react';
 import { SectionHeading } from '../components/ui/SectionHeading';
 import { StorefrontLayout } from '../components/layout/StorefrontLayout';
+import { getOptimizedImageUrl, getResponsiveSrcSet, IMAGE_PRESETS } from '../lib/image';
 
 export const AboutPage: React.FC = () => {
   return (
@@ -12,9 +13,13 @@ export const AboutPage: React.FC = () => {
         <div className="relative rounded-brand overflow-hidden bg-espresso text-ivory-pearl p-8 sm:p-16 text-center border border-gold/30 shadow-elevated">
           <div className="absolute inset-0 opacity-20">
             <img
-              src="https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?q=80&w=1600&auto=format&fit=crop"
+              src={getOptimizedImageUrl('https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?q=80&w=1600&auto=format&fit=crop', IMAGE_PRESETS.BANNER)}
+              srcSet={getResponsiveSrcSet('https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?q=80&w=1600&auto=format&fit=crop', [640, 960, 1400])}
+              sizes="(max-width: 768px) 100vw, 1400px"
               alt="Heritage Alongkar"
               className="w-full h-full object-cover"
+              loading="lazy"
+              decoding="async"
             />
           </div>
 

@@ -2,6 +2,7 @@ import React from 'react';
 import { ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { Collection } from '../../types';
+import { getOptimizedImageUrl, getResponsiveSrcSet, IMAGE_PRESETS } from '../../lib/image';
 
 interface CollectionCardProps {
   collection: Collection;
@@ -15,9 +16,13 @@ export const CollectionCard: React.FC<CollectionCardProps> = ({ collection }) =>
       >
         {/* Background Image */}
         <img
-          src={collection.image}
+          src={getOptimizedImageUrl(collection.image, IMAGE_PRESETS.BANNER)}
+          srcSet={getResponsiveSrcSet(collection.image, [400, 600, 900])}
+          sizes="(max-width: 768px) 100vw, 600px"
           alt={collection.name}
           className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 brightness-95"
+          loading="lazy"
+          decoding="async"
         />
 
         {/* Gradient Overlay */}

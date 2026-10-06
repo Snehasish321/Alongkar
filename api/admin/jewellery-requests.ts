@@ -191,7 +191,7 @@ export default async function handler(req: any, res?: any) {
       // Single Request Lookup
       if (requestId) {
         const singleRequest = await withTimeout(
-          (prisma as any).jewelleryRequest.findUnique({
+          prisma.jewelleryRequest.findUnique({
             where: { id: requestId },
             include: {
               user: {
@@ -262,7 +262,7 @@ export default async function handler(req: any, res?: any) {
 
       const [requests, totalCount, statsData] = await withTimeout(
         Promise.all([
-          (prisma as any).jewelleryRequest.findMany({
+          prisma.jewelleryRequest.findMany({
             where: whereClause,
             include: {
               user: {
@@ -277,9 +277,9 @@ export default async function handler(req: any, res?: any) {
             skip,
             take: limit,
           }),
-          (prisma as any).jewelleryRequest.count({ where: whereClause }),
+          prisma.jewelleryRequest.count({ where: whereClause }),
           // Global aggregate stats for metrics dashboard
-          (prisma as any).jewelleryRequest.groupBy({
+          prisma.jewelleryRequest.groupBy({
             by: ['status'],
             _count: {
               status: true,
@@ -332,7 +332,7 @@ export default async function handler(req: any, res?: any) {
       }
 
       const existingRequest = await withTimeout(
-        (prisma as any).jewelleryRequest.findUnique({
+        prisma.jewelleryRequest.findUnique({
           where: { id: requestId },
           include: {
             user: {
@@ -452,7 +452,7 @@ export default async function handler(req: any, res?: any) {
       }
 
       const updatedRecord = await withTimeout(
-        (prisma as any).jewelleryRequest.update({
+        prisma.jewelleryRequest.update({
           where: { id: existingRequest.id },
           data: updateData,
           include: {

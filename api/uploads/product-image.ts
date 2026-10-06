@@ -30,7 +30,15 @@ async function uploadToCloudinary(
         folder: 'alongkar/products',
         resource_type: 'image',
         public_id: `${cleanName}_${Date.now()}`,
-        transformation: [{ quality: 'auto', fetch_format: 'auto' }],
+        transformation: [
+          {
+            width: 2000,
+            height: 2000,
+            crop: 'limit',
+            quality: 'auto',
+            fetch_format: 'auto',
+          },
+        ],
       },
       (error, result) => {
         if (error) {

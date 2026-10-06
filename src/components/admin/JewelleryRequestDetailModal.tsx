@@ -15,6 +15,7 @@ import {
   ShieldAlert,
   Link2,
 } from 'reicon-react';
+import { getOptimizedImageUrl, IMAGE_PRESETS } from '../../lib/image';
 
 export interface AdminJewelleryRequest {
   id: string;
@@ -234,13 +235,15 @@ export const JewelleryRequestDetailModal: React.FC<JewelleryRequestDetailModalPr
                 
                 <div className="relative rounded-xl border border-white/15 bg-black/60 overflow-hidden group">
                   <img
-                    src={request.inspirationImageUrl}
+                    src={getOptimizedImageUrl(request.inspirationImageUrl, IMAGE_PRESETS.INSPIRATION_PREVIEW)}
                     alt="Customer Inspiration"
                     className="w-full h-56 sm:h-64 object-contain bg-black/40"
                     onError={(e) => {
                       (e.target as HTMLImageElement).src =
                         'https://placehold.co/400x400?text=Inspiration+Link+Attached';
                     }}
+                    loading="lazy"
+                    decoding="async"
                   />
                   <div className="p-2.5 bg-black/80 border-t border-white/10 flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 truncate text-[11px] text-white/80">

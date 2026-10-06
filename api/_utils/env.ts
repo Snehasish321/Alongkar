@@ -104,6 +104,30 @@ export const ENV_CATALOG: readonly EnvVarSpec[] = [
     isSecret: true,
   },
   {
+    name: 'RAZORPAY_KEY_ID',
+    category: 'conditional_production',
+    scope: 'server_only',
+    description: 'Razorpay Public Key ID for customer checkout',
+    isSecret: false,
+    placeholderPrefixes: ['rzp_test_your_key_id'],
+  },
+  {
+    name: 'RAZORPAY_KEY_SECRET',
+    category: 'conditional_production',
+    scope: 'server_only',
+    description: 'Razorpay Key Secret for signature verification and payment API requests',
+    isSecret: true,
+    placeholderPrefixes: ['your_razorpay_secret'],
+  },
+  {
+    name: 'RAZORPAY_WEBHOOK_SECRET',
+    category: 'conditional_production',
+    scope: 'server_only',
+    description: 'Razorpay Webhook Secret for server-to-server webhook signature verification',
+    isSecret: true,
+    placeholderPrefixes: ['your_razorpay_webhook_secret'],
+  },
+  {
     name: 'NODE_ENV',
     category: 'optional_production',
     scope: 'server_only',
@@ -136,6 +160,7 @@ export interface EnvValidationResult {
     clerk: 'configured' | 'missing';
     cloudinary: 'configured' | 'not_configured';
     redis: 'configured' | 'not_configured';
+    razorpay: 'configured' | 'not_configured';
   };
 }
 
@@ -197,6 +222,23 @@ export function validateEnvironment(env: Record<string, string | undefined> = pr
 
   const isRedisConfigured = Boolean((upstashUrl && upstashToken) || redisUrl);
 
+  // 5. Check Razorpay (conditional service)
+  const rzpKeyId = env.RAZORPAY_KEY_ID;
+  const rzpKeySecret = env.RAZORPAY_KEY_SECRET;
+  const rzpWebhookSecret = env.RAZORPAY_WEBHOOK_SECRET;
+
+  const isRazorpayPartiallySet = Boolean(rzpKeyId || rzpKeySecret || rzpWebhookSecret);
+  const isRazorpayFullyConfigured = Boolean(
+    rzpKeyId &&
+    rzpKeySecret &&
+    !rzpKeyId.includes('your_key_id') &&
+    !rzpKeySecret.includes('your_razorpay_secret')
+  );
+
+  if (isRazorpayPartiallySet && !isRazorpayFullyConfigured) {
+    warnings.push('Razorpay credentials are partially defined. Payments will fail until RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET are configured.');
+  }
+
   const isValid = missingRequired.length === 0 && placeholderValues.length === 0;
 
   return {
@@ -209,6 +251,7 @@ export function validateEnvironment(env: Record<string, string | undefined> = pr
       clerk: clerkSecret && clerkPub ? 'configured' : 'missing',
       cloudinary: isCloudinaryFullyConfigured ? 'configured' : 'not_configured',
       redis: isRedisConfigured ? 'configured' : 'not_configured',
+      razorpay: isRazorpayFullyConfigured ? 'configured' : 'not_configured',
     },
   };
 }

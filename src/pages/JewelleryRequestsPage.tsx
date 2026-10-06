@@ -15,6 +15,7 @@ import {
 } from 'reicon-react';
 import { StorefrontLayout } from '../components/layout/StorefrontLayout';
 import { Button } from '../components/ui/Button';
+import { getOptimizedImageUrl, IMAGE_PRESETS } from '../lib/image';
 import {
   CustomerRequestDetailModal,
   type CustomerJewelleryRequest,
@@ -292,12 +293,14 @@ export const JewelleryRequestsPage: React.FC = () => {
                                   {req.inspirationImageUrl ? (
                                     <div className="w-11 h-11 rounded-lg bg-[#FAF6F0] border border-[#E8C98A]/30 overflow-hidden shrink-0 shadow-2xs group-hover:border-[#8C6C38] transition">
                                       <img
-                                        src={req.inspirationImageUrl}
+                                        src={getOptimizedImageUrl(req.inspirationImageUrl, IMAGE_PRESETS.THUMB_SM)}
                                         alt={req.jewelleryType}
                                         className="w-full h-full object-cover"
                                         onError={(e) => {
                                           (e.target as HTMLImageElement).style.display = 'none';
                                         }}
+                                        loading="lazy"
+                                        decoding="async"
                                       />
                                     </div>
                                   ) : (

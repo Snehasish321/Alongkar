@@ -35,12 +35,28 @@ function apiDevServerPlugin(): Plugin {
             const { default: handler } = await server.ssrLoadModule('/api/admin/jewellery-requests.ts');
             return await handler(req, res);
           }
-          if (pathname === '/api/upload/jewellery-inspiration' || pathname === '/api/uploads/jewellery-inspiration') {
+          if (pathname === '/api/uploads/jewellery-inspiration' || pathname === '/api/uploads/jewellery-inspiration/') {
             const { default: handler } = await server.ssrLoadModule('/api/uploads/jewellery-inspiration.ts');
             return await handler(req, res);
           }
-          if (pathname.startsWith('/api/uploads') || pathname === '/api/upload' || pathname === '/api/upload/') {
+          if (pathname.startsWith('/api/uploads')) {
             const { default: handler } = await server.ssrLoadModule('/api/uploads/product-image.ts');
+            return await handler(req, res);
+          }
+          if (pathname.startsWith('/api/payments/razorpay')) {
+            const { default: handler } = await server.ssrLoadModule('/api/payments/razorpay.ts');
+            return await handler(req, res);
+          }
+          if (pathname.startsWith('/api/admin/orders')) {
+            const { default: handler } = await server.ssrLoadModule('/api/admin/orders.ts');
+            return await handler(req, res);
+          }
+          if (pathname.startsWith('/api/orders') || pathname === '/api/order' || pathname === '/api/order/') {
+            const { default: handler } = await server.ssrLoadModule('/api/orders.ts');
+            return await handler(req, res);
+          }
+          if (pathname === '/api/health' || pathname === '/api/health/') {
+            const { default: handler } = await server.ssrLoadModule('/api/health.ts');
             return await handler(req, res);
           }
           next();

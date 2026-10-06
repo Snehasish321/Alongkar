@@ -11,6 +11,7 @@ import {
   Sparkles,
   Ban,
 } from 'reicon-react';
+import { getOptimizedImageUrl, IMAGE_PRESETS } from '../../lib/image';
 
 interface InspirationImageUploaderProps {
   value: string;
@@ -88,7 +89,7 @@ export const InspirationImageUploader: React.FC<InspirationImageUploaderProps> =
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch('/api/upload/jewellery-inspiration', {
+      const response = await fetch('/api/uploads/jewellery-inspiration', {
         method: 'POST',
         headers,
         body: formData,
@@ -205,13 +206,15 @@ export const InspirationImageUploader: React.FC<InspirationImageUploaderProps> =
         <div className="relative rounded-brand bg-ivory-soft/60 border border-gold/30 p-3.5 flex flex-col sm:flex-row items-center gap-4 transition-all">
           <div className="relative w-20 h-20 sm:w-24 sm:h-24 rounded bg-ivory border border-gold/30 overflow-hidden shrink-0 flex items-center justify-center shadow-inner">
             <img
-              src={value}
+              src={getOptimizedImageUrl(value, IMAGE_PRESETS.THUMB_MD)}
               alt="Inspiration Preview"
               className="w-full h-full object-cover"
               onError={(e) => {
                 (e.target as HTMLImageElement).src =
                   'https://placehold.co/120x120?text=Preview';
               }}
+              loading="lazy"
+              decoding="async"
             />
             {isUploading && (
               <div className="absolute inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center">
