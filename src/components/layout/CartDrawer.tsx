@@ -17,7 +17,7 @@ import { useCart } from '../../context/CartContext';
 import { formatPrice } from '../../lib/utils';
 import { getOptimizedImageUrl, IMAGE_PRESETS } from '../../lib/image';
 import { loadRazorpayScript, openRazorpayCheckout } from '../../lib/razorpay';
-import { verifyRazorpayPayment } from '../../services/orderApi';
+import { verifyRazorpayPayment, reconcileRazorpayPayment } from '../../services/orderApi';
 import { Button } from '../ui/Button';
 import type {
   RazorpayPaymentOrderResponse,
@@ -43,7 +43,7 @@ interface ActiveOrderSnapshot {
 }
 
 export const CartDrawer: React.FC = () => {
-  const { cart, isCartOpen, setIsCartOpen, removeFromCart, updateQuantity, totalAmount, totalItems } = useCart();
+  const { cart, isCartOpen, setIsCartOpen, removeFromCart, updateQuantity, totalAmount, totalItems, clearCart } = useCart();
   const { isSignedIn, getToken } = useAuth();
   const { user } = useUser();
   const clerk = useClerk();
@@ -184,6 +184,23 @@ export const CartDrawer: React.FC = () => {
 
       const paymentData: RazorpayPaymentOrderResponse = await paymentOrderRes.json();
 
+      // If server confirmed order was already paid on gateway, reconcile without reopening checkout
+      if (paymentData.alreadyPaid) {
+        const confirmedNum = paymentData.order?.orderNumber || paymentData.orderNumber || 'Confirmed';
+        setActiveOrderId(null);
+        setActiveOrder(null);
+        clearCart();
+        setCheckoutNotice(
+          paymentData.message || `Payment verified & order #${confirmedNum} confirmed!`
+        );
+        setIsProcessingCheckout(false);
+        return;
+      }
+
+      if (!paymentData.razorpayKeyId || !paymentData.razorpayOrderId) {
+        throw new Error('Invalid payment configuration received from server.');
+      }
+
       // Step D: Load Razorpay script dynamically & open Standard Checkout modal
       const scriptReady = await loadRazorpayScript();
       if (!scriptReady) {
@@ -198,10 +215,10 @@ export const CartDrawer: React.FC = () => {
 
       const checkoutOptions: RazorpayCheckoutOptions = {
         key: paymentData.razorpayKeyId,
-        amount: paymentData.amount,
+        amount: paymentData.amount || 0,
         currency: paymentData.currency || 'INR',
         name: 'Alongkar',
-        description: `Order ${paymentData.orderNumber}`,
+        description: `Order ${paymentData.orderNumber || 'Checkout'}`,
         order_id: paymentData.razorpayOrderId,
         prefill: {
           name: prefillName,
@@ -223,8 +240,9 @@ export const CartDrawer: React.FC = () => {
           setCheckoutNotice('Verifying payment with secure server...');
 
           try {
+            const targetOrderId = paymentData.alongkarOrderId || orderIdToPay || '';
             const verifyResult = await verifyRazorpayPayment(token, {
-              orderId: paymentData.alongkarOrderId,
+              orderId: targetOrderId,
               razorpayPaymentId: response.razorpay_payment_id,
               razorpayOrderId: response.razorpay_order_id,
               razorpaySignature: response.razorpay_signature,
@@ -235,15 +253,34 @@ export const CartDrawer: React.FC = () => {
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_signature: response.razorpay_signature,
-                alongkarOrderId: paymentData.alongkarOrderId,
+                alongkarOrderId: targetOrderId,
               });
               setActiveOrderId(null);
               setActiveOrder(null);
+              clearCart();
               setCheckoutNotice(
                 `Payment verified & order #${verifyResult.order?.orderNumber || paymentData.orderNumber} confirmed!`
               );
             }
           } catch (verifyErr: any) {
+            // Attempt fallback reconciliation before displaying permanent error
+            try {
+              const targetOrderId = paymentData.alongkarOrderId || orderIdToPay;
+              if (targetOrderId) {
+                const reconcileResult = await reconcileRazorpayPayment(token, { orderId: targetOrderId });
+                if (reconcileResult.success && (reconcileResult.reconciled || reconcileResult.alreadyPaid)) {
+                  setActiveOrderId(null);
+                  setActiveOrder(null);
+                  clearCart();
+                  setCheckoutNotice(
+                    `Payment verified & order #${reconcileResult.order?.orderNumber || paymentData.orderNumber} confirmed!`
+                  );
+                  return;
+                }
+              }
+            } catch {
+              // Ignore fallback error
+            }
             setCheckoutError(verifyErr.message || 'Payment verification failed. Please try again.');
           } finally {
             setIsProcessingCheckout(false);

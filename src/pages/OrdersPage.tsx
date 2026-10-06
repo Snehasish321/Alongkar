@@ -22,7 +22,7 @@ import type {
   RazorpayCheckoutOptions,
   RazorpayPaymentSuccessResponse,
 } from '../types';
-import { fetchCustomerOrders, verifyRazorpayPayment } from '../services/orderApi';
+import { fetchCustomerOrders, verifyRazorpayPayment, reconcileRazorpayPayment } from '../services/orderApi';
 import {
   getOrderStatusBadgeInfo,
   getPaymentStatusBadgeInfo,
@@ -122,6 +122,18 @@ export const OrdersPage: React.FC = () => {
 
       const paymentData: RazorpayPaymentOrderResponse = await paymentOrderRes.json();
 
+      // If server confirmed order was already paid on gateway, reconcile without reopening checkout
+      if (paymentData.alreadyPaid) {
+        setPageNotice(paymentData.message || `Payment verified & Order #${order.orderNumber} confirmed!`);
+        await loadOrders(pagination.page);
+        setPayingOrderId(null);
+        return;
+      }
+
+      if (!paymentData.razorpayKeyId || !paymentData.razorpayOrderId) {
+        throw new Error('Invalid payment configuration received from server.');
+      }
+
       const scriptReady = await loadRazorpayScript();
       if (!scriptReady) {
         throw new Error('Unable to load payment gateway script.');
@@ -135,10 +147,10 @@ export const OrdersPage: React.FC = () => {
 
       const checkoutOptions: RazorpayCheckoutOptions = {
         key: paymentData.razorpayKeyId,
-        amount: paymentData.amount,
+        amount: paymentData.amount || 0,
         currency: paymentData.currency || 'INR',
         name: 'Alongkar',
-        description: `Order ${paymentData.orderNumber}`,
+        description: `Order ${paymentData.orderNumber || order.orderNumber}`,
         order_id: paymentData.razorpayOrderId,
         prefill: {
           name: prefillName,
@@ -169,6 +181,17 @@ export const OrdersPage: React.FC = () => {
               await loadOrders(pagination.page);
             }
           } catch (verifyErr: any) {
+            // Attempt fallback server-side reconciliation before displaying error
+            try {
+              const reconcileResult = await reconcileRazorpayPayment(token, { orderId: order.id });
+              if (reconcileResult.success && (reconcileResult.reconciled || reconcileResult.alreadyPaid)) {
+                setPageNotice(`Payment confirmed & Order #${order.orderNumber} is complete!`);
+                await loadOrders(pagination.page);
+                return;
+              }
+            } catch {
+              // Ignore fallback error and present verification error
+            }
             setPageError(verifyErr.message || 'Payment verification failed. Please try again.');
           } finally {
             setPayingOrderId(null);

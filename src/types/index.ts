@@ -202,12 +202,15 @@ export interface CreateRazorpayPaymentOrderInput {
 
 export interface RazorpayPaymentOrderResponse {
   success: boolean;
-  razorpayKeyId: string;
-  razorpayOrderId: string;
-  alongkarOrderId: string;
-  orderNumber: string;
-  amount: number;
-  currency: string;
+  razorpayKeyId?: string;
+  razorpayOrderId?: string;
+  alongkarOrderId?: string;
+  orderNumber?: string;
+  amount?: number;
+  currency?: string;
+  alreadyPaid?: boolean;
+  order?: Order;
+  message?: string;
 }
 
 export interface RazorpayPaymentSuccessResponse {
@@ -227,6 +230,19 @@ export interface VerifyRazorpayPaymentResponse {
   success: boolean;
   alreadyPaid?: boolean;
   order: Order;
+  message?: string;
+}
+
+export interface ReconcileRazorpayPaymentInput {
+  orderId: string;
+}
+
+export interface ReconcileRazorpayPaymentResponse {
+  success: boolean;
+  reconciled?: boolean;
+  alreadyPaid?: boolean;
+  message?: string;
+  order?: Order;
 }
 
 export interface RazorpayPaymentFailureResponse {
