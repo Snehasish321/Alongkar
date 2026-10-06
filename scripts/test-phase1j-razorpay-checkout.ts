@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import prisma from '../src/lib/prisma.js';
 import ordersHandler from '../api/orders.js';
-import razorpayOrderHandler from '../api/payments/razorpay/order.js';
+import { handleCreatePaymentOrder as razorpayOrderHandler } from '../api/payments/razorpay.js';
 import { loadRazorpayScript, openRazorpayCheckout, RAZORPAY_CHECKOUT_SCRIPT_URL } from '../src/lib/razorpay.js';
 import type {
   RazorpayCheckoutOptions,

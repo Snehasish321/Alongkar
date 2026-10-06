@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import prisma from '../src/lib/prisma.js';
 import ordersHandler from '../api/orders.js';
-import paymentOrderHandler from '../api/payments/razorpay/order.js';
+import { handleCreatePaymentOrder as paymentOrderHandler } from '../api/payments/razorpay.js';
 import {
   getOrderStatusBadgeInfo,
   getPaymentStatusBadgeInfo,
@@ -45,10 +45,10 @@ function createMockRes() {
 async function runOrdersPageIntegrationTests() {
   process.env.NODE_ENV = 'test';
   if (!process.env.RAZORPAY_KEY_ID) {
-    process.env.RAZORPAY_KEY_ID = 'rzp_test_alongkarMockKey123';
+    process.env.RAZORPAY_KEY_ID = 'rzp_test_TjwH5wwovsHM2p';
   }
   if (!process.env.RAZORPAY_KEY_SECRET) {
-    process.env.RAZORPAY_KEY_SECRET = 'mock_secret_key_alongkar_test';
+    process.env.RAZORPAY_KEY_SECRET = 'DHbXAF96pEIZk1tB4dvaukyU';
   }
 
   console.log('===============================================================');
@@ -68,10 +68,10 @@ async function runOrdersPageIntegrationTests() {
     }
   }
 
-  // Fetch real products
-  const products = await prisma.product.findMany({ take: 3 });
+  // Fetch real in-stock products
+  const products = await prisma.product.findMany({ where: { inStock: true }, take: 3 });
   if (products.length < 2) {
-    console.error('❌ Need at least 2 products in the database to run tests.');
+    console.error('❌ Need at least 2 in-stock products in the database to run tests.');
     process.exit(1);
   }
 

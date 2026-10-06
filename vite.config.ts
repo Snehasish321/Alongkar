@@ -43,8 +43,8 @@ function apiDevServerPlugin(): Plugin {
             const { default: handler } = await server.ssrLoadModule('/api/uploads/product-image.ts');
             return await handler(req, res);
           }
-          if (pathname.startsWith('/api/payments/razorpay/order')) {
-            const { default: handler } = await server.ssrLoadModule('/api/payments/razorpay/order.ts');
+          if (pathname.startsWith('/api/payments/razorpay')) {
+            const { default: handler } = await server.ssrLoadModule('/api/payments/razorpay.ts');
             return await handler(req, res);
           }
           if (pathname.startsWith('/api/admin/orders')) {

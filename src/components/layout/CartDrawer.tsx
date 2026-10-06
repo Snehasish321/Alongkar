@@ -17,6 +17,7 @@ import { useCart } from '../../context/CartContext';
 import { formatPrice } from '../../lib/utils';
 import { getOptimizedImageUrl, IMAGE_PRESETS } from '../../lib/image';
 import { loadRazorpayScript, openRazorpayCheckout } from '../../lib/razorpay';
+import { verifyRazorpayPayment } from '../../services/orderApi';
 import { Button } from '../ui/Button';
 import type {
   RazorpayPaymentOrderResponse,
@@ -216,17 +217,37 @@ export const CartDrawer: React.FC = () => {
             setCheckoutNotice('Payment window closed. You can complete payment anytime with this order.');
           },
         },
-        handler: (response: RazorpayPaymentSuccessResponse) => {
-          setIsProcessingCheckout(false);
-          // Capture payment identifiers in memory for Phase 1J-C server verification
-          setCapturedPayment({
-            razorpay_payment_id: response.razorpay_payment_id,
-            razorpay_order_id: response.razorpay_order_id,
-            razorpay_signature: response.razorpay_signature,
-            alongkarOrderId: paymentData.alongkarOrderId,
-          });
-          setCheckoutNotice(`Payment authorized (${response.razorpay_payment_id}). Server verification will take place in Phase 1J-C.`);
-          // Note: Strictly DO NOT mark order as PAID or CONFIRMED in frontend (Phase 1J-C responsibility)
+        handler: async (response: RazorpayPaymentSuccessResponse) => {
+          setIsProcessingCheckout(true);
+          setCheckoutError(null);
+          setCheckoutNotice('Verifying payment with secure server...');
+
+          try {
+            const verifyResult = await verifyRazorpayPayment(token, {
+              orderId: paymentData.alongkarOrderId,
+              razorpayPaymentId: response.razorpay_payment_id,
+              razorpayOrderId: response.razorpay_order_id,
+              razorpaySignature: response.razorpay_signature,
+            });
+
+            if (verifyResult.success) {
+              setCapturedPayment({
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_signature: response.razorpay_signature,
+                alongkarOrderId: paymentData.alongkarOrderId,
+              });
+              setActiveOrderId(null);
+              setActiveOrder(null);
+              setCheckoutNotice(
+                `Payment verified & order #${verifyResult.order?.orderNumber || paymentData.orderNumber} confirmed!`
+              );
+            }
+          } catch (verifyErr: any) {
+            setCheckoutError(verifyErr.message || 'Payment verification failed. Please try again.');
+          } finally {
+            setIsProcessingCheckout(false);
+          }
         },
       };
 

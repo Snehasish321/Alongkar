@@ -5,6 +5,10 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/api/payments/razorpay/:action",
+      "destination": "/api/payments/razorpay?action=:action"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

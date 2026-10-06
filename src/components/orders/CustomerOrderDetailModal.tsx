@@ -25,6 +25,7 @@ import {
 } from '../../lib/order-status';
 import { getOptimizedImageUrl, IMAGE_PRESETS } from '../../lib/image';
 import { loadRazorpayScript, openRazorpayCheckout } from '../../lib/razorpay';
+import { verifyRazorpayPayment } from '../../services/orderApi';
 import { Button } from '../ui/Button';
 
 interface CustomerOrderDetailModalProps {
@@ -38,6 +39,7 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
   isOpen,
   onClose,
   order,
+  onPaymentSuccess,
 }) => {
   const { getToken } = useAuth();
   const { user } = useUser();
@@ -178,10 +180,27 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
             setPaymentNotice('Payment window closed. You can complete payment anytime.');
           },
         },
-        handler: (response: RazorpayPaymentSuccessResponse) => {
-          setIsProcessingPayment(false);
-          setPaymentNotice(`Payment authorized (${response.razorpay_payment_id}). Server verification will take place in Phase 1J-C.`);
-          // Do not mutate database state here (Phase 1J-C responsibility)
+        handler: async (response: RazorpayPaymentSuccessResponse) => {
+          setPaymentNotice('Verifying payment with secure server...');
+          try {
+            const verifyResult = await verifyRazorpayPayment(token, {
+              orderId: order.id,
+              razorpayPaymentId: response.razorpay_payment_id,
+              razorpayOrderId: response.razorpay_order_id,
+              razorpaySignature: response.razorpay_signature,
+            });
+
+            if (verifyResult.success) {
+              setPaymentNotice(`Payment verified & Order #${order.orderNumber} confirmed!`);
+              if (onPaymentSuccess) {
+                onPaymentSuccess();
+              }
+            }
+          } catch (verifyErr: any) {
+            setPaymentError(verifyErr.message || 'Payment verification failed. Please try again.');
+          } finally {
+            setIsProcessingPayment(false);
+          }
         },
       };
 

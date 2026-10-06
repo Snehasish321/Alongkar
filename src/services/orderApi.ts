@@ -1,4 +1,8 @@
-import type { Order } from '../types';
+import type {
+  Order,
+  VerifyRazorpayPaymentInput,
+  VerifyRazorpayPaymentResponse,
+} from '../types';
 
 export interface CustomerOrdersResponse {
   orders: Order[];
@@ -103,4 +107,43 @@ export async function fetchCustomerOrder(
   }
 
   return data.order;
+}
+
+/**
+ * Sends captured Razorpay Checkout payment tokens to POST /api/payments/razorpay/verify
+ * for server-side cryptographic and gateway state verification.
+ */
+export async function verifyRazorpayPayment(
+  token: string | null,
+  input: VerifyRazorpayPaymentInput
+): Promise<VerifyRazorpayPaymentResponse> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch('/api/payments/razorpay/verify', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(input),
+  });
+
+  if (response.status === 401) {
+    throw new Error('Authentication required to verify payment.');
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `Payment verification failed (HTTP ${response.status})`);
+  }
+
+  const data = await response.json();
+  return {
+    success: Boolean(data.success),
+    alreadyPaid: data.alreadyPaid,
+    order: data.order,
+  };
 }

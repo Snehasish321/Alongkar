@@ -214,6 +214,19 @@ export interface RazorpayPaymentSuccessResponse {
   razorpay_signature: string;
 }
 
+export interface VerifyRazorpayPaymentInput {
+  orderId: string;
+  razorpayPaymentId: string;
+  razorpayOrderId: string;
+  razorpaySignature: string;
+}
+
+export interface VerifyRazorpayPaymentResponse {
+  success: boolean;
+  alreadyPaid?: boolean;
+  order: Order;
+}
+
 export interface RazorpayPaymentFailureResponse {
   error: {
     code: string;

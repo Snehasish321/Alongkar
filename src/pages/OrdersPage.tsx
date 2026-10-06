@@ -22,7 +22,7 @@ import type {
   RazorpayCheckoutOptions,
   RazorpayPaymentSuccessResponse,
 } from '../types';
-import { fetchCustomerOrders } from '../services/orderApi';
+import { fetchCustomerOrders, verifyRazorpayPayment } from '../services/orderApi';
 import {
   getOrderStatusBadgeInfo,
   getPaymentStatusBadgeInfo,
@@ -154,10 +154,25 @@ export const OrdersPage: React.FC = () => {
             setPageNotice('Payment window closed. You can complete payment anytime with this order.');
           },
         },
-        handler: (response: RazorpayPaymentSuccessResponse) => {
-          setPayingOrderId(null);
-          setPageNotice(`Payment authorized (${response.razorpay_payment_id}). Server verification will take place in Phase 1J-C.`);
-          // Do not mutate database order status here (Phase 1J-C responsibility)
+        handler: async (response: RazorpayPaymentSuccessResponse) => {
+          setPageNotice('Verifying payment with secure server...');
+          try {
+            const verifyResult = await verifyRazorpayPayment(token, {
+              orderId: order.id,
+              razorpayPaymentId: response.razorpay_payment_id,
+              razorpayOrderId: response.razorpay_order_id,
+              razorpaySignature: response.razorpay_signature,
+            });
+
+            if (verifyResult.success) {
+              setPageNotice(`Payment verified & Order #${order.orderNumber} confirmed!`);
+              await loadOrders(pagination.page);
+            }
+          } catch (verifyErr: any) {
+            setPageError(verifyErr.message || 'Payment verification failed. Please try again.');
+          } finally {
+            setPayingOrderId(null);
+          }
         },
       };
 

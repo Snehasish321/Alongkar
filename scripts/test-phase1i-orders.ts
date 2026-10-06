@@ -60,10 +60,10 @@ async function runPhase1IOrderTests() {
     }
   }
 
-  // Fetch real products from database for test assertions
-  const products = await prisma.product.findMany({ take: 5 });
+  // Fetch real in-stock products from database for test assertions
+  const products = await prisma.product.findMany({ where: { inStock: true }, take: 5 });
   if (products.length < 3) {
-    console.error('❌ Need at least 3 products in the database to run order test suite.');
+    console.error('❌ Need at least 3 in-stock products in the database to run order test suite.');
     process.exit(1);
   }
 
