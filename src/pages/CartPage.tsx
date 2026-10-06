@@ -209,6 +209,7 @@ export const CartPage: React.FC = () => {
               country: 'India',
             },
             idempotencyKey,
+            couponCode: appliedCoupon?.code || undefined,
           }),
         });
 
