@@ -12,6 +12,7 @@ import {
   logSlowRequest,
   logSecurityEvent,
 } from './_utils/security.js';
+import { calculateAuthoritativePricing } from './_utils/pricing.js';
 import { Prisma } from '@prisma/client';
 
 export interface OrderValidationError {
@@ -141,6 +142,7 @@ export function validateCreateOrderPayload(body: any): {
     };
     customerNotes?: string;
     idempotencyKey?: string;
+    couponCode?: string;
     items?: { productId: string; quantity: number }[];
   };
 } {
@@ -245,7 +247,22 @@ export function validateCreateOrderPayload(body: any): {
     }
   }
 
-  // 8. Explicit Items (optional override for direct checkout)
+  // 8. Coupon Code (optional checkout intent)
+  let couponCode: string | undefined = undefined;
+  if (body.couponCode !== undefined && body.couponCode !== null && body.couponCode !== '') {
+    if (typeof body.couponCode !== 'string') {
+      errors.push({ field: 'couponCode', message: 'Coupon code must be a string' });
+    } else {
+      const trimmedCoupon = body.couponCode.trim().toUpperCase();
+      if (trimmedCoupon.length > 50) {
+        errors.push({ field: 'couponCode', message: 'Coupon code must not exceed 50 characters' });
+      } else {
+        couponCode = trimmedCoupon;
+      }
+    }
+  }
+
+  // 9. Explicit Items (optional override for direct checkout)
   let items: { productId: string; quantity: number }[] | undefined = undefined;
   if (body.items !== undefined && body.items !== null) {
     if (!Array.isArray(body.items) || body.items.length === 0) {
@@ -293,6 +310,7 @@ export function validateCreateOrderPayload(body: any): {
       billingAddress: parsedBilling,
       customerNotes,
       idempotencyKey,
+      couponCode,
       items,
     },
   };
@@ -448,22 +466,32 @@ export default async function handler(req: any, res?: any) {
         }
       }
 
-      // Server-side authoritative price calculation using Decimal
-      let subtotalDec = new Prisma.Decimal(0);
-      let discountTotalDec = new Prisma.Decimal(0);
+      // Server-side authoritative price calculation using PostgreSQL product records
+      const pricingItems = cartItemsToOrder.map((item) => {
+        const prod = productMap.get(item.productId)!;
+        return {
+          unitPrice: prod.price,
+          quantity: item.quantity,
+        };
+      });
+
+      const pricingResult = calculateAuthoritativePricing(pricingItems, data.couponCode);
+      if (!pricingResult.success || !pricingResult.pricing) {
+        return respond(
+          res,
+          400,
+          { error: pricingResult.error || 'Pricing calculation failed.' },
+          { 'X-Request-ID': requestId }
+        );
+      }
+
+      const { pricing } = pricingResult;
 
       const orderItemsData = cartItemsToOrder.map((item) => {
         const prod = productMap.get(item.productId)!;
         const unitPriceDec = new Prisma.Decimal(prod.price.toFixed(2));
         const originalPriceDec = new Prisma.Decimal(prod.originalPrice.toFixed(2));
         const lineTotalDec = unitPriceDec.mul(item.quantity);
-
-        subtotalDec = subtotalDec.add(lineTotalDec);
-
-        if (originalPriceDec.gt(unitPriceDec)) {
-          const discountDiff = originalPriceDec.sub(unitPriceDec).mul(item.quantity);
-          discountTotalDec = discountTotalDec.add(discountDiff);
-        }
 
         return {
           productId: prod.id,
@@ -479,12 +507,12 @@ export default async function handler(req: any, res?: any) {
         };
       });
 
-      const shippingFeeDec = new Prisma.Decimal(0); // Free shipping by default
-      const taxTotalDec = new Prisma.Decimal(0);
-      const grandTotalDec = subtotalDec.add(shippingFeeDec).add(taxTotalDec);
-
       const customerEmail = data.customerEmail || user.email || `${user.clerkUserId}@customer.alongkar.com`;
       const orderNumber = generateOrderNumber();
+
+      const adminNotes = pricing.coupon
+        ? `Applied Coupon: ${pricing.coupon.code} (${pricing.coupon.label}) - Discount: ₹${pricing.discountTotal}`
+        : null;
 
       // Execute atomic transaction: Create Order + OrderItems + Clear Cart (if cart checkout)
       const createdOrder = await withTimeout(
@@ -497,11 +525,11 @@ export default async function handler(req: any, res?: any) {
                 status: 'PENDING_PAYMENT',
                 paymentStatus: 'PENDING',
                 shippingStatus: 'NOT_READY',
-                subtotal: subtotalDec,
-                discountTotal: discountTotalDec,
-                shippingFee: shippingFeeDec,
-                taxTotal: taxTotalDec,
-                grandTotal: grandTotalDec,
+                subtotal: pricing.subtotalDec,
+                discountTotal: pricing.discountTotalDec,
+                shippingFee: pricing.shippingFeeDec,
+                taxTotal: pricing.taxTotalDec,
+                grandTotal: pricing.grandTotalDec,
                 currency: 'INR',
                 customerName: data.customerName,
                 customerEmail,
@@ -520,6 +548,7 @@ export default async function handler(req: any, res?: any) {
                 billingCountry: data.billingAddress?.country || null,
                 idempotencyKey: data.idempotencyKey || null,
                 customerNotes: data.customerNotes || null,
+                adminNotes: adminNotes,
                 items: {
                   create: orderItemsData,
                 },

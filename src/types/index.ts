@@ -192,6 +192,8 @@ export interface CreateOrderInput {
   };
   customerNotes?: string;
   idempotencyKey: string;
+  couponCode?: string;
+  items?: { productId: string; quantity: number }[];
 }
 
 export interface CreateRazorpayPaymentOrderInput {
