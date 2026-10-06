@@ -15,12 +15,23 @@ import {
   Lock,
   Gift,
   HelpCircle,
+  Loader2,
+  AlertCircle,
+  CheckCircle,
 } from 'lucide-react';
+import { useAuth, useUser, useClerk } from '@clerk/react';
 import { StorefrontLayout } from '../components/layout/StorefrontLayout';
 import { useCart } from '../context/CartContext';
 import { formatPrice } from '../lib/utils';
 import { productsData } from '../data/products';
 import { ProductCard } from '../components/products/ProductCard';
+import { loadRazorpayScript, openRazorpayCheckout } from '../lib/razorpay';
+import { verifyRazorpayPayment } from '../services/orderApi';
+import type {
+  RazorpayPaymentOrderResponse,
+  RazorpayCheckoutOptions,
+  RazorpayPaymentSuccessResponse,
+} from '../types';
 
 interface CouponInfo {
   code: string;
@@ -57,11 +68,27 @@ const PROMO_CODES: Record<string, CouponInfo> = {
 
 export const CartPage: React.FC = () => {
   const { cart, removeFromCart, updateQuantity, clearCart, totalItems, totalAmount } = useCart();
+  const { isSignedIn, getToken } = useAuth();
+  const { user } = useUser();
+  const clerk = useClerk();
 
   const [couponInput, setCouponInput] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState<CouponInfo | null>(null);
   const [couponError, setCouponError] = useState<string | null>(null);
   const [couponSuccess, setCouponSuccess] = useState<string | null>(null);
+
+  // Razorpay Checkout states
+  const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [checkoutNotice, setCheckoutNotice] = useState<string | null>(null);
+  const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
+  const [confirmedOrderNumber, setConfirmedOrderNumber] = useState<string | null>(null);
+  const [, setCapturedPayment] = useState<{
+    razorpay_payment_id: string;
+    razorpay_order_id: string;
+    razorpay_signature: string;
+    alongkarOrderId: string;
+  } | null>(null);
 
   // Free shipping calculations (Threshold: ₹499)
   const freeShippingThreshold = 499;
@@ -129,6 +156,177 @@ export const CartPage: React.FC = () => {
     setCouponError(null);
   };
 
+  const handleProceedToCheckout = async () => {
+    if (isProcessingCheckout) return;
+
+    if (!isSignedIn) {
+      setCheckoutNotice('Please sign in to complete your secure checkout.');
+      clerk.openSignIn();
+      return;
+    }
+
+    // Step A: Determine if we are continuing an active pending order or creating a new order from cart
+    let orderIdToPay = cart.length > 0 ? null : activeOrderId;
+
+    if (!orderIdToPay && (cart.length === 0 || totalAmount <= 0)) {
+      setCheckoutError('Your bag is currently empty.');
+      return;
+    }
+
+    setIsProcessingCheckout(true);
+    setCheckoutError(null);
+    setCheckoutNotice(null);
+
+    try {
+      const token = await getToken();
+      if (!token) {
+        throw new Error('Authentication session expired. Please sign in again.');
+      }
+
+      // Step B: Ensure an Alongkar PENDING_PAYMENT order exists (create if not already active in session)
+      if (!orderIdToPay) {
+        const idempotencyKey = `chk_${user?.id || 'usr'}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+        const customerName = user?.fullName || user?.firstName || 'Alongkar Client';
+        const rawPhone = user?.primaryPhoneNumber?.phoneNumber || '9876543210';
+        const customerPhone = rawPhone.replace(/[^0-9]/g, '').slice(-10) || '9876543210';
+        const customerEmail = user?.primaryEmailAddress?.emailAddress || undefined;
+
+        const orderCreateRes = await fetch('/api/orders', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            customerName,
+            customerPhone,
+            customerEmail,
+            shippingAddress: {
+              line1: 'Alongkar Registered Client Address',
+              city: 'Kolkata',
+              state: 'West Bengal',
+              pincode: '700001',
+              country: 'India',
+            },
+            idempotencyKey,
+          }),
+        });
+
+        if (!orderCreateRes.ok) {
+          const errPayload = await orderCreateRes.json().catch(() => ({}));
+          throw new Error(errPayload?.error || 'Unable to create order. Please try again.');
+        }
+
+        const orderData = await orderCreateRes.json();
+        const createdOrder = orderData?.order;
+        orderIdToPay = createdOrder?.id;
+        if (!orderIdToPay) {
+          throw new Error('Server did not return a valid order ID.');
+        }
+
+        // Store active order ID so subsequent retries reuse the same pending order
+        setActiveOrderId(orderIdToPay);
+      }
+
+      // Step C: Request Razorpay payment order initiation from server
+      const paymentOrderRes = await fetch('/api/payments/razorpay/order', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          orderId: orderIdToPay,
+        }),
+      });
+
+      if (!paymentOrderRes.ok) {
+        const errPayload = await paymentOrderRes.json().catch(() => ({}));
+        throw new Error(errPayload?.error || 'Unable to initialize secure payment. Please try again.');
+      }
+
+      const paymentData: RazorpayPaymentOrderResponse = await paymentOrderRes.json();
+
+      // Step D: Load Razorpay script dynamically & open Standard Checkout modal
+      const scriptReady = await loadRazorpayScript();
+      if (!scriptReady) {
+        throw new Error('Unable to load payment gateway script. Please check your network connection.');
+      }
+
+      const prefillName = user?.fullName || user?.firstName || undefined;
+      const prefillEmail = user?.primaryEmailAddress?.emailAddress || undefined;
+      const prefillPhone = user?.primaryPhoneNumber?.phoneNumber
+        ? user.primaryPhoneNumber.phoneNumber.replace(/[^0-9]/g, '').slice(-10)
+        : undefined;
+
+      const checkoutOptions: RazorpayCheckoutOptions = {
+        key: paymentData.razorpayKeyId,
+        amount: paymentData.amount,
+        currency: paymentData.currency || 'INR',
+        name: 'Alongkar',
+        description: `Order ${paymentData.orderNumber}`,
+        order_id: paymentData.razorpayOrderId,
+        prefill: {
+          name: prefillName,
+          email: prefillEmail,
+          contact: prefillPhone,
+        },
+        theme: {
+          color: '#8C6C38',
+        },
+        modal: {
+          ondismiss: () => {
+            setIsProcessingCheckout(false);
+            setCheckoutNotice('Payment window closed. You can complete payment anytime with this order.');
+          },
+        },
+        handler: async (response: RazorpayPaymentSuccessResponse) => {
+          setIsProcessingCheckout(true);
+          setCheckoutError(null);
+          setCheckoutNotice('Verifying payment with secure server...');
+
+          try {
+            const verifyResult = await verifyRazorpayPayment(token, {
+              orderId: paymentData.alongkarOrderId,
+              razorpayPaymentId: response.razorpay_payment_id,
+              razorpayOrderId: response.razorpay_order_id,
+              razorpaySignature: response.razorpay_signature,
+            });
+
+            if (verifyResult.success) {
+              setCapturedPayment({
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_signature: response.razorpay_signature,
+                alongkarOrderId: paymentData.alongkarOrderId,
+              });
+              const confirmedNum = verifyResult.order?.orderNumber || paymentData.orderNumber;
+              setConfirmedOrderNumber(confirmedNum);
+              setActiveOrderId(null);
+              clearCart();
+              setCheckoutNotice(
+                `Payment verified & order #${confirmedNum} confirmed!`
+              );
+            }
+          } catch (verifyErr: any) {
+            setCheckoutError(verifyErr.message || 'Payment verification failed. Please try again.');
+          } finally {
+            setIsProcessingCheckout(false);
+          }
+        },
+      };
+
+      await openRazorpayCheckout(checkoutOptions, (failedResponse) => {
+        setIsProcessingCheckout(false);
+        const failDescription = failedResponse?.error?.description || 'Payment was unsuccessful. Please try again.';
+        setCheckoutError(failDescription);
+      });
+    } catch (err: any) {
+      setIsProcessingCheckout(false);
+      setCheckoutError(err.message || 'Payment initiation failed. Please try again.');
+    }
+  };
+
   // Curated recommended items if bag is empty or for cross-sell
   const recommendedProducts = productsData.filter((p) => p.isBestSeller).slice(0, 4);
 
@@ -180,22 +378,57 @@ export const CartPage: React.FC = () => {
           {cart.length === 0 ? (
             /* ── Empty Cart State ── */
             <div className="py-12 sm:py-16 text-center max-w-xl mx-auto">
-              <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-[#FAF0DC] flex items-center justify-center text-[#B08D57]">
-                <ShoppingBag size={34} strokeWidth={1.5} />
-              </div>
-              <h2 className="font-serif text-2xl sm:text-3xl text-[#211A17] font-normal mb-3">
-                Your Shopping Bag is Empty
-              </h2>
-              <p className="text-xs sm:text-sm text-[#8C6C38] leading-relaxed mb-8 max-w-md mx-auto font-light">
-                Discover our curated collections of 24K micron gold-plated necklaces, artisan jhumkas, and royal polki sets.
-              </p>
-              <Link
-                to="/shop"
-                className="inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-full bg-[#211A17] text-[#FAF7F2] text-xs font-semibold uppercase tracking-[0.2em] hover:bg-[#3D0010] transition-all shadow-md"
-              >
-                <span>Explore The Atelier</span>
-                <ArrowRight size={14} />
-              </Link>
+              {confirmedOrderNumber ? (
+                <div className="mb-8 p-6 rounded-2xl bg-[#FAF0DC]/80 border border-[#E8C98A]/50 text-left text-[#211A17] animate-fade-in shadow-sm">
+                  <div className="flex items-start gap-3.5">
+                    <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 shrink-0">
+                      <CheckCircle size={22} />
+                    </div>
+                    <div>
+                      <h3 className="font-serif text-lg font-semibold text-[#211A17]">
+                        Payment Verified & Order Confirmed!
+                      </h3>
+                      <p className="text-xs text-[#8C6C38] mt-1 font-light leading-relaxed">
+                        Thank you for your atelier order <span className="font-semibold text-[#211A17]">#{confirmedOrderNumber}</span>. Your pieces are being carefully prepared.
+                      </p>
+                      <div className="mt-4 flex flex-wrap items-center gap-3">
+                        <Link
+                          to="/orders"
+                          className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full bg-[#211A17] text-[#FAF7F2] text-xs font-semibold uppercase tracking-wider hover:bg-[#3D0010] transition-colors"
+                        >
+                          <span>View My Orders</span>
+                          <ArrowRight size={13} />
+                        </Link>
+                        <Link
+                          to="/shop"
+                          className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-full border border-[#8C6C38]/40 text-[#211A17] text-xs font-semibold uppercase tracking-wider hover:bg-[#FAF0DC] transition-colors"
+                        >
+                          <span>Continue Shopping</span>
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-[#FAF0DC] flex items-center justify-center text-[#B08D57]">
+                    <ShoppingBag size={34} strokeWidth={1.5} />
+                  </div>
+                  <h2 className="font-serif text-2xl sm:text-3xl text-[#211A17] font-normal mb-3">
+                    Your Shopping Bag is Empty
+                  </h2>
+                  <p className="text-xs sm:text-sm text-[#8C6C38] leading-relaxed mb-8 max-w-md mx-auto font-light">
+                    Discover our curated collections of 24K micron gold-plated necklaces, artisan jhumkas, and royal polki sets.
+                  </p>
+                  <Link
+                    to="/shop"
+                    className="inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-full bg-[#211A17] text-[#FAF7F2] text-xs font-semibold uppercase tracking-[0.2em] hover:bg-[#3D0010] transition-all shadow-md"
+                  >
+                    <span>Explore The Atelier</span>
+                    <ArrowRight size={14} />
+                  </Link>
+                </>
+              )}
 
               {/* Recommended Items */}
               <div className="mt-20 text-left pt-12 border-t border-[#E8C98A]/25">
@@ -613,17 +846,59 @@ export const CartPage: React.FC = () => {
                       )}
                     </div>
 
+                    {/* Checkout Error Feedback */}
+                    {checkoutError && (
+                      <div className="mb-3 p-3 rounded-xl bg-red-950/10 border border-red-500/30 text-red-700 text-xs flex items-start gap-2 animate-fade-in">
+                        <AlertCircle size={15} className="mt-0.5 shrink-0 text-red-600" />
+                        <div className="flex-1 font-sans">{checkoutError}</div>
+                      </div>
+                    )}
+
+                    {/* Checkout Notice Feedback */}
+                    {checkoutNotice && (
+                      <div className="mb-3 p-3 rounded-xl bg-[#FAF0DC] border border-[#E8C98A]/50 text-[#211A17] text-xs flex items-start gap-2 animate-fade-in">
+                        <CheckCircle size={15} className="mt-0.5 shrink-0 text-[#8C6C38]" />
+                        <div className="flex-1 font-sans">
+                          {checkoutNotice}
+                          {confirmedOrderNumber && (
+                            <div className="mt-1.5">
+                              <Link
+                                to="/orders"
+                                className="inline-flex items-center gap-1 font-semibold text-[#8C6C38] hover:text-[#211A17] underline"
+                              >
+                                View in My Orders →
+                              </Link>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Primary Checkout Button */}
                     <button
                       type="button"
-                      onClick={() => {
-                        alert(`Proceeding to checkout with ${totalItems} item(s) — Total: ${formatPrice(finalPayable)}.`);
-                      }}
-                      className="w-full py-4 px-6 rounded-xl bg-[#211A17] text-[#FAF7F2] text-xs sm:text-sm font-semibold uppercase tracking-[0.2em] hover:bg-[#3D0010] active:scale-[0.99] transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-[#211A17]/10 cursor-pointer group"
+                      disabled={isProcessingCheckout}
+                      onClick={handleProceedToCheckout}
+                      className="w-full py-4 px-6 rounded-xl bg-[#211A17] text-[#FAF7F2] text-xs sm:text-sm font-semibold uppercase tracking-[0.2em] hover:bg-[#3D0010] active:scale-[0.99] transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-[#211A17]/10 cursor-pointer group disabled:opacity-75 disabled:cursor-not-allowed"
                     >
-                      <Lock size={15} className="text-[#E8C98A]" />
-                      <span>Proceed to Secure Checkout</span>
-                      <ArrowRight size={15} className="group-hover:translate-x-1 transition-transform" />
+                      {isProcessingCheckout ? (
+                        <>
+                          <Loader2 size={15} className="animate-spin text-[#E8C98A]" />
+                          <span>Securing Payment...</span>
+                        </>
+                      ) : !isSignedIn ? (
+                        <>
+                          <Lock size={15} className="text-[#E8C98A]" />
+                          <span>Sign In & Proceed to Checkout</span>
+                          <ArrowRight size={15} className="group-hover:translate-x-1 transition-transform" />
+                        </>
+                      ) : (
+                        <>
+                          <Lock size={15} className="text-[#E8C98A]" />
+                          <span>Proceed to Secure Checkout</span>
+                          <ArrowRight size={15} className="group-hover:translate-x-1 transition-transform" />
+                        </>
+                      )}
                     </button>
 
                     {/* Trust Footnote */}
