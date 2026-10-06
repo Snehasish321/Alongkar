@@ -22,6 +22,15 @@ const RequestJewelleryPage = lazy(() =>
 const JewelleryRequestsPage = lazy(() =>
   import('./pages/JewelleryRequestsPage').then((m) => ({ default: m.JewelleryRequestsPage }))
 );
+const SearchPage = lazy(() =>
+  import('./pages/SearchPage').then((m) => ({ default: m.SearchPage }))
+);
+const CartPage = lazy(() =>
+  import('./pages/CartPage').then((m) => ({ default: m.CartPage }))
+);
+const WishlistPage = lazy(() =>
+  import('./pages/WishlistPage').then((m) => ({ default: m.WishlistPage }))
+);
 const PlaceholderPage = lazy(() =>
   import('./pages/PlaceholderPage').then((m) => ({ default: m.PlaceholderPage }))
 );
@@ -81,6 +90,9 @@ export const AppContent: React.FC = () => {
           <Route path="/product/:slug" element={<ProductDetailPage />} />
           <Route path="/categories" element={<CollectionsPage />} />
           <Route path="/collections" element={<CollectionsPage />} />
+          <Route path="/search" element={<SearchPage />} />
+          <Route path="/cart" element={<CartPage />} />
+          <Route path="/wishlist" element={<WishlistPage />} />
           <Route path="/best-sellers" element={<ShopPage />} />
           <Route path="/about" element={<AboutPage />} />
           <Route path="/contact" element={<ContactPage />} />
@@ -200,3 +212,5 @@ export default function App() {
     </>
   );
 }
+
+

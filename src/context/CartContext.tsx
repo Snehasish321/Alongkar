@@ -182,7 +182,6 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // ─── Add to Cart ─────────────────────────────────────────────────────────────
   const addToCart = async (product: Product, quantity: number = 1) => {
     setLastAddedProduct(product);
-    setIsCartOpen(true);
 
     const safeQty = Math.min(MAX_ITEM_QUANTITY, Math.max(1, Math.floor(quantity)));
 
