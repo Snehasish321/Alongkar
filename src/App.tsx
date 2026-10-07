@@ -37,6 +37,9 @@ const PlaceholderPage = lazy(() =>
 const OrdersPage = lazy(() =>
   import('./pages/OrdersPage').then((m) => ({ default: m.OrdersPage }))
 );
+const PrivacyPolicyPage = lazy(() =>
+  import('./pages/PrivacyPolicyPage').then((m) => ({ default: m.PrivacyPolicyPage }))
+);
 const AdminRouteGuard = lazy(() =>
   import('./components/admin/AdminRouteGuard').then((m) => ({ default: m.AdminRouteGuard }))
 );
@@ -129,6 +132,7 @@ export const AppContent: React.FC = () => {
               />
             }
           />
+          <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
 
           {/* Protected Alongkar Atelier Admin Dashboard */}
           <Route
