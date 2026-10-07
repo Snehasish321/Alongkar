@@ -128,6 +128,29 @@ export const ENV_CATALOG: readonly EnvVarSpec[] = [
     placeholderPrefixes: ['your_razorpay_webhook_secret'],
   },
   {
+    name: 'SHIPROCKET_EMAIL',
+    category: 'conditional_production',
+    scope: 'server_only',
+    description: 'Shiprocket API user login email for fulfillment authentication',
+    isSecret: false,
+    placeholderPrefixes: ['your_shiprocket_email'],
+  },
+  {
+    name: 'SHIPROCKET_PASSWORD',
+    category: 'conditional_production',
+    scope: 'server_only',
+    description: 'Shiprocket API user password for token generation',
+    isSecret: true,
+    placeholderPrefixes: ['your_shiprocket_password'],
+  },
+  {
+    name: 'SHIPROCKET_PICKUP_LOCATION',
+    category: 'optional_production',
+    scope: 'server_only',
+    description: 'Configured Shiprocket pickup warehouse nickname/location (defaults to Primary)',
+    isSecret: false,
+  },
+  {
     name: 'NODE_ENV',
     category: 'optional_production',
     scope: 'server_only',
@@ -161,6 +184,7 @@ export interface EnvValidationResult {
     cloudinary: 'configured' | 'not_configured';
     redis: 'configured' | 'not_configured';
     razorpay: 'configured' | 'not_configured';
+    shiprocket: 'configured' | 'not_configured';
   };
 }
 
@@ -239,6 +263,22 @@ export function validateEnvironment(env: Record<string, string | undefined> = pr
     warnings.push('Razorpay credentials are partially defined. Payments will fail until RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET are configured.');
   }
 
+  // 6. Check Shiprocket (conditional fulfillment service)
+  const srEmail = env.SHIPROCKET_EMAIL;
+  const srPassword = env.SHIPROCKET_PASSWORD;
+
+  const isShiprocketPartiallySet = Boolean(srEmail || srPassword);
+  const isShiprocketFullyConfigured = Boolean(
+    srEmail &&
+    srPassword &&
+    !srEmail.includes('your_shiprocket_email') &&
+    !srPassword.includes('your_shiprocket_password')
+  );
+
+  if (isShiprocketPartiallySet && !isShiprocketFullyConfigured) {
+    warnings.push('Shiprocket credentials are partially defined. Automated shipping will fail until SHIPROCKET_EMAIL and SHIPROCKET_PASSWORD are configured.');
+  }
+
   const isValid = missingRequired.length === 0 && placeholderValues.length === 0;
 
   return {
@@ -252,6 +292,7 @@ export function validateEnvironment(env: Record<string, string | undefined> = pr
       cloudinary: isCloudinaryFullyConfigured ? 'configured' : 'not_configured',
       redis: isRedisConfigured ? 'configured' : 'not_configured',
       razorpay: isRazorpayFullyConfigured ? 'configured' : 'not_configured',
+      shiprocket: isShiprocketFullyConfigured ? 'configured' : 'not_configured',
     },
   };
 }
