@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ShoppingBag,
   Trash2,
@@ -69,6 +69,10 @@ const PROMO_CODES: Record<string, CouponInfo> = {
 };
 
 export const CartPage: React.FC = () => {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const confirmedOrderQuery = searchParams.get('confirmedOrder');
+
   const { cart, removeFromCart, updateQuantity, clearCart, totalItems, totalAmount } = useCart();
   const { isSignedIn, getToken } = useAuth();
   const { user } = useUser();
@@ -87,7 +91,33 @@ export const CartPage: React.FC = () => {
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [checkoutNotice, setCheckoutNotice] = useState<string | null>(null);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
-  const [confirmedOrderNumber, setConfirmedOrderNumber] = useState<string | null>(null);
+  const [confirmedOrderNumber, setConfirmedOrderNumber] = useState<string | null>(
+    () => confirmedOrderQuery || null
+  );
+
+  // Clean URL parameter so the visible URL seamlessly normalizes to /cart without losing state
+  useEffect(() => {
+    if (confirmedOrderQuery) {
+      setConfirmedOrderNumber(confirmedOrderQuery);
+      window.history.replaceState(null, '', '/cart');
+    }
+  }, [confirmedOrderQuery]);
+
+  // Explicitly reset scroll position to top when confirmed order state is active
+  useEffect(() => {
+    if (confirmedOrderNumber) {
+      const globalLenis = (
+        window as unknown as {
+          __lenis?: { scrollTo: (target: number, opts?: { immediate: boolean }) => void };
+        }
+      ).__lenis;
+
+      if (globalLenis && typeof globalLenis.scrollTo === 'function') {
+        globalLenis.scrollTo(0, { immediate: true });
+      }
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    }
+  }, [confirmedOrderNumber]);
   const [, setCapturedPayment] = useState<{
     razorpay_payment_id: string;
     razorpay_order_id: string;
@@ -248,13 +278,11 @@ export const CartPage: React.FC = () => {
         const confirmedNum = createdOrder?.orderNumber || 'Confirmed';
 
         setIsPaymentMethodModalOpen(false);
-        setConfirmedOrderNumber(confirmedNum);
         setActiveOrderId(null);
         clearCart();
-        setCheckoutNotice(
-          `Your Cash on Delivery order #${confirmedNum} has been placed successfully! Our team will prepare your shipment.`
-        );
+        setConfirmedOrderNumber(confirmedNum);
         setIsProcessingCheckout(false);
+        navigate(`/cart?confirmedOrder=${encodeURIComponent(confirmedNum)}`, { replace: true });
         return;
       }
 
@@ -322,13 +350,11 @@ export const CartPage: React.FC = () => {
       if (paymentData.alreadyPaid) {
         const confirmedNum = paymentData.order?.orderNumber || paymentData.orderNumber || 'Confirmed';
         setIsPaymentMethodModalOpen(false);
-        setConfirmedOrderNumber(confirmedNum);
         setActiveOrderId(null);
         clearCart();
-        setCheckoutNotice(
-          paymentData.message || `Payment has already been received and order #${confirmedNum} is confirmed!`
-        );
+        setConfirmedOrderNumber(confirmedNum);
         setIsProcessingCheckout(false);
+        navigate(`/cart?confirmedOrder=${encodeURIComponent(confirmedNum)}`, { replace: true });
         return;
       }
 
@@ -391,10 +417,10 @@ export const CartPage: React.FC = () => {
               });
               const confirmedNum = verifyResult.order?.orderNumber || paymentData.orderNumber || 'Confirmed';
               setIsPaymentMethodModalOpen(false);
-              setConfirmedOrderNumber(confirmedNum);
               setActiveOrderId(null);
               clearCart();
-              setCheckoutNotice(`Payment verified & order #${confirmedNum} confirmed!`);
+              setConfirmedOrderNumber(confirmedNum);
+              navigate(`/cart?confirmedOrder=${encodeURIComponent(confirmedNum)}`, { replace: true });
             }
           } catch (verifyErr: any) {
             try {
@@ -404,10 +430,10 @@ export const CartPage: React.FC = () => {
                 if (reconcileResult.success && (reconcileResult.reconciled || reconcileResult.alreadyPaid)) {
                   const confirmedNum = reconcileResult.order?.orderNumber || paymentData.orderNumber || 'Confirmed';
                   setIsPaymentMethodModalOpen(false);
-                  setConfirmedOrderNumber(confirmedNum);
                   setActiveOrderId(null);
                   clearCart();
-                  setCheckoutNotice(`Payment verified & order #${confirmedNum} confirmed!`);
+                  setConfirmedOrderNumber(confirmedNum);
+                  navigate(`/cart?confirmedOrder=${encodeURIComponent(confirmedNum)}`, { replace: true });
                   return;
                 }
               }
@@ -441,7 +467,11 @@ export const CartPage: React.FC = () => {
       <div className="min-h-screen bg-[#FFFDF8] text-[#211A17]">
         
         {/* ── Breadcrumb & Header ── */}
-        <section className="border-b border-[#E8C98A]/25 bg-gradient-to-b from-[#F7F2EA]/60 to-[#FFFDF8] py-8 sm:py-10 px-4 sm:px-6 lg:px-8">
+        <section
+          className={`border-b border-[#E8C98A]/25 bg-gradient-to-b from-[#F7F2EA]/60 to-[#FFFDF8] px-4 sm:px-6 lg:px-8 ${
+            confirmedOrderNumber ? 'py-5 sm:py-6' : 'py-8 sm:py-10'
+          }`}
+        >
           <div className="max-w-7xl mx-auto">
             <nav className="flex items-center gap-2 text-xs text-[#8C6C38] mb-3">
               <Link to="/" className="hover:text-[#211A17] transition-colors">
@@ -479,13 +509,18 @@ export const CartPage: React.FC = () => {
         </section>
 
         {/* ── Main Cart Content ── */}
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+        <main
+          className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 ${
+            confirmedOrderNumber ? 'pt-4 sm:pt-6 pb-12 sm:pb-16' : 'py-8 sm:py-12'
+          }`}
+        >
           
-          {cart.length === 0 ? (
-            /* ── Empty Cart State ── */
-            <div className="py-12 sm:py-16 text-center max-w-xl mx-auto">
-              {confirmedOrderNumber ? (
-                <div className="mb-8 p-6 rounded-2xl bg-[#FAF0DC]/80 border border-[#E8C98A]/50 text-left text-[#211A17] animate-fade-in shadow-sm">
+          {confirmedOrderNumber ? (
+            /* ── Order Confirmed Success State ── */
+            <div className="space-y-6 sm:space-y-8">
+              {/* Centered Confirmation Card */}
+              <div className="max-w-2xl mx-auto">
+                <div className="p-6 rounded-2xl bg-[#FAF0DC]/80 border border-[#E8C98A]/50 text-left text-[#211A17] animate-fade-in shadow-sm">
                   <div className="flex items-start gap-3.5">
                     <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 shrink-0">
                       <CheckCircle size={22} />
@@ -515,29 +550,10 @@ export const CartPage: React.FC = () => {
                     </div>
                   </div>
                 </div>
-              ) : (
-                <>
-                  <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-[#FAF0DC] flex items-center justify-center text-[#B08D57]">
-                    <ShoppingBag size={34} strokeWidth={1.5} />
-                  </div>
-                  <h2 className="font-serif text-2xl sm:text-3xl text-[#211A17] font-normal mb-3">
-                    Your Shopping Bag is Empty
-                  </h2>
-                  <p className="text-xs sm:text-sm text-[#8C6C38] leading-relaxed mb-8 max-w-md mx-auto font-light">
-                    Discover our curated collections of 24K micron gold-plated necklaces, artisan jhumkas, and royal polki sets.
-                  </p>
-                  <Link
-                    to="/shop"
-                    className="inline-flex items-center justify-center gap-2 px-8 py-3.5 rounded-full bg-[#211A17] text-[#FAF7F2] text-xs font-semibold uppercase tracking-[0.2em] hover:bg-[#3D0010] transition-all shadow-md"
-                  >
-                    <span>Explore The Atelier</span>
-                    <ArrowRight size={14} />
-                  </Link>
-                </>
-              )}
+              </div>
 
               {/* Recommended Items */}
-              <div className="mt-20 text-left pt-12 border-t border-[#E8C98A]/25">
+              <div className="pt-6 sm:pt-8 border-t border-[#E8C98A]/25">
                 <div className="flex items-center justify-between mb-6">
                   <div>
                     <span className="text-[10px] uppercase font-bold tracking-[0.2em] text-[#B08D57] block">
@@ -550,6 +566,49 @@ export const CartPage: React.FC = () => {
                   </Link>
                 </div>
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  {recommendedProducts.map((prod) => (
+                    <ProductCard key={prod.id} product={prod} />
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : cart.length === 0 ? (
+            /* ── Empty Cart State ── */
+            <div className="space-y-10 sm:space-y-14">
+              {/* Compact Empty Message Block */}
+              <div className="text-center max-w-lg mx-auto py-4 sm:py-6">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[#FAF0DC] flex items-center justify-center text-[#B08D57] shadow-2xs">
+                  <ShoppingBag size={28} strokeWidth={1.5} />
+                </div>
+                <h2 className="font-serif text-2xl sm:text-3xl text-[#211A17] font-normal mb-2.5">
+                  Your Shopping Bag is Empty
+                </h2>
+                <p className="text-xs sm:text-sm text-[#8C6C38] leading-relaxed mb-6 max-w-md mx-auto font-light">
+                  Discover our curated collections of 24K micron gold-plated necklaces, artisan jhumkas, and royal polki sets.
+                </p>
+                <Link
+                  to="/shop"
+                  className="inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-full bg-[#211A17] text-[#FAF7F2] text-xs font-semibold uppercase tracking-[0.2em] hover:bg-[#3D0010] transition-all shadow-md cursor-pointer"
+                >
+                  <span>Explore The Atelier</span>
+                  <ArrowRight size={14} />
+                </Link>
+              </div>
+
+              {/* Full-width Curated Recommendations */}
+              <div className="pt-8 sm:pt-10 border-t border-[#E8C98A]/25">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold tracking-[0.2em] text-[#B08D57] block mb-0.5">
+                      Curated For You
+                    </span>
+                    <h3 className="font-serif text-xl sm:text-2xl text-[#211A17]">Trending Atelier Masterpieces</h3>
+                  </div>
+                  <Link to="/shop" className="text-xs text-[#8C6C38] hover:text-[#211A17] font-medium">
+                    View All →
+                  </Link>
+                </div>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
                   {recommendedProducts.map((prod) => (
                     <ProductCard key={prod.id} product={prod} />
                   ))}

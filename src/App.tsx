@@ -37,6 +37,9 @@ const PlaceholderPage = lazy(() =>
 const OrdersPage = lazy(() =>
   import('./pages/OrdersPage').then((m) => ({ default: m.OrdersPage }))
 );
+const ReturnPolicyPage = lazy(() =>
+  import('./pages/ReturnPolicyPage').then((m) => ({ default: m.ReturnPolicyPage }))
+);
 const PrivacyPolicyPage = lazy(() =>
   import('./pages/PrivacyPolicyPage').then((m) => ({ default: m.PrivacyPolicyPage }))
 );
@@ -70,7 +73,7 @@ function ScrollToTopOnNavigate() {
     } else {
       window.scrollTo(0, 0);
     }
-  }, [location.pathname]);
+  }, [location.pathname, location.search]);
 
   return null;
 }
@@ -100,15 +103,8 @@ export const AppContent: React.FC = () => {
           <Route path="/about" element={<AboutPage />} />
           <Route path="/contact" element={<ContactPage />} />
           <Route path="/request-jewellery" element={<RequestJewelleryPage />} />
-          <Route
-            path="/returns"
-            element={
-              <PlaceholderPage
-                title="Return & Exchange Policy"
-                subtitle="We offer a hassle-free 7-day exchange and replacement guarantee on all 24K city gold jewellery."
-              />
-            }
-          />
+          <Route path="/returns" element={<ReturnPolicyPage />} />
+          <Route path="/return-policy" element={<ReturnPolicyPage />} />
           <Route
             path="/pre-orders"
             element={
