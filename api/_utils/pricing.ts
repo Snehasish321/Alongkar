@@ -50,6 +50,16 @@ export function normalizeCouponCode(code: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+export type PaymentMethod = 'RAZORPAY' | 'COD';
+
+export function normalizePaymentMethod(method: unknown): PaymentMethod {
+  if (typeof method === 'string') {
+    const trimmed = method.trim().toUpperCase();
+    if (trimmed === 'COD') return 'COD';
+  }
+  return 'RAZORPAY';
+}
+
 export interface CouponValidationResult {
   isValid: boolean;
   coupon: CouponDefinition | null;
@@ -59,12 +69,16 @@ export interface CouponValidationResult {
 
 /**
  * Validates a coupon code against the current merchandise subtotal and calculates the discount.
+ * Enforces that PREPAID5 only grants a discount for online Razorpay payments, returning ₹0 discount for COD.
  */
 export function validateAndCalculateCoupon(
   subtotal: number,
-  rawCode?: unknown
+  rawCode?: unknown,
+  rawPaymentMethod?: unknown
 ): CouponValidationResult {
   const code = normalizeCouponCode(rawCode);
+  const paymentMethod = normalizePaymentMethod(rawPaymentMethod);
+
   if (!code) {
     return {
       isValid: true,
@@ -89,6 +103,15 @@ export function validateAndCalculateCoupon(
       coupon,
       discountAmount: 0,
       errorMessage: `Coupon "${coupon.code}" requires a minimum subtotal of ₹${coupon.minOrder.toLocaleString('en-IN')}.`,
+    };
+  }
+
+  // Payment method rule: PREPAID5 is valid only for RAZORPAY (online prepaid)
+  if (coupon.code === 'PREPAID5' && paymentMethod === 'COD') {
+    return {
+      isValid: true,
+      coupon,
+      discountAmount: 0,
     };
   }
 
@@ -134,11 +157,12 @@ export interface CalculatedOrderPricing {
 
 /**
  * Computes all authoritative pricing fields for an order from server product prices,
- * quantities, and optional coupon code.
+ * quantities, optional coupon code, and payment method.
  */
 export function calculateAuthoritativePricing(
   items: Array<{ unitPrice: number; quantity: number }>,
-  rawCouponCode?: unknown
+  rawCouponCode?: unknown,
+  rawPaymentMethod?: unknown
 ): {
   success: boolean;
   pricing?: CalculatedOrderPricing;
@@ -154,7 +178,7 @@ export function calculateAuthoritativePricing(
   // Round subtotal to 2 decimal places
   subtotal = Math.round(subtotal * 100) / 100;
 
-  const couponResult = validateAndCalculateCoupon(subtotal, rawCouponCode);
+  const couponResult = validateAndCalculateCoupon(subtotal, rawCouponCode, rawPaymentMethod);
   if (!couponResult.isValid) {
     return {
       success: false,

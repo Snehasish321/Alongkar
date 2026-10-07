@@ -89,7 +89,9 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
   const PaymentIcon = paymentBadge.icon;
   const ShippingIcon = shippingBadge.icon;
 
-  const isPendingPayment = order.status === 'PENDING_PAYMENT' || order.paymentStatus === 'PENDING';
+  const isPendingPayment =
+    (order.status === 'PENDING_PAYMENT' || order.paymentStatus === 'PENDING') &&
+    order.paymentProvider !== 'COD';
 
   const formatDate = (dateValue: string | Date | undefined) => {
     if (!dateValue) return 'N/A';
@@ -416,6 +418,12 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
             </div>
 
             <div className="space-y-1.5 text-xs text-gray-600">
+              <div className="flex justify-between">
+                <span>Payment Method</span>
+                <span className="font-semibold text-[#28040B]">
+                  {order.paymentProvider === 'COD' ? 'Cash on Delivery (COD)' : 'Pay Online (Razorpay)'}
+                </span>
+              </div>
               <div className="flex justify-between">
                 <span>Subtotal</span>
                 <span>{formatCurrency(order.subtotal)}</span>

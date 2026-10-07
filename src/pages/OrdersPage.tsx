@@ -401,7 +401,8 @@ export const OrdersPage: React.FC = () => {
                 const PaymentIcon = paymentBadge.icon;
                 const ShippingIcon = shippingBadge.icon;
                 const isPendingPayment =
-                  order.status === 'PENDING_PAYMENT' || order.paymentStatus === 'PENDING';
+                  (order.status === 'PENDING_PAYMENT' || order.paymentStatus === 'PENDING') &&
+                  order.paymentProvider !== 'COD';
                 const isPayingThisOrder = payingOrderId === order.id;
 
                 return (
