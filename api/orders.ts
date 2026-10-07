@@ -13,6 +13,7 @@ import {
   logSecurityEvent,
 } from './_utils/security.js';
 import { calculateAuthoritativePricing, type PaymentMethod } from './_utils/pricing.js';
+import { checkOrderFulfillmentEligibility } from './_utils/fulfillment.js';
 import { Prisma } from '@prisma/client';
 
 export interface OrderValidationError {
@@ -97,6 +98,7 @@ export function formatOrderResponse(order: any) {
     adminNotes: order.adminNotes || null,
     createdAt: order.createdAt,
     updatedAt: order.updatedAt,
+    fulfillmentEligibility: checkOrderFulfillmentEligibility(order),
     items: (order.items || []).map((item: any) => ({
       id: item.id,
       orderId: item.orderId,

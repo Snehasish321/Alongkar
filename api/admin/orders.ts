@@ -10,6 +10,8 @@ import {
   logSlowRequest,
   logSecurityEvent,
 } from '../_utils/security.js';
+import { checkOrderFulfillmentEligibility, getOrderFulfillmentEligibility } from '../_utils/fulfillment.js';
+import { createShiprocketOrder } from '../_utils/shiprocket.js';
 
 export const ALL_ORDER_STATUSES = [
   'PENDING_PAYMENT',
@@ -148,6 +150,7 @@ export function formatAdminOrder(order: any) {
     adminNotes: order.adminNotes || null,
     createdAt: order.createdAt,
     updatedAt: order.updatedAt,
+    fulfillmentEligibility: checkOrderFulfillmentEligibility(order),
     items: (order.items || []).map((item: any) => ({
       id: item.id,
       orderId: item.orderId,
@@ -507,6 +510,62 @@ export default async function handler(req: any, res?: any) {
       );
 
       return respond(res, 200, { order: formatAdminOrder(updatedOrder) }, { 'X-Request-ID': requestId });
+    }
+
+    // ─── POST /api/admin/orders — Admin Actions (e.g. Check Fulfillment Eligibility) ──
+    if (method === 'POST') {
+      const action = bodyData?.action;
+      if (action === 'check_fulfillment_eligibility' || action === 'prepare_fulfillment') {
+        const lookup = extractAdminOrderLookup(req, bodyData);
+        const orderIdOrNumber = lookup?.id || lookup?.orderNumber || bodyData?.orderId || bodyData?.orderNumber;
+        if (!orderIdOrNumber) {
+          return respond(
+            res,
+            400,
+            { error: 'Order ID or orderNumber is required to check fulfillment eligibility.' },
+            { 'X-Request-ID': requestId }
+          );
+        }
+
+        const fulfillmentResult = await getOrderFulfillmentEligibility(orderIdOrNumber, {
+          isAdmin: true,
+          clerkUserId: authResult.clerkUserId,
+        });
+
+        return respond(
+          res,
+          fulfillmentResult.status,
+          fulfillmentResult,
+          { 'X-Request-ID': requestId }
+        );
+      }
+
+      if (action === 'create_shiprocket_order' || action === 'shiprocket_order_create') {
+        const lookup = extractAdminOrderLookup(req, bodyData);
+        const orderIdOrNumber = lookup?.id || lookup?.orderNumber || bodyData?.orderId || bodyData?.orderNumber;
+        if (!orderIdOrNumber) {
+          return respond(
+            res,
+            400,
+            { error: 'Order ID or orderNumber is required to create Shiprocket order.' },
+            { 'X-Request-ID': requestId }
+          );
+        }
+
+        const shiprocketResult = await createShiprocketOrder(orderIdOrNumber, {
+          isAdmin: true,
+          clerkUserId: authResult.clerkUserId,
+        });
+
+        return respond(
+          res,
+          shiprocketResult.status,
+          shiprocketResult,
+          { 'X-Request-ID': requestId }
+        );
+      }
+
+      return respond(res, 400, { error: `Unrecognized admin action "${action}".` }, { 'X-Request-ID': requestId });
     }
 
     return respond(res, 405, { error: `Method ${method} Not Allowed` }, { 'X-Request-ID': requestId });
