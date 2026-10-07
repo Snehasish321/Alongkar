@@ -216,8 +216,15 @@ async function runOrdersPageIntegrationTests() {
     console.log('\n--- 5. Creating Second Order for User 1 ---');
 
     const cart1b = await prisma.cart.findUnique({ where: { userId: user1DbId } });
-    await prisma.cartItem.create({
-      data: {
+    await prisma.cartItem.upsert({
+      where: {
+        cartId_productId: {
+          cartId: cart1b!.id,
+          productId: prod1.id,
+        },
+      },
+      update: { quantity: 1 },
+      create: {
         cartId: cart1b!.id,
         productId: prod1.id,
         quantity: 1,
