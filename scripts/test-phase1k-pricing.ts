@@ -672,11 +672,11 @@ async function runPhase1KTests() {
     assert(cartOrder.shippingFee === 0, 'Authoritative shipping fee is ₹0 (subtotal >= 499)');
     assert(cartOrder.grandTotal === 2850, 'Authoritative grandTotal is ₹2850 (3350 - 500)');
 
-    // Verify DB cart was cleared
+    // Verify DB cart remains persistent upon PENDING_PAYMENT order creation
     const remainingCartItems = await prisma.cartItem.findMany({
       where: { cartId: user2Cart.id },
     });
-    assert(remainingCartItems.length === 0, 'User cart in database was cleared atomically on order creation');
+    assert(remainingCartItems.length === 2, 'User cart in database remains persistent upon PENDING_PAYMENT order creation');
   }
 
   // ==========================================================================

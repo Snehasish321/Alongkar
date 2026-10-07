@@ -491,22 +491,22 @@ async function runTests() {
     assert(typeof flowOrderId === 'string', 'Valid order ID returned for flow');
     if (flowOrderId) createdOrderIds.push(flowOrderId);
 
-    // Verify authenticated cart was cleared in PostgreSQL as per Phase 1I-R1 design
+    // Verify authenticated cart was preserved in PostgreSQL as per cart persistence design
     const user2CartAfterOrder = await prisma.cart.findUnique({
       where: { userId: user2.id },
       include: { items: true },
     });
-    assert(user2CartAfterOrder?.items.length === 0, 'Authenticated cart in DB was atomically cleared on order creation');
+    assert(user2CartAfterOrder?.items.length === 1, 'Authenticated cart in DB remains persistent on PENDING_PAYMENT order creation');
 
-    // Frontend state now has cart: [] and activeOrderId: flowOrderId
-    let frontendCartState: any[] = [];
+    // Frontend state maintains cart items and activeOrderId: flowOrderId
+    let frontendCartState: any[] = [{ id: 'item_1', productId: 'p1', quantity: 2 }];
     let frontendActiveOrderId: string | null = flowOrderId;
 
-    // Checkout flow now evaluates: cart.length is 0, but activeOrderId IS present
+    // Checkout flow evaluates: cart is present and activeOrderId is present
     const postOrderCheckoutCheck = simulateInitialCheckout(frontendCartState, frontendActiveOrderId);
     assert(
       postOrderCheckoutCheck.success === true,
-      'Post-order cleared cart does NOT trigger empty cart validation error'
+      'Pending order checkout does NOT trigger empty cart validation error'
     );
 
     // Call payment order endpoint with the activeOrderId
@@ -521,18 +521,18 @@ async function runTests() {
       flowPaymentRes
     );
 
-    assert(flowPaymentRes.statusCode === 200 || flowPaymentRes.statusCode === 201, 'Payment order initiated for cleared-cart active order');
+    assert(flowPaymentRes.statusCode === 200 || flowPaymentRes.statusCode === 201, 'Payment order initiated for active order');
     assert(flowPaymentRes.data?.success === true, 'Payment order returned success');
     assert(typeof flowPaymentRes.data?.razorpayOrderId === 'string', 'Razorpay Order ID generated for active order');
 
-    // 7.3 Razorpay modal dismissal & payment failure preserve activeOrderId
+    // 7.3 Razorpay modal dismissal & payment failure preserve activeOrderId and cart
     let activeOrderPreservedOnDismiss = frontendActiveOrderId;
     assert(activeOrderPreservedOnDismiss === flowOrderId, 'activeOrderId remains preserved on modal dismissal');
 
     let activeOrderPreservedOnFailure = frontendActiveOrderId;
     assert(activeOrderPreservedOnFailure === flowOrderId, 'activeOrderId remains preserved on payment failure');
 
-    // 7.4 Checkout retry with empty cart and existing activeOrderId
+    // 7.4 Checkout retry with persistent cart and existing activeOrderId
     const retryFlowPaymentRes = createMockRes();
     await razorpayOrderHandler(
       {
@@ -550,7 +550,7 @@ async function runTests() {
       'Retry reuses existing Razorpay payment order without recreation'
     );
 
-    // 7.5 Invariants: No duplicate Alongkar order created & No cart restored
+    // 7.5 Invariants: No duplicate Alongkar order created & Cart items persisted
     const totalUser2Orders = await prisma.order.count({
       where: { userId: user2.id },
     });
@@ -559,7 +559,7 @@ async function runTests() {
     const user2CartItemsCount = await prisma.cartItem.count({
       where: { cart: { userId: user2.id } },
     });
-    assert(user2CartItemsCount === 0, 'Strict invariant: Cart items were not restored or merged');
+    assert(user2CartItemsCount === 1, 'Strict invariant: Cart items remain persistent in DB during pending order flow');
 
   } catch (err: any) {
     console.error('Unexpected test error:', err);
