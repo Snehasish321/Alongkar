@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   X,
   Trash2,
@@ -43,6 +44,7 @@ interface ActiveOrderSnapshot {
 }
 
 export const CartDrawer: React.FC = () => {
+  const navigate = useNavigate();
   const { cart, isCartOpen, setIsCartOpen, removeFromCart, updateQuantity, totalAmount, totalItems, clearCart } = useCart();
   const { isSignedIn, getToken } = useAuth();
   const { user } = useUser();
@@ -201,10 +203,9 @@ export const CartDrawer: React.FC = () => {
         setActiveOrderId(null);
         setActiveOrder(null);
         clearCart();
-        setCheckoutNotice(
-          paymentData.message || `Payment verified & order #${confirmedNum} confirmed!`
-        );
+        setIsCartOpen(false);
         setIsProcessingCheckout(false);
+        navigate(`/cart?confirmedOrder=${encodeURIComponent(confirmedNum)}`);
         return;
       }
 
@@ -266,12 +267,12 @@ export const CartDrawer: React.FC = () => {
                 razorpay_signature: response.razorpay_signature,
                 alongkarOrderId: targetOrderId,
               });
+              const confirmedNum = verifyResult.order?.orderNumber || paymentData.orderNumber || 'Confirmed';
               setActiveOrderId(null);
               setActiveOrder(null);
               clearCart();
-              setCheckoutNotice(
-                `Payment verified & order #${verifyResult.order?.orderNumber || paymentData.orderNumber} confirmed!`
-              );
+              setIsCartOpen(false);
+              navigate(`/cart?confirmedOrder=${encodeURIComponent(confirmedNum)}`);
             }
           } catch (verifyErr: any) {
             // Attempt fallback reconciliation before displaying permanent error
@@ -280,12 +281,12 @@ export const CartDrawer: React.FC = () => {
               if (targetOrderId) {
                 const reconcileResult = await reconcileRazorpayPayment(token, { orderId: targetOrderId });
                 if (reconcileResult.success && (reconcileResult.reconciled || reconcileResult.alreadyPaid)) {
+                  const confirmedNum = reconcileResult.order?.orderNumber || paymentData.orderNumber || 'Confirmed';
                   setActiveOrderId(null);
                   setActiveOrder(null);
                   clearCart();
-                  setCheckoutNotice(
-                    `Payment verified & order #${reconcileResult.order?.orderNumber || paymentData.orderNumber} confirmed!`
-                  );
+                  setIsCartOpen(false);
+                  navigate(`/cart?confirmedOrder=${encodeURIComponent(confirmedNum)}`);
                   return;
                 }
               }

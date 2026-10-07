@@ -57,7 +57,7 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
   const secondaryLinks = [
     { name: 'Track Order', path: '/track', icon: SearchNormal },
     { name: 'Pre-Order Updates', path: '/pre-orders', icon: Clock },
-    { name: 'Return & Exchange', path: '/returns', icon: RotateLeft },
+    { name: '7-Day Return Policy', path: '/returns', icon: RotateLeft },
     { name: 'Contact Us', path: '/contact', icon: HelpCircle },
   ];
 

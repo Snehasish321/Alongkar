@@ -101,7 +101,7 @@ export const Footer: React.FC = () => {
             <div>
               <h4 className="text-xs uppercase tracking-[0.22em] text-[#FFE3C7] font-extrabold mb-3 drop-shadow-sm">Privileges & Terms</h4>
               <ul className="space-y-2 text-xs text-[#FDF8F0]/90 font-normal">
-                <li><Link to="/returns" className="hover:text-[#FFE3C7] transition-colors">7-Day Return & Exchange</Link></li>
+                <li><Link to="/returns" className="hover:text-[#FFE3C7] transition-colors">7-Day Return Policy</Link></li>
                 <li><Link to="/shipping-policy" className="hover:text-[#FFE3C7] transition-colors">Insured Shipping Policy</Link></li>
                 <li><Link to="/privacy-policy" className="hover:text-[#FFE3C7] transition-colors">Privacy Policy</Link></li>
                 <li><Link to="/terms" className="hover:text-[#FFE3C7] transition-colors">Terms of Service</Link></li>
