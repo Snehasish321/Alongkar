@@ -89,7 +89,12 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
   const PaymentIcon = paymentBadge.icon;
   const ShippingIcon = shippingBadge.icon;
 
-  const isPendingPayment = order.status === 'PENDING_PAYMENT' || order.paymentStatus === 'PENDING';
+  const isPendingPayment =
+    (order.status === 'PENDING_PAYMENT' || order.paymentStatus === 'PENDING') &&
+    order.status !== 'CANCELLED' &&
+    order.paymentStatus !== 'PAID' &&
+    order.paymentStatus !== 'REFUNDED' &&
+    order.paymentStatus !== 'PARTIALLY_REFUNDED';
 
   const formatDate = (dateValue: string | Date | undefined) => {
     if (!dateValue) return 'N/A';
@@ -248,9 +253,16 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
       role="dialog"
       aria-modal="true"
       aria-labelledby="modal-order-title"
+      data-lenis-prevent
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
     >
       <div
         className="relative w-full max-w-2xl max-h-[90vh] flex flex-col bg-[#FFFDF8] rounded-2xl border border-[#E8C98A]/40 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
+        data-lenis-prevent
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -279,13 +291,21 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
           </button>
         </div>
 
-        {/* Scrollable Body */}
-        <div className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6 text-gray-800 text-sm">
+        {/* Scrollable Body (scrollbar hidden, overscroll contained) */}
+        <div
+          className="flex-1 overflow-y-auto overscroll-y-contain p-5 sm:p-6 space-y-6 text-gray-800 text-sm [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+          style={{
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
+            overscrollBehavior: 'contain',
+          }}
+          data-lenis-prevent
+        >
           {/* Status Badges Row */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {/* Order Status */}
-            <div className="p-3 rounded-xl bg-white border border-[#E8C98A]/20 shadow-xs space-y-1.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Order Status</span>
+            <div className="p-3 rounded-xl bg-white border border-[#E8C98A]/20 shadow-xs flex flex-col items-start gap-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block">Order Status</span>
               <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${orderBadge.bgClass}`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${orderBadge.dotClass}`} />
                 <OrderIcon size={13} />
@@ -294,8 +314,8 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
             </div>
 
             {/* Payment Status */}
-            <div className="p-3 rounded-xl bg-white border border-[#E8C98A]/20 shadow-xs space-y-1.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Payment Status</span>
+            <div className="p-3 rounded-xl bg-white border border-[#E8C98A]/20 shadow-xs flex flex-col items-start gap-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block">Payment Status</span>
               <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${paymentBadge.bgClass}`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${paymentBadge.dotClass}`} />
                 <PaymentIcon size={13} />
@@ -304,8 +324,8 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
             </div>
 
             {/* Shipping Status */}
-            <div className="p-3 rounded-xl bg-white border border-[#E8C98A]/20 shadow-xs space-y-1.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Shipping Status</span>
+            <div className="p-3 rounded-xl bg-white border border-[#E8C98A]/20 shadow-xs flex flex-col items-start gap-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block">Shipping Status</span>
               <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${shippingBadge.bgClass}`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${shippingBadge.dotClass}`} />
                 <ShippingIcon size={13} />
@@ -401,6 +421,12 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
             </div>
 
             <div className="space-y-1.5 text-xs text-gray-600">
+              <div className="flex justify-between">
+                <span>Payment Method</span>
+                <span className="font-semibold text-[#28040B]">
+                  {order.paymentProvider === 'COD' ? 'Cash on Delivery (COD)' : 'Pay Online (Razorpay)'}
+                </span>
+              </div>
               <div className="flex justify-between">
                 <span>Subtotal</span>
                 <span>{formatCurrency(order.subtotal)}</span>

@@ -401,7 +401,11 @@ export const OrdersPage: React.FC = () => {
                 const PaymentIcon = paymentBadge.icon;
                 const ShippingIcon = shippingBadge.icon;
                 const isPendingPayment =
-                  order.status === 'PENDING_PAYMENT' || order.paymentStatus === 'PENDING';
+                  (order.status === 'PENDING_PAYMENT' || order.paymentStatus === 'PENDING') &&
+                  order.status !== 'CANCELLED' &&
+                  order.paymentStatus !== 'PAID' &&
+                  order.paymentStatus !== 'REFUNDED' &&
+                  order.paymentStatus !== 'PARTIALLY_REFUNDED';
                 const isPayingThisOrder = payingOrderId === order.id;
 
                 return (
@@ -416,15 +420,17 @@ export const OrdersPage: React.FC = () => {
                           <span className="font-serif font-bold text-base sm:text-lg text-[#28040B]">
                             {order.orderNumber}
                           </span>
-                          <span className="text-xs text-gray-400">•</span>
-                          <span className="text-xs text-gray-500 font-sans flex items-center gap-1">
+                        </div>
+                        <div className="flex items-center gap-1.5 text-xs text-gray-500 font-sans">
+                          <span>
+                            {order.items?.length || 0} item{(order.items?.length || 0) === 1 ? '' : 's'}
+                          </span>
+                          <span className="text-gray-300">•</span>
+                          <span className="flex items-center gap-1">
                             <Calendar size={12} className="text-[#8C6C38]" />
                             {formatDate(order.createdAt)}
                           </span>
                         </div>
-                        <p className="text-[11px] text-gray-500 font-light">
-                          {order.items?.length || 0} item{(order.items?.length || 0) === 1 ? '' : 's'} • Total: {formatCurrency(order.grandTotal)}
-                        </p>
                       </div>
 
                       {/* Status Badges Group */}
@@ -461,7 +467,7 @@ export const OrdersPage: React.FC = () => {
                     {/* Order Card Body: Items Preview */}
                     <div className="p-4 sm:p-5 divide-y divide-[#E8C98A]/15">
                       {order.items && order.items.length > 0 ? (
-                        order.items.slice(0, 3).map((item) => (
+                        order.items.slice(0, 3).map((item, itemIdx) => (
                           <div
                             key={item.id}
                             className="py-3 first:pt-0 last:pb-0 flex items-center gap-3 sm:gap-4"
@@ -486,9 +492,22 @@ export const OrdersPage: React.FC = () => {
                               </p>
                             </div>
                             <div className="text-right">
-                              <span className="font-serif font-bold text-xs sm:text-sm text-[#28040B]">
-                                {formatCurrency(item.lineTotal)}
-                              </span>
+                              {order.items && order.items.length === 1 ? (
+                                <span className="font-serif font-bold text-xs sm:text-sm text-[#28040B]">
+                                  {formatCurrency(order.grandTotal)}
+                                </span>
+                              ) : itemIdx === 0 ? (
+                                <div className="flex flex-col items-end">
+                                  <span className="text-[10px] text-gray-400 font-sans uppercase tracking-wider">Total</span>
+                                  <span className="font-serif font-bold text-xs sm:text-sm text-[#28040B]">
+                                    {formatCurrency(order.grandTotal)}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-gray-500 font-sans">
+                                  {formatCurrency(item.lineTotal)}
+                                </span>
+                              )}
                             </div>
                           </div>
                         ))

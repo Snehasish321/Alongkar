@@ -12,7 +12,7 @@ import {
   logSlowRequest,
   logSecurityEvent,
 } from './_utils/security.js';
-import { calculateAuthoritativePricing } from './_utils/pricing.js';
+import { calculateAuthoritativePricing, type PaymentMethod } from './_utils/pricing.js';
 import { Prisma } from '@prisma/client';
 
 export interface OrderValidationError {
@@ -143,6 +143,7 @@ export function validateCreateOrderPayload(body: any): {
     customerNotes?: string;
     idempotencyKey?: string;
     couponCode?: string;
+    paymentMethod?: PaymentMethod;
     items?: { productId: string; quantity: number }[];
   };
 } {
@@ -262,7 +263,22 @@ export function validateCreateOrderPayload(body: any): {
     }
   }
 
-  // 9. Explicit Items (optional override for direct checkout)
+  // 9. Payment Method (optional, defaults to RAZORPAY)
+  let paymentMethod: 'RAZORPAY' | 'COD' = 'RAZORPAY';
+  if (body.paymentMethod !== undefined && body.paymentMethod !== null && body.paymentMethod !== '') {
+    if (typeof body.paymentMethod !== 'string') {
+      errors.push({ field: 'paymentMethod', message: 'Payment method must be a string' });
+    } else {
+      const methodClean = body.paymentMethod.trim().toUpperCase();
+      if (methodClean !== 'RAZORPAY' && methodClean !== 'COD') {
+        errors.push({ field: 'paymentMethod', message: 'Payment method must be either RAZORPAY or COD' });
+      } else {
+        paymentMethod = methodClean as 'RAZORPAY' | 'COD';
+      }
+    }
+  }
+
+  // 10. Explicit Items (optional override for direct checkout)
   let items: { productId: string; quantity: number }[] | undefined = undefined;
   if (body.items !== undefined && body.items !== null) {
     if (!Array.isArray(body.items) || body.items.length === 0) {
@@ -311,6 +327,7 @@ export function validateCreateOrderPayload(body: any): {
       customerNotes,
       idempotencyKey,
       couponCode,
+      paymentMethod,
       items,
     },
   };
@@ -466,7 +483,7 @@ export default async function handler(req: any, res?: any) {
         }
       }
 
-      // Server-side authoritative price calculation using PostgreSQL product records
+      // Server-side authoritative price calculation using PostgreSQL product records and payment method rules
       const pricingItems = cartItemsToOrder.map((item) => {
         const prod = productMap.get(item.productId)!;
         return {
@@ -475,7 +492,7 @@ export default async function handler(req: any, res?: any) {
         };
       });
 
-      const pricingResult = calculateAuthoritativePricing(pricingItems, data.couponCode);
+      const pricingResult = calculateAuthoritativePricing(pricingItems, data.couponCode, data.paymentMethod);
       if (!pricingResult.success || !pricingResult.pricing) {
         return respond(
           res,
@@ -510,11 +527,18 @@ export default async function handler(req: any, res?: any) {
       const customerEmail = data.customerEmail || user.email || `${user.clerkUserId}@customer.alongkar.com`;
       const orderNumber = generateOrderNumber();
 
-      const adminNotes = pricing.coupon
+      const isCod = data.paymentMethod === 'COD';
+      const orderStatus = isCod ? 'CONFIRMED' : 'PENDING_PAYMENT';
+      const paymentStatus = 'PENDING';
+      const paymentProvider = isCod ? 'COD' : 'RAZORPAY';
+
+      const couponNotes = pricing.coupon
         ? `Applied Coupon: ${pricing.coupon.code} (${pricing.coupon.label}) - Discount: ₹${pricing.discountTotal}`
         : null;
+      const paymentNotes = isCod ? `Payment Method: Cash on Delivery` : `Payment Method: Online (Razorpay)`;
+      const adminNotes = [couponNotes, paymentNotes].filter(Boolean).join(' | ');
 
-      // Execute atomic transaction: Create Order + OrderItems + Clear Cart (if cart checkout)
+      // Execute atomic transaction: Create Order + OrderItems + Clear Cart (for COD orders)
       const createdOrder = await withTimeout(
         prisma.$transaction(
           async (tx) => {
@@ -522,9 +546,10 @@ export default async function handler(req: any, res?: any) {
               data: {
                 orderNumber,
                 userId: user.id,
-                status: 'PENDING_PAYMENT',
-                paymentStatus: 'PENDING',
+                status: orderStatus,
+                paymentStatus,
                 shippingStatus: 'NOT_READY',
+                paymentProvider,
                 subtotal: pricing.subtotalDec,
                 discountTotal: pricing.discountTotalDec,
                 shippingFee: pricing.shippingFeeDec,
@@ -548,7 +573,7 @@ export default async function handler(req: any, res?: any) {
                 billingCountry: data.billingAddress?.country || null,
                 idempotencyKey: data.idempotencyKey || null,
                 customerNotes: data.customerNotes || null,
-                adminNotes: adminNotes,
+                adminNotes,
                 items: {
                   create: orderItemsData,
                 },
@@ -557,6 +582,13 @@ export default async function handler(req: any, res?: any) {
                 items: true,
               },
             });
+
+            // For COD orders, clear cart atomically upon successful order creation
+            if (isCod && userCart?.id) {
+              await tx.cartItem.deleteMany({
+                where: { cartId: userCart.id },
+              });
+            }
 
             return newOrder;
           },

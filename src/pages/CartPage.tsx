@@ -27,7 +27,9 @@ import { productsData } from '../data/products';
 import { ProductCard } from '../components/products/ProductCard';
 import { loadRazorpayScript, openRazorpayCheckout } from '../lib/razorpay';
 import { verifyRazorpayPayment, reconcileRazorpayPayment } from '../services/orderApi';
+import { PaymentMethodModal } from '../components/checkout/PaymentMethodModal';
 import type {
+  PaymentMethod,
   RazorpayPaymentOrderResponse,
   RazorpayCheckoutOptions,
   RazorpayPaymentSuccessResponse,
@@ -77,7 +79,10 @@ export const CartPage: React.FC = () => {
   const [couponError, setCouponError] = useState<string | null>(null);
   const [couponSuccess, setCouponSuccess] = useState<string | null>(null);
 
-  // Razorpay Checkout states
+  // Payment Selection Modal State
+  const [isPaymentMethodModalOpen, setIsPaymentMethodModalOpen] = useState(false);
+
+  // Checkout states
   const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [checkoutNotice, setCheckoutNotice] = useState<string | null>(null);
@@ -105,11 +110,10 @@ export const CartPage: React.FC = () => {
   );
   const mrpSavings = Math.max(0, totalMRP - subtotal);
 
-  // Coupon discount calculation
+  // Coupon discount calculation for display in cart
   let couponDiscount = 0;
   if (appliedCoupon) {
     if (appliedCoupon.minOrder && subtotal < appliedCoupon.minOrder) {
-      // Order fell below minimum
       couponDiscount = 0;
     } else if (appliedCoupon.discountPercent) {
       couponDiscount = Math.round((subtotal * appliedCoupon.discountPercent) / 100);
@@ -173,22 +177,25 @@ export const CartPage: React.FC = () => {
     setCouponError(null);
   };
 
-  const handleProceedToCheckout = async () => {
-    if (isProcessingCheckout) return;
-
+  const handleOpenCheckout = () => {
     if (!isSignedIn) {
       setCheckoutNotice('Please sign in to complete your secure checkout.');
       clerk.openSignIn();
       return;
     }
 
-    // Step A: Determine if we are continuing an active pending order or creating a new order from cart
-    let orderIdToPay = activeOrderId;
-
-    if (!orderIdToPay && (cart.length === 0 || totalAmount <= 0)) {
+    if (cart.length === 0 || totalAmount <= 0) {
       setCheckoutError('Your bag is currently empty.');
       return;
     }
+
+    setCheckoutError(null);
+    setCheckoutNotice(null);
+    setIsPaymentMethodModalOpen(true);
+  };
+
+  const handleConfirmPaymentMethod = async (selectedMethod: PaymentMethod) => {
+    if (isProcessingCheckout) return;
 
     setIsProcessingCheckout(true);
     setCheckoutError(null);
@@ -200,14 +207,14 @@ export const CartPage: React.FC = () => {
         throw new Error('Authentication session expired. Please sign in again.');
       }
 
-      // Step B: Ensure an Alongkar PENDING_PAYMENT order exists (create if not already active in session)
-      if (!orderIdToPay) {
-        const idempotencyKey = `chk_${user?.id || 'usr'}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-        const customerName = user?.fullName || user?.firstName || 'Alongkar Client';
-        const rawPhone = user?.primaryPhoneNumber?.phoneNumber || '9876543210';
-        const customerPhone = rawPhone.replace(/[^0-9]/g, '').slice(-10) || '9876543210';
-        const customerEmail = user?.primaryEmailAddress?.emailAddress || undefined;
+      const idempotencyKey = `chk_${user?.id || 'usr'}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+      const customerName = user?.fullName || user?.firstName || 'Alongkar Client';
+      const rawPhone = user?.primaryPhoneNumber?.phoneNumber || '9876543210';
+      const customerPhone = rawPhone.replace(/[^0-9]/g, '').slice(-10) || '9876543210';
+      const customerEmail = user?.primaryEmailAddress?.emailAddress || undefined;
 
+      // Case A: Cash on Delivery
+      if (selectedMethod === 'COD') {
         const orderCreateRes = await fetch('/api/orders', {
           method: 'POST',
           headers: {
@@ -227,6 +234,54 @@ export const CartPage: React.FC = () => {
             },
             idempotencyKey,
             couponCode: appliedCoupon?.code || undefined,
+            paymentMethod: 'COD',
+          }),
+        });
+
+        if (!orderCreateRes.ok) {
+          const errPayload = await orderCreateRes.json().catch(() => ({}));
+          throw new Error(errPayload?.error || 'Unable to place Cash on Delivery order. Please try again.');
+        }
+
+        const orderData = await orderCreateRes.json();
+        const createdOrder = orderData?.order;
+        const confirmedNum = createdOrder?.orderNumber || 'Confirmed';
+
+        setIsPaymentMethodModalOpen(false);
+        setConfirmedOrderNumber(confirmedNum);
+        setActiveOrderId(null);
+        clearCart();
+        setCheckoutNotice(
+          `Your Cash on Delivery order #${confirmedNum} has been placed successfully! Our team will prepare your shipment.`
+        );
+        setIsProcessingCheckout(false);
+        return;
+      }
+
+      // Case B: Razorpay Online Payment
+      let orderIdToPay = activeOrderId;
+
+      if (!orderIdToPay) {
+        const orderCreateRes = await fetch('/api/orders', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            customerName,
+            customerPhone,
+            customerEmail,
+            shippingAddress: {
+              line1: 'Alongkar Registered Client Address',
+              city: 'Kolkata',
+              state: 'West Bengal',
+              pincode: '700001',
+              country: 'India',
+            },
+            idempotencyKey,
+            couponCode: appliedCoupon?.code || undefined,
+            paymentMethod: 'RAZORPAY',
           }),
         });
 
@@ -242,11 +297,10 @@ export const CartPage: React.FC = () => {
           throw new Error('Server did not return a valid order ID.');
         }
 
-        // Store active order ID so subsequent retries reuse the same pending order
         setActiveOrderId(orderIdToPay);
       }
 
-      // Step C: Request Razorpay payment order initiation from server
+      // Request Razorpay payment order initiation
       const paymentOrderRes = await fetch('/api/payments/razorpay/order', {
         method: 'POST',
         headers: {
@@ -265,9 +319,9 @@ export const CartPage: React.FC = () => {
 
       const paymentData: RazorpayPaymentOrderResponse = await paymentOrderRes.json();
 
-      // If server confirmed order was already paid on gateway, reconcile without reopening checkout
       if (paymentData.alreadyPaid) {
         const confirmedNum = paymentData.order?.orderNumber || paymentData.orderNumber || 'Confirmed';
+        setIsPaymentMethodModalOpen(false);
         setConfirmedOrderNumber(confirmedNum);
         setActiveOrderId(null);
         clearCart();
@@ -282,7 +336,6 @@ export const CartPage: React.FC = () => {
         throw new Error('Invalid payment configuration received from server.');
       }
 
-      // Step D: Load Razorpay script dynamically & open Standard Checkout modal
       const scriptReady = await loadRazorpayScript();
       if (!scriptReady) {
         throw new Error('Unable to load payment gateway script. Please check your network connection.');
@@ -337,21 +390,20 @@ export const CartPage: React.FC = () => {
                 alongkarOrderId: targetOrderId,
               });
               const confirmedNum = verifyResult.order?.orderNumber || paymentData.orderNumber || 'Confirmed';
+              setIsPaymentMethodModalOpen(false);
               setConfirmedOrderNumber(confirmedNum);
               setActiveOrderId(null);
               clearCart();
-              setCheckoutNotice(
-                `Payment verified & order #${confirmedNum} confirmed!`
-              );
+              setCheckoutNotice(`Payment verified & order #${confirmedNum} confirmed!`);
             }
           } catch (verifyErr: any) {
-            // Attempt server-side reconciliation recovery before displaying permanent error
             try {
               const targetOrderId = paymentData.alongkarOrderId || orderIdToPay;
               if (targetOrderId) {
                 const reconcileResult = await reconcileRazorpayPayment(token, { orderId: targetOrderId });
                 if (reconcileResult.success && (reconcileResult.reconciled || reconcileResult.alreadyPaid)) {
                   const confirmedNum = reconcileResult.order?.orderNumber || paymentData.orderNumber || 'Confirmed';
+                  setIsPaymentMethodModalOpen(false);
                   setConfirmedOrderNumber(confirmedNum);
                   setActiveOrderId(null);
                   clearCart();
@@ -360,7 +412,7 @@ export const CartPage: React.FC = () => {
                 }
               }
             } catch {
-              // Ignore fallback reconciliation failure and display verification error
+              // Ignore fallback failure
             }
             setCheckoutError(verifyErr.message || 'Payment verification failed. Please try again.');
           } finally {
@@ -369,6 +421,7 @@ export const CartPage: React.FC = () => {
         },
       };
 
+      setIsPaymentMethodModalOpen(false);
       await openRazorpayCheckout(checkoutOptions, (failedResponse) => {
         setIsProcessingCheckout(false);
         const failDescription = failedResponse?.error?.description || 'Payment was unsuccessful. Please try again.';
@@ -931,7 +984,7 @@ export const CartPage: React.FC = () => {
                     <button
                       type="button"
                       disabled={isProcessingCheckout}
-                      onClick={handleProceedToCheckout}
+                      onClick={handleOpenCheckout}
                       className="w-full py-4 px-6 rounded-xl bg-[#211A17] text-[#FAF7F2] text-xs sm:text-sm font-semibold uppercase tracking-[0.2em] hover:bg-[#3D0010] active:scale-[0.99] transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-[#211A17]/10 cursor-pointer group disabled:opacity-75 disabled:cursor-not-allowed"
                     >
                       {isProcessingCheckout ? (
@@ -983,6 +1036,18 @@ export const CartPage: React.FC = () => {
           )}
 
         </main>
+
+        {/* Dedicated Payment Method Selection Modal */}
+        <PaymentMethodModal
+          isOpen={isPaymentMethodModalOpen}
+          onClose={() => setIsPaymentMethodModalOpen(false)}
+          subtotal={subtotal}
+          shippingFee={shippingFee}
+          isFreeShipping={isFreeShipping}
+          appliedCoupon={appliedCoupon}
+          onConfirm={handleConfirmPaymentMethod}
+          isProcessing={isProcessingCheckout}
+        />
       </div>
     </StorefrontLayout>
   );

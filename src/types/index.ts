@@ -170,6 +170,8 @@ export interface Order {
   items: OrderItem[];
 }
 
+export type PaymentMethod = 'RAZORPAY' | 'COD';
+
 export interface CreateOrderInput {
   customerName: string;
   customerPhone: string;
@@ -193,6 +195,7 @@ export interface CreateOrderInput {
   customerNotes?: string;
   idempotencyKey: string;
   couponCode?: string;
+  paymentMethod?: PaymentMethod;
   items?: { productId: string; quantity: number }[];
 }
 
