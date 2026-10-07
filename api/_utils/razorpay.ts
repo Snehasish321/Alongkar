@@ -197,7 +197,7 @@ export async function transitionOrderToPaid(
         throw new Error('ORDER_REFUNDED');
       }
 
-      return await tx.order.update({
+      const updatedOrder = await tx.order.update({
         where: { id: freshOrder.id },
         data: {
           paymentStatus: 'PAID',
@@ -208,6 +208,20 @@ export async function transitionOrderToPaid(
           paymentFailureReason: null,
         },
       });
+
+      // Clear customer's persistent cart upon successful server payment confirmation
+      if (freshOrder.userId) {
+        const userCart = await tx.cart.findUnique({
+          where: { userId: freshOrder.userId },
+        });
+        if (userCart) {
+          await tx.cartItem.deleteMany({
+            where: { cartId: userCart.id },
+          });
+        }
+      }
+
+      return updatedOrder;
     }),
     DEFAULT_DB_TIMEOUT_MS,
     'transition_order_to_paid_tx'

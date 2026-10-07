@@ -76,6 +76,18 @@ export const CartDrawer: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isCartOpen, setIsCartOpen]);
 
+  const handleRemoveItem = (productId: string) => {
+    setActiveOrderId(null);
+    setActiveOrder(null);
+    removeFromCart(productId);
+  };
+
+  const handleUpdateQuantity = (productId: string, quantity: number) => {
+    setActiveOrderId(null);
+    setActiveOrder(null);
+    updateQuantity(productId, quantity);
+  };
+
   const handleProceedToCheckout = async () => {
     if (isProcessingCheckout) return;
 
@@ -86,8 +98,7 @@ export const CartDrawer: React.FC = () => {
     }
 
     // Step A: Determine if we are continuing an active pending order or creating a new order from cart.
-    // If new cart items exist, we checkout the active cart. If cart was cleared by order creation, we use activeOrderId.
-    let orderIdToPay = cart.length > 0 ? null : activeOrderId;
+    let orderIdToPay = activeOrderId;
 
     if (!orderIdToPay && (cart.length === 0 || totalAmount <= 0)) {
       setCheckoutError('Your bag is currently empty.');
@@ -445,7 +456,7 @@ export const CartDrawer: React.FC = () => {
                         {product.name}
                       </h4>
                       <button
-                        onClick={() => removeFromCart(product.id)}
+                        onClick={() => handleRemoveItem(product.id)}
                         className="text-gray-400 hover:text-burgundy transition-colors p-1"
                         aria-label="Remove item"
                       >
@@ -461,7 +472,7 @@ export const CartDrawer: React.FC = () => {
                     {/* Quantity Counter */}
                     <div className="flex items-center border border-espresso/20 rounded-brand bg-ivory-pearl">
                       <button
-                        onClick={() => updateQuantity(product.id, quantity - 1)}
+                        onClick={() => handleUpdateQuantity(product.id, quantity - 1)}
                         className="p-1 hover:bg-gold/10 text-espresso transition-colors"
                         aria-label="Decrease quantity"
                       >
@@ -469,7 +480,7 @@ export const CartDrawer: React.FC = () => {
                       </button>
                       <span className="px-2.5 text-xs font-semibold">{quantity}</span>
                       <button
-                        onClick={() => updateQuantity(product.id, quantity + 1)}
+                        onClick={() => handleUpdateQuantity(product.id, quantity + 1)}
                         className="p-1 hover:bg-gold/10 text-espresso transition-colors"
                         aria-label="Increase quantity"
                       >

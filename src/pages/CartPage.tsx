@@ -121,6 +121,21 @@ export const CartPage: React.FC = () => {
   const finalPayable = Math.max(0, subtotal - couponDiscount + shippingFee);
   const totalSavings = mrpSavings + couponDiscount + (isFreeShipping && subtotal > 0 ? 60 : 0);
 
+  const handleRemoveItem = (productId: string) => {
+    setActiveOrderId(null);
+    removeFromCart(productId);
+  };
+
+  const handleUpdateQuantity = (productId: string, quantity: number) => {
+    setActiveOrderId(null);
+    updateQuantity(productId, quantity);
+  };
+
+  const handleClearCart = () => {
+    setActiveOrderId(null);
+    clearCart();
+  };
+
   const handleApplyCoupon = (e: React.FormEvent) => {
     e.preventDefault();
     setCouponError(null);
@@ -146,12 +161,14 @@ export const CartPage: React.FC = () => {
     }
 
     setAppliedCoupon(matched);
+    setActiveOrderId(null);
     setCouponSuccess(`Code "${matched.code}" applied! ${matched.label}`);
     setCouponInput('');
   };
 
   const handleRemoveCoupon = () => {
     setAppliedCoupon(null);
+    setActiveOrderId(null);
     setCouponSuccess(null);
     setCouponError(null);
   };
@@ -166,7 +183,7 @@ export const CartPage: React.FC = () => {
     }
 
     // Step A: Determine if we are continuing an active pending order or creating a new order from cart
-    let orderIdToPay = cart.length > 0 ? null : activeOrderId;
+    let orderIdToPay = activeOrderId;
 
     if (!orderIdToPay && (cart.length === 0 || totalAmount <= 0)) {
       setCheckoutError('Your bag is currently empty.');
@@ -601,7 +618,7 @@ export const CartPage: React.FC = () => {
                             <div className="flex items-center gap-4 mt-3 pt-2">
                               <button
                                 type="button"
-                                onClick={() => removeFromCart(product.id)}
+                                onClick={() => handleRemoveItem(product.id)}
                                 className="inline-flex items-center gap-1 text-[11px] text-neutral-400 hover:text-red-700 transition-colors cursor-pointer"
                                 aria-label={`Remove ${product.name} from bag`}
                               >
@@ -631,7 +648,7 @@ export const CartPage: React.FC = () => {
                           <div className="inline-flex items-center border border-[#211A17]/20 rounded-lg bg-white overflow-hidden shadow-2xs">
                             <button
                               type="button"
-                              onClick={() => updateQuantity(product.id, quantity - 1)}
+                              onClick={() => handleUpdateQuantity(product.id, quantity - 1)}
                               className="w-8 h-8 flex items-center justify-center text-neutral-600 hover:bg-[#FAF7F2] hover:text-[#211A17] transition-colors cursor-pointer"
                               aria-label="Decrease quantity"
                             >
@@ -642,7 +659,7 @@ export const CartPage: React.FC = () => {
                             </span>
                             <button
                               type="button"
-                              onClick={() => updateQuantity(product.id, quantity + 1)}
+                              onClick={() => handleUpdateQuantity(product.id, quantity + 1)}
                               className="w-8 h-8 flex items-center justify-center text-neutral-600 hover:bg-[#FAF7F2] hover:text-[#211A17] transition-colors cursor-pointer"
                               aria-label="Increase quantity"
                             >
@@ -671,7 +688,7 @@ export const CartPage: React.FC = () => {
                   <div className="px-6 py-4 bg-[#FAF7F2]/60 flex items-center justify-between flex-wrap gap-3">
                     <button
                       type="button"
-                      onClick={clearCart}
+                      onClick={handleClearCart}
                       className="text-xs text-neutral-500 hover:text-red-700 transition-colors cursor-pointer flex items-center gap-1.5"
                     >
                       <Trash2 size={13} />

@@ -558,13 +558,6 @@ export default async function handler(req: any, res?: any) {
               },
             });
 
-            // If ordered from userCart, clear the cart items atomically
-            if (userCart && userCart.id) {
-              await tx.cartItem.deleteMany({
-                where: { cartId: userCart.id },
-              });
-            }
-
             return newOrder;
           },
           {
