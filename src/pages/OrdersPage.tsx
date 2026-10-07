@@ -402,7 +402,10 @@ export const OrdersPage: React.FC = () => {
                 const ShippingIcon = shippingBadge.icon;
                 const isPendingPayment =
                   (order.status === 'PENDING_PAYMENT' || order.paymentStatus === 'PENDING') &&
-                  order.paymentProvider !== 'COD';
+                  order.status !== 'CANCELLED' &&
+                  order.paymentStatus !== 'PAID' &&
+                  order.paymentStatus !== 'REFUNDED' &&
+                  order.paymentStatus !== 'PARTIALLY_REFUNDED';
                 const isPayingThisOrder = payingOrderId === order.id;
 
                 return (

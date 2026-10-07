@@ -91,7 +91,10 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
 
   const isPendingPayment =
     (order.status === 'PENDING_PAYMENT' || order.paymentStatus === 'PENDING') &&
-    order.paymentProvider !== 'COD';
+    order.status !== 'CANCELLED' &&
+    order.paymentStatus !== 'PAID' &&
+    order.paymentStatus !== 'REFUNDED' &&
+    order.paymentStatus !== 'PARTIALLY_REFUNDED';
 
   const formatDate = (dateValue: string | Date | undefined) => {
     if (!dateValue) return 'N/A';

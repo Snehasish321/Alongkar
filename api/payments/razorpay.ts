@@ -143,11 +143,11 @@ export async function handleCreatePaymentOrder(req: any, res: any, inRequestId?:
       );
     }
 
-    if (order.status !== 'PENDING_PAYMENT') {
+    if (order.status !== 'PENDING_PAYMENT' && order.status !== 'CONFIRMED') {
       return respond(
         res,
         400,
-        { error: `Order is not eligible for payment: Order status is ${order.status}. Only PENDING_PAYMENT orders can be paid.` },
+        { error: `Order is not eligible for payment: Order status is ${order.status}. Only orders with pending payment can be paid.` },
         { 'X-Request-ID': requestId }
       );
     }
