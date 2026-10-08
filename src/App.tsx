@@ -43,6 +43,12 @@ const ReturnPolicyPage = lazy(() =>
 const PrivacyPolicyPage = lazy(() =>
   import('./pages/PrivacyPolicyPage').then((m) => ({ default: m.PrivacyPolicyPage }))
 );
+const TermsOfServicePage = lazy(() =>
+  import('./pages/TermsOfServicePage').then((m) => ({ default: m.TermsOfServicePage }))
+);
+const ShippingPolicyPage = lazy(() =>
+  import('./pages/ShippingPolicyPage').then((m) => ({ default: m.ShippingPolicyPage }))
+);
 const AdminRouteGuard = lazy(() =>
   import('./components/admin/AdminRouteGuard').then((m) => ({ default: m.AdminRouteGuard }))
 );
@@ -129,6 +135,10 @@ export const AppContent: React.FC = () => {
             }
           />
           <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+          <Route path="/terms" element={<TermsOfServicePage />} />
+          <Route path="/terms-of-service" element={<TermsOfServicePage />} />
+          <Route path="/shipping-policy" element={<ShippingPolicyPage />} />
+          <Route path="/insured-shipping-policy" element={<ShippingPolicyPage />} />
 
           {/* Protected Alongkar Atelier Admin Dashboard */}
           <Route
