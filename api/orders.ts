@@ -534,11 +534,14 @@ export default async function handler(req: any, res?: any) {
       const paymentStatus = 'PENDING';
       const paymentProvider = isCod ? 'COD' : 'RAZORPAY';
 
-      const couponNotes = pricing.coupon
-        ? `Applied Coupon: ${pricing.coupon.code} (${pricing.coupon.label}) - Discount: ₹${pricing.discountTotal}`
+      const couponNotes = pricing.regularCouponCode && pricing.coupon
+        ? `Applied Coupon: ${pricing.coupon.code} (${pricing.coupon.label}) - Discount: ₹${pricing.regularCouponDiscount}`
+        : null;
+      const prepaidNotes = pricing.prepaid5Discount > 0
+        ? `Prepaid Incentive (PREPAID5): ₹${pricing.prepaid5Discount}`
         : null;
       const paymentNotes = isCod ? `Payment Method: Cash on Delivery` : `Payment Method: Online (Razorpay)`;
-      const adminNotes = [couponNotes, paymentNotes].filter(Boolean).join(' | ');
+      const adminNotes = [couponNotes, prepaidNotes, paymentNotes].filter(Boolean).join(' | ');
 
       // Execute atomic transaction: Create Order + OrderItems + Clear Cart (for COD orders)
       const createdOrder = await withTimeout(

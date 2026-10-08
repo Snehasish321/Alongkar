@@ -122,13 +122,13 @@ async function runPaymentSelectionPhase1LTests() {
     assert(codPricing.pricing?.discountTotal === 0, 'COD discountTotal is ₹0 for PREPAID5');
     assert(codPricing.pricing?.grandTotal === 999, 'COD grandTotal is ₹999 (full price, no PREPAID5 discount)');
 
-    // 1.4 Non-payment-method-dependent coupons (e.g. ALONGKAR10) apply to both
+    // 1.4 Non-payment-method-dependent coupons (e.g. ALONGKAR10) stack with PREPAID5 on RAZORPAY, but not on COD
     const rzpAlongkar = calculateAuthoritativePricing([{ unitPrice: 1000, quantity: 1 }], 'ALONGKAR10', 'RAZORPAY');
-    assert(rzpAlongkar.pricing?.discountTotal === 100, 'ALONGKAR10 gives 10% (₹100) discount on RAZORPAY');
-    assert(rzpAlongkar.pricing?.grandTotal === 900, 'ALONGKAR10 gives ₹900 grandTotal on RAZORPAY');
+    assert(rzpAlongkar.pricing?.discountTotal === 145, 'ALONGKAR10 stacks with PREPAID5: gives ₹145 (₹100 + ₹45) discount on RAZORPAY');
+    assert(rzpAlongkar.pricing?.grandTotal === 855, 'ALONGKAR10 gives ₹855 grandTotal on RAZORPAY');
 
     const codAlongkar = calculateAuthoritativePricing([{ unitPrice: 1000, quantity: 1 }], 'ALONGKAR10', 'COD');
-    assert(codAlongkar.pricing?.discountTotal === 100, 'ALONGKAR10 gives 10% (₹100) discount on COD');
+    assert(codAlongkar.pricing?.discountTotal === 100, 'ALONGKAR10 gives 10% (₹100) discount on COD (PREPAID5 is ₹0)');
     assert(codAlongkar.pricing?.grandTotal === 900, 'ALONGKAR10 gives ₹900 grandTotal on COD');
 
     // ──────────────────────────────────────────────────────────────────────────

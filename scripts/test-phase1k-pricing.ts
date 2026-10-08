@@ -16,7 +16,6 @@ import {
   validateAndCalculateCoupon,
   calculateShippingFee,
   calculateAuthoritativePricing,
-  PROMO_CODES,
   FREE_SHIPPING_THRESHOLD,
   STANDARD_SHIPPING_FEE,
 } from '../api/_utils/pricing.js';
@@ -148,20 +147,20 @@ async function runPhase1KTests() {
   assert(unknownCouponRes.isValid === false, 'Unknown coupon is marked invalid');
   assert(unknownCouponRes.discountAmount === 0, 'Unknown coupon gives 0 discount');
 
-  // Authoritative Order Pricing Calculation
+  // Authoritative Order Pricing Calculation (ALONGKAR10 + RAZORPAY default stacking)
   const orderPricingRes = calculateAuthoritativePricing(
     [
       { unitPrice: 1200, quantity: 2 }, // 2400
       { unitPrice: 300, quantity: 1 },  // 300 -> subtotal = 2700
     ],
-    'ALONGKAR10' // 10% of 2700 = 270
+    'ALONGKAR10' // 10% of 2700 = 270, remaining 2430 * 5% = 122 -> total discount 392
   );
   assert(orderPricingRes.success === true, 'calculateAuthoritativePricing succeeds');
   if (orderPricingRes.pricing) {
     assert(orderPricingRes.pricing.subtotal === 2700, 'Subtotal is exactly ₹2700');
-    assert(orderPricingRes.pricing.discountTotal === 270, 'Discount is exactly ₹270 (10%)');
+    assert(orderPricingRes.pricing.discountTotal === 392, 'Discount is exactly ₹392 (₹270 ALONGKAR10 + ₹122 PREPAID5)');
     assert(orderPricingRes.pricing.shippingFee === 0, 'Shipping is ₹0 (subtotal >= 499)');
-    assert(orderPricingRes.pricing.grandTotal === 2430, 'Grand total is exactly ₹2430 (2700 - 270 + 0)');
+    assert(orderPricingRes.pricing.grandTotal === 2308, 'Grand total is exactly ₹2308 (2700 - 392 + 0)');
   }
 
   // ==========================================================================
@@ -265,6 +264,7 @@ async function runPhase1KTests() {
         pincode: '700001',
       },
       idempotencyKey: `tamper_price_${Date.now()}`,
+      paymentMethod: 'COD',
       items: [
         {
           productId: productHigh.id,
@@ -309,6 +309,7 @@ async function runPhase1KTests() {
         pincode: '700001',
       },
       idempotencyKey: `tamper_shipping_${Date.now()}`,
+      paymentMethod: 'COD',
       items: [
         {
           productId: productLow.id, // Price is ₹350 (< ₹499 threshold)
@@ -345,6 +346,7 @@ async function runPhase1KTests() {
         pincode: '700001',
       },
       idempotencyKey: `tamper_discount_${Date.now()}`,
+      paymentMethod: 'COD',
       items: [
         {
           productId: productMid.id, // Price is ₹1500
@@ -372,7 +374,7 @@ async function runPhase1KTests() {
   // ==========================================================================
   console.log('\n--- 4. Testing Server-Side Coupon Calculations & Validation ---');
 
-  // Test 4.1: ALONGKAR10 (10% discount on ₹1500 = ₹150)
+  // Test 4.1: ALONGKAR10 (10% discount on ₹1500 = ₹150 + 5% PREPAID5 on ₹1350 = ₹68 -> total ₹218)
   const reqAlongkar10 = createMockReq({
     method: 'POST',
     user: user1,
@@ -398,9 +400,9 @@ async function runPhase1KTests() {
   if (alongkar10Order) {
     createdOrderIds.push(alongkar10Order.id);
     assert(alongkar10Order.subtotal === 1500, 'Subtotal is ₹1500');
-    assert(alongkar10Order.discountTotal === 150, 'Authoritative discountTotal is ₹150 (10% of 1500)');
+    assert(alongkar10Order.discountTotal === 218, 'Authoritative discountTotal is ₹218 (₹150 ALONGKAR10 + ₹68 PREPAID5)');
     assert(alongkar10Order.shippingFee === 0, 'Shipping fee is ₹0 (subtotal >= 499)');
-    assert(alongkar10Order.grandTotal === 1350, 'Authoritative grandTotal is ₹1350 (1500 - 150)');
+    assert(alongkar10Order.grandTotal === 1282, 'Authoritative grandTotal is ₹1282 (1500 - 218)');
   }
 
   // Test 4.2: PREPAID5 (5% discount on ₹1500 = ₹75)
@@ -433,7 +435,7 @@ async function runPhase1KTests() {
     assert(prepaid5Order.grandTotal === 1425, 'Authoritative grandTotal is ₹1425 (1500 - 75)');
   }
 
-  // Test 4.3: FESTIVE500 on eligible subtotal (₹3200 >= ₹2500 -> ₹500 off)
+  // Test 4.3: FESTIVE500 on eligible subtotal (₹3200 >= ₹2500 -> ₹500 off + ₹135 PREPAID5 on ₹2700 = ₹635 off)
   const reqFestiveEligible = createMockReq({
     method: 'POST',
     user: user1,
@@ -459,8 +461,8 @@ async function runPhase1KTests() {
   if (festiveOrder) {
     createdOrderIds.push(festiveOrder.id);
     assert(festiveOrder.subtotal === 3200, 'Subtotal is ₹3200');
-    assert(festiveOrder.discountTotal === 500, 'Authoritative discountTotal is ₹500');
-    assert(festiveOrder.grandTotal === 2700, 'Authoritative grandTotal is ₹2700 (3200 - 500)');
+    assert(festiveOrder.discountTotal === 635, 'Authoritative discountTotal is ₹635 (₹500 FESTIVE500 + ₹135 PREPAID5)');
+    assert(festiveOrder.grandTotal === 2565, 'Authoritative grandTotal is ₹2565 (3200 - 635)');
   }
 
   // Test 4.4: FESTIVE500 on ineligible subtotal (₹1500 < ₹2500 -> rejected with 400)
@@ -491,7 +493,7 @@ async function runPhase1KTests() {
     'Clear minimum subtotal validation error returned'
   );
 
-  // Test 4.5: WELCOME100 on eligible subtotal (₹1500 >= ₹999 -> ₹100 off)
+  // Test 4.5: WELCOME100 on eligible subtotal (₹1500 >= ₹999 -> ₹100 off + ₹70 PREPAID5 on ₹1400 = ₹170 off)
   const reqWelcomeEligible = createMockReq({
     method: 'POST',
     user: user1,
@@ -517,8 +519,8 @@ async function runPhase1KTests() {
   if (welcomeOrder) {
     createdOrderIds.push(welcomeOrder.id);
     assert(welcomeOrder.subtotal === 1500, 'Subtotal is ₹1500');
-    assert(welcomeOrder.discountTotal === 100, 'Authoritative discountTotal is ₹100');
-    assert(welcomeOrder.grandTotal === 1400, 'Authoritative grandTotal is ₹1400 (1500 - 100)');
+    assert(welcomeOrder.discountTotal === 170, 'Authoritative discountTotal is ₹170 (₹100 WELCOME100 + ₹70 PREPAID5)');
+    assert(welcomeOrder.grandTotal === 1330, 'Authoritative grandTotal is ₹1330 (1500 - 170)');
   }
 
   // Test 4.6: WELCOME100 on ineligible subtotal (₹350 < ₹999 -> rejected with 400)
@@ -569,7 +571,7 @@ async function runPhase1KTests() {
   const normOrder = resNormCoupon.data?.order;
   if (normOrder) {
     createdOrderIds.push(normOrder.id);
-    assert(normOrder.discountTotal === 150, 'Calculated 10% discount from normalized code');
+    assert(normOrder.discountTotal === 218, 'Calculated 10% discount + 5% PREPAID5 from normalized code');
   }
 
   // Test 4.8: Invalid/bogus coupon code returns 400 Bad Request
@@ -621,8 +623,8 @@ async function runPhase1KTests() {
     assert(resRzpOrder.data?.success === true, 'Razorpay order creation returned success: true');
     assert(typeof resRzpOrder.data?.razorpayOrderId === 'string', 'Valid razorpayOrderId returned');
     assert(
-      resRzpOrder.data?.amount === 135000,
-      'Razorpay order amount is exactly 135000 paise (₹1350.00 authoritative Order.grandTotal * 100)'
+      resRzpOrder.data?.amount === 128200,
+      'Razorpay order amount is exactly 128200 paise (₹1282.00 authoritative Order.grandTotal * 100)'
     );
   }
 
@@ -668,9 +670,9 @@ async function runPhase1KTests() {
   if (cartOrder) {
     createdOrderIds.push(cartOrder.id);
     assert(cartOrder.subtotal === 3350, 'Authoritative subtotal calculated from user cart items (₹3350)');
-    assert(cartOrder.discountTotal === 500, 'Authoritative coupon discount applied (₹500)');
+    assert(cartOrder.discountTotal === 643, 'Authoritative coupon discount applied (₹500 FESTIVE500 + ₹143 PREPAID5 on ₹2850)');
     assert(cartOrder.shippingFee === 0, 'Authoritative shipping fee is ₹0 (subtotal >= 499)');
-    assert(cartOrder.grandTotal === 2850, 'Authoritative grandTotal is ₹2850 (3350 - 500)');
+    assert(cartOrder.grandTotal === 2707, 'Authoritative grandTotal is ₹2707 (3350 - 643)');
 
     // Verify DB cart remains persistent upon PENDING_PAYMENT order creation
     const remainingCartItems = await prisma.cartItem.findMany({

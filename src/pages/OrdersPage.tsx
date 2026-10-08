@@ -27,6 +27,7 @@ import {
   getOrderStatusBadgeInfo,
   getPaymentStatusBadgeInfo,
   getShippingStatusBadgeInfo,
+  getPaymentMethodBadgeInfo,
 } from '../lib/order-status';
 import { CustomerOrderDetailModal } from '../components/orders/CustomerOrderDetailModal';
 import { loadRazorpayScript, openRazorpayCheckout } from '../lib/razorpay';
@@ -397,11 +398,13 @@ export const OrdersPage: React.FC = () => {
                 const orderBadge = getOrderStatusBadgeInfo(order.status);
                 const paymentBadge = getPaymentStatusBadgeInfo(order.paymentStatus);
                 const shippingBadge = getShippingStatusBadgeInfo(order.shippingStatus);
+                const paymentMethodBadge = getPaymentMethodBadgeInfo(order.paymentProvider);
                 const OrderIcon = orderBadge.icon;
                 const PaymentIcon = paymentBadge.icon;
                 const ShippingIcon = shippingBadge.icon;
                 const isPendingPayment =
                   (order.status === 'PENDING_PAYMENT' || order.paymentStatus === 'PENDING') &&
+                  order.paymentProvider !== 'COD' &&
                   order.status !== 'CANCELLED' &&
                   order.paymentStatus !== 'PAID' &&
                   order.paymentStatus !== 'REFUNDED' &&
@@ -461,13 +464,21 @@ export const OrdersPage: React.FC = () => {
                           <ShippingIcon size={12} />
                           <span>{shippingBadge.label}</span>
                         </span>
+
+                        {/* Payment Method */}
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${paymentMethodBadge.bgClass}`}
+                        >
+                          <span className={`w-1.5 h-1.5 rounded-full ${paymentMethodBadge.dotClass}`} />
+                          <span>{paymentMethodBadge.fullLabel}</span>
+                        </span>
                       </div>
                     </div>
 
                     {/* Order Card Body: Items Preview */}
                     <div className="p-4 sm:p-5 divide-y divide-[#E8C98A]/15">
                       {order.items && order.items.length > 0 ? (
-                        order.items.slice(0, 3).map((item, itemIdx) => (
+                        order.items.slice(0, 3).map((item) => (
                           <div
                             key={item.id}
                             className="py-3 first:pt-0 last:pb-0 flex items-center gap-3 sm:gap-4"
@@ -492,22 +503,9 @@ export const OrdersPage: React.FC = () => {
                               </p>
                             </div>
                             <div className="text-right">
-                              {order.items && order.items.length === 1 ? (
-                                <span className="font-serif font-bold text-xs sm:text-sm text-[#28040B]">
-                                  {formatCurrency(order.grandTotal)}
-                                </span>
-                              ) : itemIdx === 0 ? (
-                                <div className="flex flex-col items-end">
-                                  <span className="text-[10px] text-gray-400 font-sans uppercase tracking-wider">Total</span>
-                                  <span className="font-serif font-bold text-xs sm:text-sm text-[#28040B]">
-                                    {formatCurrency(order.grandTotal)}
-                                  </span>
-                                </div>
-                              ) : (
-                                <span className="text-xs text-gray-500 font-sans">
-                                  {formatCurrency(item.lineTotal)}
-                                </span>
-                              )}
+                              <span className="text-xs text-gray-600 font-sans font-medium">
+                                {formatCurrency(item.lineTotal)}
+                              </span>
                             </div>
                           </div>
                         ))
@@ -525,11 +523,19 @@ export const OrdersPage: React.FC = () => {
 
                     {/* Order Card Footer */}
                     <div className="p-4 sm:p-5 bg-[#FAF8F5]/60 border-t border-[#E8C98A]/20 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                      <div className="flex items-center gap-2 text-xs text-gray-600 font-sans">
-                        <Truck size={14} className="text-[#8C6C38]" />
-                        <span>
-                          Ship to: {order.shippingAddress?.city}, {order.shippingAddress?.state} ({order.shippingAddress?.pincode})
-                        </span>
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs">
+                        <div className="flex items-center gap-1.5 text-gray-600 font-sans">
+                          <Truck size={14} className="text-[#8C6C38] shrink-0" />
+                          <span className="truncate">
+                            Ship to: {order.shippingAddress?.city}, {order.shippingAddress?.state} ({order.shippingAddress?.pincode})
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-gray-400 font-sans uppercase tracking-wider text-[11px]">Final Amount:</span>
+                          <span className="font-serif font-bold text-sm sm:text-base text-[#8C6C38]">
+                            {formatCurrency(order.grandTotal)}
+                          </span>
+                        </div>
                       </div>
 
                       <div className="flex flex-wrap items-center gap-2.5">

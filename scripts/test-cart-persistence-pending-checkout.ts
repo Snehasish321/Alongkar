@@ -237,10 +237,11 @@ async function runCartPersistenceTests() {
 
     // 5. Initialize Payment Order with Razorpay
     console.log('\n--- 5. Initiating Payment Order (POST /api/payments/razorpay/order) ---');
+    const mockRazorpayAmountA = Math.round(createdOrderA.grandTotal * 100);
     const mockRazorpayOrder = {
       id: `order_cart_test_${ts}`,
       entity: 'order',
-      amount: 550000,
+      amount: mockRazorpayAmountA,
       currency: 'INR',
       status: 'created',
       attempts: 0,
@@ -332,7 +333,7 @@ async function runCartPersistenceTests() {
       id: `pay_success_${ts}`,
       entity: 'payment',
       order_id: mockRazorpayOrder.id,
-      amount: 550000,
+      amount: mockRazorpayAmountA,
       currency: 'INR',
       status: 'captured',
       captured: true,
@@ -425,13 +426,14 @@ async function runCartPersistenceTests() {
     });
     assert(cartBAfterOrder?.items.length === 1, 'User B cart exists after order creation');
 
+    const mockRazorpayAmountB = Math.round(orderB.grandTotal * 100);
     const mockRazorpayOrderB = {
       id: `order_rec_b_${ts}`,
       entity: 'order',
-      amount: 750000,
+      amount: mockRazorpayAmountB,
       currency: 'INR',
       status: 'paid',
-      amount_paid: 750000,
+      amount_paid: mockRazorpayAmountB,
       attempts: 1,
     };
 
@@ -439,7 +441,7 @@ async function runCartPersistenceTests() {
       id: `pay_rec_b_${ts}`,
       entity: 'payment',
       order_id: mockRazorpayOrderB.id,
-      amount: 750000,
+      amount: mockRazorpayAmountB,
       currency: 'INR',
       status: 'captured',
       captured: true,
