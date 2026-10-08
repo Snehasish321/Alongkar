@@ -43,28 +43,50 @@ interface CouponInfo {
   minOrder?: number;
 }
 
-const PROMO_CODES: Record<string, CouponInfo> = {
-  ALONGKAR10: {
+interface RegularOfferCard {
+  code: string;
+  title: string;
+  benefit: string;
+  minOrder?: number;
+}
+
+const REGULAR_OFFERS: RegularOfferCard[] = [
+  {
+    code: 'FESTIVE500',
+    title: '₹500 OFF on orders ₹2,500+',
+    benefit: '₹500 OFF',
+    minOrder: 2500,
+  },
+  {
+    code: 'WELCOME100',
+    title: '₹100 OFF on orders ₹999+',
+    benefit: '₹100 OFF',
+    minOrder: 999,
+  },
+  {
     code: 'ALONGKAR10',
-    label: '10% Off Atelier Special',
-    discountPercent: 10,
+    title: '10% OFF',
+    benefit: '10% OFF',
   },
-  PREPAID5: {
-    code: 'PREPAID5',
-    label: '5% Extra Off on Prepaid',
-    discountPercent: 5,
-  },
+];
+
+const REGULAR_PROMO_CODES: Record<string, CouponInfo> = {
   FESTIVE500: {
     code: 'FESTIVE500',
-    label: '₹500 Off on orders above ₹2,500',
+    label: '₹500 OFF on orders ₹2,500+',
     flatDiscount: 500,
     minOrder: 2500,
   },
   WELCOME100: {
     code: 'WELCOME100',
-    label: '₹100 Flat Welcome Benefit',
+    label: '₹100 OFF on orders ₹999+',
     flatDiscount: 100,
     minOrder: 999,
+  },
+  ALONGKAR10: {
+    code: 'ALONGKAR10',
+    label: '10% OFF Atelier Special',
+    discountPercent: 10,
   },
 };
 
@@ -170,34 +192,50 @@ export const CartPage: React.FC = () => {
     clearCart();
   };
 
-  const handleApplyCoupon = (e: React.FormEvent) => {
-    e.preventDefault();
+  const applyPromoCode = (rawCode: string) => {
     setCouponError(null);
     setCouponSuccess(null);
 
-    const clean = couponInput.trim().toUpperCase();
+    const clean = rawCode.trim().toUpperCase();
     if (!clean) {
-      setCouponError('Please enter a coupon code.');
+      setCouponError('Please enter a promo code.');
       return;
     }
 
-    const matched = PROMO_CODES[clean];
+    if (clean === 'PREPAID5') {
+      setCouponError(
+        'PREPAID5 is an exclusive payment incentive automatically applied when choosing Razorpay at checkout.'
+      );
+      return;
+    }
+
+    const matched = REGULAR_PROMO_CODES[clean];
     if (!matched) {
       setCouponError(`Code "${clean}" is invalid or expired.`);
       return;
     }
 
     if (matched.minOrder && subtotal < matched.minOrder) {
+      const remaining = matched.minOrder - subtotal;
       setCouponError(
-        `Code "${clean}" requires a minimum order value of ${formatPrice(matched.minOrder)}.`
+        `Code "${clean}" requires a minimum order value of ${formatPrice(matched.minOrder)}. Add ${formatPrice(remaining)} more to unlock.`
       );
       return;
     }
 
     setAppliedCoupon(matched);
     setActiveOrderId(null);
-    setCouponSuccess(`Code "${matched.code}" applied! ${matched.label}`);
+    setCouponSuccess(`Code "${matched.code}" applied! (${matched.label})`);
     setCouponInput('');
+  };
+
+  const handleApplyCoupon = (e: React.FormEvent) => {
+    e.preventDefault();
+    applyPromoCode(couponInput);
+  };
+
+  const handleApplyOffer = (code: string) => {
+    applyPromoCode(code);
   };
 
   const handleRemoveCoupon = () => {
@@ -938,77 +976,144 @@ export const CartPage: React.FC = () => {
                       </div>
                     )}
 
-                    {/* Promo Code Box */}
-                    <div className="pt-2 pb-5 border-t border-[#E8C98A]/20">
-                      {appliedCoupon ? (
-                        <div className="flex items-center justify-between bg-[#FAF0DC]/70 border border-[#E8C98A]/50 rounded-xl p-3">
-                          <div className="flex items-center gap-2">
-                            <Tag size={15} className="text-[#8C6C38]" />
-                            <div>
-                              <p className="text-xs font-bold text-[#211A17] font-mono">{appliedCoupon.code}</p>
-                              <p className="text-[10px] text-[#8C6C38]">{appliedCoupon.label}</p>
-                            </div>
-                          </div>
+                    {/* Promo Code & Offer Cards Section */}
+                    <div className="pt-3 pb-5 border-t border-[#E8C98A]/20 space-y-4">
+                      {/* Promo Code Input Form */}
+                      <form onSubmit={handleApplyCoupon} className="space-y-2">
+                        <label htmlFor="coupon" className="text-xs font-semibold text-[#8C6C38] block tracking-wide">
+                          Have an Atelier Promo Code?
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            id="coupon"
+                            type="text"
+                            value={couponInput}
+                            onChange={(e) => setCouponInput(e.target.value)}
+                            placeholder="Enter promo code"
+                            className="flex-1 uppercase bg-[#FAF7F2] border border-[#E8C98A]/40 rounded-xl px-3.5 py-2.5 text-xs font-mono tracking-wider focus:outline-none focus:border-[#211A17] transition-colors placeholder:normal-case placeholder:font-sans placeholder:text-neutral-400"
+                          />
                           <button
-                            type="button"
-                            onClick={handleRemoveCoupon}
-                            className="text-xs text-neutral-400 hover:text-red-700 font-medium cursor-pointer"
+                            type="submit"
+                            className="px-4 py-2.5 rounded-xl bg-[#211A17] text-[#FAF7F2] text-xs font-semibold uppercase tracking-wider hover:bg-[#3D0010] active:scale-[0.98] transition-all cursor-pointer shrink-0"
                           >
-                            Remove
+                            Apply
                           </button>
                         </div>
-                      ) : (
-                        <form onSubmit={handleApplyCoupon} className="space-y-2">
-                          <label htmlFor="coupon" className="text-xs font-semibold text-[#8C6C38] block">
-                            Have an Atelier Promo Code?
-                          </label>
-                          <div className="flex gap-2">
-                            <input
-                              id="coupon"
-                              type="text"
-                              value={couponInput}
-                              onChange={(e) => setCouponInput(e.target.value)}
-                              placeholder="e.g. ALONGKAR10"
-                              className="flex-1 uppercase bg-[#FAF7F2] border border-[#E8C98A]/40 rounded-xl px-3.5 py-2 text-xs font-mono tracking-wider focus:outline-none focus:border-[#211A17] transition-colors"
-                            />
-                            <button
-                              type="submit"
-                              className="px-4 py-2 rounded-xl bg-[#211A17] text-[#FAF7F2] text-xs font-semibold uppercase tracking-wider hover:bg-[#3D0010] transition-colors cursor-pointer"
-                            >
-                              Apply
-                            </button>
-                          </div>
-                          {couponError && (
-                            <p className="text-[11px] text-red-600 font-medium mt-1">{couponError}</p>
-                          )}
-                          {couponSuccess && (
-                            <p className="text-[11px] text-emerald-700 font-medium mt-1 flex items-center gap-1">
-                              <Check size={12} />
-                              <span>{couponSuccess}</span>
-                            </p>
-                          )}
-                        </form>
-                      )}
+                        {couponError && (
+                          <p className="text-[11px] text-red-600 font-medium mt-1 flex items-start gap-1">
+                            <AlertCircle size={13} className="shrink-0 mt-0.5" />
+                            <span>{couponError}</span>
+                          </p>
+                        )}
+                        {couponSuccess && (
+                          <p className="text-[11px] text-emerald-700 font-medium mt-1 flex items-start gap-1">
+                            <Check size={13} className="shrink-0 mt-0.5" />
+                            <span>{couponSuccess}</span>
+                          </p>
+                        )}
+                      </form>
 
-                      {/* Quick Available Coupons Pill List */}
-                      {!appliedCoupon && (
-                        <div className="mt-2.5 flex flex-wrap gap-1.5 items-center">
-                          <span className="text-[10px] text-[#8C6C38]">Try:</span>
-                          {Object.keys(PROMO_CODES).map((code) => (
-                            <button
-                              key={code}
-                              type="button"
-                              onClick={() => {
-                                setCouponInput(code);
-                                setCouponError(null);
-                              }}
-                              className="text-[10px] font-mono px-2 py-0.5 rounded-sm bg-[#FAF0DC] text-[#63481A] hover:bg-[#E8C98A]/40 border border-[#E8C98A]/30 transition-colors cursor-pointer"
-                            >
-                              {code}
-                            </button>
-                          ))}
+                      {/* SAVE MORE Section */}
+                      <div className="pt-1">
+                        <div className="flex items-center justify-between mb-2.5">
+                          <div className="flex items-center gap-1.5">
+                            <Sparkles size={13} className="text-[#8C6C38]" />
+                            <span className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#211A17]">
+                              SAVE MORE
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-[#8C6C38]">Exclusive Atelier Offers</span>
                         </div>
-                      )}
+
+                        {/* Offer Cards List */}
+                        <div className="space-y-2.5">
+                          {REGULAR_OFFERS.map((offer) => {
+                            const isApplied = appliedCoupon?.code === offer.code;
+                            const isLocked = offer.minOrder ? subtotal < offer.minOrder : false;
+                            const progress = offer.minOrder
+                              ? Math.min(100, Math.round((subtotal / offer.minOrder) * 100))
+                              : 100;
+                            const remaining = offer.minOrder ? Math.max(0, offer.minOrder - subtotal) : 0;
+
+                            return (
+                              <div
+                                key={offer.code}
+                                className={`rounded-xl p-3.5 transition-all duration-200 ${
+                                  isApplied
+                                    ? 'bg-[#FAF0DC]/80 border-2 border-[#8C6C38]/60 shadow-xs'
+                                    : isLocked
+                                    ? 'bg-[#FAF7F2]/70 border border-[#E8C98A]/30'
+                                    : 'bg-[#FAF7F2] border border-[#E8C98A]/50 hover:border-[#8C6C38]/60 hover:shadow-xs'
+                                }`}
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="font-mono text-xs font-bold text-[#211A17] tracking-wider">
+                                        {offer.code}
+                                      </span>
+                                      {isApplied && (
+                                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-md">
+                                          <Check size={11} />
+                                          Applied
+                                        </span>
+                                      )}
+                                    </div>
+                                    <p className="text-xs font-semibold text-[#211A17] mt-1">
+                                      {offer.title}
+                                    </p>
+
+                                    {/* Progress bar / threshold messaging for locked state */}
+                                    {isLocked && !isApplied && (
+                                      <div className="mt-2 space-y-1">
+                                        <p className="text-[11px] text-[#8C6C38] font-medium flex items-center gap-1">
+                                          <Lock size={11} className="shrink-0 text-[#8C6C38]" />
+                                          <span>Add {formatPrice(remaining)} more to unlock</span>
+                                        </p>
+                                        <div className="w-full bg-[#E8C98A]/20 h-1.5 rounded-full overflow-hidden">
+                                          <div
+                                            className="bg-[#8C6C38] h-full rounded-full transition-all duration-300"
+                                            style={{ width: `${progress}%` }}
+                                          />
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Action Button */}
+                                  <div className="shrink-0 pt-0.5">
+                                    {isApplied ? (
+                                      <button
+                                        type="button"
+                                        onClick={handleRemoveCoupon}
+                                        className="text-xs font-semibold text-neutral-500 hover:text-red-700 transition-colors cursor-pointer px-2 py-1 rounded-md"
+                                      >
+                                        Remove
+                                      </button>
+                                    ) : isLocked ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleApplyOffer(offer.code)}
+                                        className="text-[11px] font-medium text-[#8C6C38] hover:text-[#211A17] bg-[#FAF0DC]/50 hover:bg-[#FAF0DC] px-2.5 py-1.5 rounded-lg border border-[#E8C98A]/40 transition-colors cursor-pointer"
+                                      >
+                                        Details
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleApplyOffer(offer.code)}
+                                        className="text-xs font-semibold text-[#FAF7F2] bg-[#211A17] hover:bg-[#3D0010] active:scale-[0.97] px-3 py-1.5 rounded-lg transition-all cursor-pointer shadow-xs"
+                                      >
+                                        Apply offer
+                                      </button>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
                     </div>
 
                     {/* Checkout Error Feedback */}

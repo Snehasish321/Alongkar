@@ -12,18 +12,22 @@ export interface CouponDefinition {
 export const FREE_SHIPPING_THRESHOLD = 499;
 export const STANDARD_SHIPPING_FEE = 60;
 
-export const PROMO_CODES: Record<string, CouponDefinition> = {
+export const PREPAID_INCENTIVE_CODE = 'PREPAID5';
+export const PREPAID_INCENTIVE_PERCENT = 5;
+
+export const PREPAID_INCENTIVE_DEFINITION: CouponDefinition = {
+  code: PREPAID_INCENTIVE_CODE,
+  label: '5% Extra Off on Prepaid',
+  type: 'percentage',
+  discountPercent: PREPAID_INCENTIVE_PERCENT,
+};
+
+export const REGULAR_PROMO_CODES: Record<string, CouponDefinition> = {
   ALONGKAR10: {
     code: 'ALONGKAR10',
     label: '10% Off Atelier Special',
     type: 'percentage',
     discountPercent: 10,
-  },
-  PREPAID5: {
-    code: 'PREPAID5',
-    label: '5% Extra Off on Prepaid',
-    type: 'percentage',
-    discountPercent: 5,
   },
   FESTIVE500: {
     code: 'FESTIVE500',
@@ -39,6 +43,11 @@ export const PROMO_CODES: Record<string, CouponDefinition> = {
     flatDiscount: 100,
     minOrder: 999,
   },
+};
+
+export const PROMO_CODES: Record<string, CouponDefinition> = {
+  ...REGULAR_PROMO_CODES,
+  [PREPAID_INCENTIVE_CODE]: PREPAID_INCENTIVE_DEFINITION,
 };
 
 /**
@@ -68,8 +77,8 @@ export interface CouponValidationResult {
 }
 
 /**
- * Validates a coupon code against the current merchandise subtotal and calculates the discount.
- * Enforces that PREPAID5 only grants a discount for online Razorpay payments, returning ₹0 discount for COD.
+ * Validates a single coupon code against the merchandise subtotal.
+ * Enforces minOrder requirements and payment-method rules for PREPAID5.
  */
 export function validateAndCalculateCoupon(
   subtotal: number,
@@ -107,11 +116,19 @@ export function validateAndCalculateCoupon(
   }
 
   // Payment method rule: PREPAID5 is valid only for RAZORPAY (online prepaid)
-  if (coupon.code === 'PREPAID5' && paymentMethod === 'COD') {
+  if (coupon.code === PREPAID_INCENTIVE_CODE) {
+    if (paymentMethod === 'COD') {
+      return {
+        isValid: true,
+        coupon,
+        discountAmount: 0,
+      };
+    }
+    const discount = Math.round((subtotal * PREPAID_INCENTIVE_PERCENT) / 100);
     return {
       isValid: true,
       coupon,
-      discountAmount: 0,
+      discountAmount: Math.max(0, Math.min(subtotal, discount)),
     };
   }
 
@@ -140,13 +157,34 @@ export function calculateShippingFee(subtotal: number): number {
   return subtotal >= FREE_SHIPPING_THRESHOLD ? 0 : STANDARD_SHIPPING_FEE;
 }
 
+/**
+ * Calculates the PREPAID5 payment incentive (5% discount) on the eligible amount.
+ * The eligible amount is defined as (subtotal - regularCouponDiscount).
+ * For COD payments, the incentive is always ₹0.
+ * Fractional rupee amounts are rounded to the nearest integer rupee using Math.round.
+ */
+export function calculatePrepaidIncentive(
+  eligibleAmount: number,
+  paymentMethod: PaymentMethod
+): number {
+  if (paymentMethod !== 'RAZORPAY' || eligibleAmount <= 0) {
+    return 0;
+  }
+  const discount = Math.round((eligibleAmount * PREPAID_INCENTIVE_PERCENT) / 100);
+  return Math.max(0, Math.min(eligibleAmount, discount));
+}
+
 export interface CalculatedOrderPricing {
   subtotal: number;
   discountTotal: number;
+  regularCouponDiscount: number;
+  prepaid5Discount: number;
   shippingFee: number;
   taxTotal: number;
   grandTotal: number;
+  paymentMethod: PaymentMethod;
   coupon: CouponDefinition | null;
+  regularCouponCode: string | null;
   // Decimal representations for Prisma storage
   subtotalDec: Prisma.Decimal;
   discountTotalDec: Prisma.Decimal;
@@ -156,8 +194,14 @@ export interface CalculatedOrderPricing {
 }
 
 /**
- * Computes all authoritative pricing fields for an order from server product prices,
- * quantities, optional coupon code, and payment method.
+ * Computes all authoritative pricing fields for an order:
+ * 1. Calculates authoritative subtotal from product unit prices and quantities.
+ * 2. Validates and applies exactly one regular promotional coupon (if provided).
+ * 3. Evaluates the payment method (RAZORPAY vs COD).
+ * 4. Stacks the PREPAID5 payment-method incentive (5%) on the remaining amount after regular coupon discount when paymentMethod === 'RAZORPAY'.
+ *    When paymentMethod === 'COD', PREPAID5 discount is ₹0.
+ * 5. Calculates shipping fee from the subtotal.
+ * 6. Returns authoritative grand total and Decimal instances for database storage.
  */
 export function calculateAuthoritativePricing(
   items: Array<{ unitPrice: number; quantity: number }>,
@@ -178,28 +222,74 @@ export function calculateAuthoritativePricing(
   // Round subtotal to 2 decimal places
   subtotal = Math.round(subtotal * 100) / 100;
 
-  const couponResult = validateAndCalculateCoupon(subtotal, rawCouponCode, rawPaymentMethod);
-  if (!couponResult.isValid) {
-    return {
-      success: false,
-      error: couponResult.errorMessage || 'Invalid coupon.',
-    };
+  const paymentMethod = normalizePaymentMethod(rawPaymentMethod);
+  const normalizedCode = normalizeCouponCode(rawCouponCode);
+
+  let regularCoupon: CouponDefinition | null = null;
+  let regularCouponCode: string | null = null;
+  let regularCouponDiscount = 0;
+
+  if (normalizedCode) {
+    if (normalizedCode === PREPAID_INCENTIVE_CODE) {
+      // PREPAID5 is recognized internally as a payment incentive indicator.
+      // No regular promotional coupon is applied.
+    } else {
+      const regularPromo = REGULAR_PROMO_CODES[normalizedCode];
+      if (!regularPromo) {
+        return {
+          success: false,
+          error: `Coupon "${normalizedCode}" is invalid or expired.`,
+        };
+      }
+
+      if (regularPromo.minOrder !== undefined && subtotal < regularPromo.minOrder) {
+        return {
+          success: false,
+          error: `Coupon "${regularPromo.code}" requires a minimum subtotal of ₹${regularPromo.minOrder.toLocaleString('en-IN')}.`,
+        };
+      }
+
+      regularCoupon = regularPromo;
+      regularCouponCode = regularPromo.code;
+
+      if (regularPromo.type === 'percentage' && regularPromo.discountPercent) {
+        regularCouponDiscount = Math.round((subtotal * regularPromo.discountPercent) / 100);
+      } else if (regularPromo.type === 'fixed' && regularPromo.flatDiscount) {
+        regularCouponDiscount = Math.min(subtotal, regularPromo.flatDiscount);
+      }
+      regularCouponDiscount = Math.max(0, Math.min(subtotal, regularCouponDiscount));
+    }
   }
 
-  const discountTotal = couponResult.discountAmount;
+  // Calculate PREPAID5 incentive on eligible base amount (subtotal after regular coupon discount)
+  const eligiblePrepaidBase = Math.max(0, subtotal - regularCouponDiscount);
+  const prepaid5Discount = calculatePrepaidIncentive(eligiblePrepaidBase, paymentMethod);
+
+  // Total discount combined
+  const discountTotal = regularCouponDiscount + prepaid5Discount;
+
+  // Authoritative shipping fee
   const shippingFee = calculateShippingFee(subtotal);
   const taxTotal = 0;
   const grandTotal = Math.max(0, Math.round((subtotal - discountTotal + shippingFee + taxTotal) * 100) / 100);
+
+  // Effective coupon definition for UI/logging backward compatibility
+  const effectiveCoupon =
+    regularCoupon || (normalizedCode === PREPAID_INCENTIVE_CODE ? PREPAID_INCENTIVE_DEFINITION : null);
 
   return {
     success: true,
     pricing: {
       subtotal,
       discountTotal,
+      regularCouponDiscount,
+      prepaid5Discount,
       shippingFee,
       taxTotal,
       grandTotal,
-      coupon: couponResult.coupon,
+      paymentMethod,
+      coupon: effectiveCoupon,
+      regularCouponCode,
       subtotalDec: new Prisma.Decimal(subtotal.toFixed(2)),
       discountTotalDec: new Prisma.Decimal(discountTotal.toFixed(2)),
       shippingFeeDec: new Prisma.Decimal(shippingFee.toFixed(2)),

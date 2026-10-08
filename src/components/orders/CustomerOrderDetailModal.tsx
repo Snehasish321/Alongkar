@@ -22,6 +22,8 @@ import {
   getOrderStatusBadgeInfo,
   getPaymentStatusBadgeInfo,
   getShippingStatusBadgeInfo,
+  getPaymentMethodBadgeInfo,
+  parseOrderDiscounts,
 } from '../../lib/order-status';
 import { getOptimizedImageUrl, IMAGE_PRESETS } from '../../lib/image';
 import { loadRazorpayScript, openRazorpayCheckout } from '../../lib/razorpay';
@@ -84,6 +86,8 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
   const orderBadge = getOrderStatusBadgeInfo(order.status);
   const paymentBadge = getPaymentStatusBadgeInfo(order.paymentStatus);
   const shippingBadge = getShippingStatusBadgeInfo(order.shippingStatus);
+  const paymentMethodBadge = getPaymentMethodBadgeInfo(order.paymentProvider);
+  const discountBreakdown = parseOrderDiscounts(order);
 
   const OrderIcon = orderBadge.icon;
   const PaymentIcon = paymentBadge.icon;
@@ -91,6 +95,7 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
 
   const isPendingPayment =
     (order.status === 'PENDING_PAYMENT' || order.paymentStatus === 'PENDING') &&
+    order.paymentProvider !== 'COD' &&
     order.status !== 'CANCELLED' &&
     order.paymentStatus !== 'PAID' &&
     order.paymentStatus !== 'REFUNDED' &&
@@ -302,34 +307,43 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
           data-lenis-prevent
         >
           {/* Status Badges Row */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
             {/* Order Status */}
             <div className="p-3 rounded-xl bg-white border border-[#E8C98A]/20 shadow-xs flex flex-col items-start gap-1.5">
               <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block">Order Status</span>
-              <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${orderBadge.bgClass}`}>
+              <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${orderBadge.bgClass}`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${orderBadge.dotClass}`} />
-                <OrderIcon size={13} />
-                <span>{orderBadge.label}</span>
+                <OrderIcon size={12} />
+                <span className="truncate">{orderBadge.label}</span>
               </div>
             </div>
 
             {/* Payment Status */}
             <div className="p-3 rounded-xl bg-white border border-[#E8C98A]/20 shadow-xs flex flex-col items-start gap-1.5">
               <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block">Payment Status</span>
-              <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${paymentBadge.bgClass}`}>
+              <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${paymentBadge.bgClass}`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${paymentBadge.dotClass}`} />
-                <PaymentIcon size={13} />
-                <span>{paymentBadge.label}</span>
+                <PaymentIcon size={12} />
+                <span className="truncate">{paymentBadge.label}</span>
               </div>
             </div>
 
             {/* Shipping Status */}
             <div className="p-3 rounded-xl bg-white border border-[#E8C98A]/20 shadow-xs flex flex-col items-start gap-1.5">
               <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block">Shipping Status</span>
-              <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border ${shippingBadge.bgClass}`}>
+              <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${shippingBadge.bgClass}`}>
                 <span className={`w-1.5 h-1.5 rounded-full ${shippingBadge.dotClass}`} />
-                <ShippingIcon size={13} />
-                <span>{shippingBadge.label}</span>
+                <ShippingIcon size={12} />
+                <span className="truncate">{shippingBadge.label}</span>
+              </div>
+            </div>
+
+            {/* Payment Method */}
+            <div className="p-3 rounded-xl bg-white border border-[#E8C98A]/20 shadow-xs flex flex-col items-start gap-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block">Payment Method</span>
+              <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${paymentMethodBadge.bgClass}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${paymentMethodBadge.dotClass}`} />
+                <span className="truncate">{paymentMethodBadge.label}</span>
               </div>
             </div>
           </div>
@@ -417,39 +431,71 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
           <div className="p-4 rounded-xl bg-[#FAF8F5] border border-[#E8C98A]/30 space-y-3">
             <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#8C6C38]">
               <Layers size={15} />
-              <span>Payment Summary</span>
+              <span>Order Summary</span>
             </div>
 
-            <div className="space-y-1.5 text-xs text-gray-600">
-              <div className="flex justify-between">
+            <div className="space-y-2 text-xs text-gray-600">
+              <div className="flex justify-between items-center">
                 <span>Payment Method</span>
                 <span className="font-semibold text-[#28040B]">
-                  {order.paymentProvider === 'COD' ? 'Cash on Delivery (COD)' : 'Pay Online (Razorpay)'}
+                  {paymentMethodBadge.fullLabel}
                 </span>
               </div>
-              <div className="flex justify-between">
-                <span>Subtotal</span>
-                <span>{formatCurrency(order.subtotal)}</span>
+
+              <div className="flex justify-between items-center">
+                <span>Items Subtotal</span>
+                <span className="font-medium text-gray-900">{formatCurrency(order.subtotal)}</span>
               </div>
-              {order.discountTotal > 0 && (
-                <div className="flex justify-between text-emerald-700 font-medium">
-                  <span>Discount</span>
-                  <span>-{formatCurrency(order.discountTotal)}</span>
-                </div>
-              )}
-              <div className="flex justify-between">
-                <span>Shipping Fee</span>
-                <span>{order.shippingFee === 0 ? 'Complimentary' : formatCurrency(order.shippingFee)}</span>
+
+              {/* Regular Promotional Coupon Discount if present */}
+              {discountBreakdown.regularCouponCode &&
+                discountBreakdown.regularDiscountAmount !== undefined &&
+                discountBreakdown.regularDiscountAmount > 0 && (
+                  <div className="flex justify-between items-center text-emerald-700 font-medium">
+                    <span>Promo ({discountBreakdown.regularCouponCode})</span>
+                    <span>−{formatCurrency(discountBreakdown.regularDiscountAmount)}</span>
+                  </div>
+                )}
+
+              {/* Online Payment Offer (PREPAID5) if present and not COD */}
+              {!paymentMethodBadge.isCod &&
+                discountBreakdown.prepaid5DiscountAmount !== undefined &&
+                discountBreakdown.prepaid5DiscountAmount > 0 && (
+                  <div className="flex justify-between items-center text-emerald-700 font-medium">
+                    <span>Online Payment Offer (PREPAID5)</span>
+                    <span>−{formatCurrency(discountBreakdown.prepaid5DiscountAmount)}</span>
+                  </div>
+                )}
+
+              {/* Fallback Total Discount if individual breakdown not parsed */}
+              {!discountBreakdown.regularCouponCode &&
+                !discountBreakdown.prepaid5DiscountAmount &&
+                discountBreakdown.totalDiscount > 0 && (
+                  <div className="flex justify-between items-center text-emerald-700 font-medium">
+                    <span>Discount</span>
+                    <span>−{formatCurrency(discountBreakdown.totalDiscount)}</span>
+                  </div>
+                )}
+
+              <div className="flex justify-between items-center">
+                <span>Shipping</span>
+                <span className={order.shippingFee === 0 ? 'text-emerald-700 font-medium' : 'text-gray-900'}>
+                  {order.shippingFee === 0 ? 'FREE' : formatCurrency(order.shippingFee)}
+                </span>
               </div>
+
               {order.taxTotal > 0 && (
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                   <span>Estimated Taxes</span>
-                  <span>{formatCurrency(order.taxTotal)}</span>
+                  <span className="text-gray-900">{formatCurrency(order.taxTotal)}</span>
                 </div>
               )}
-              <div className="border-t border-[#E8C98A]/40 pt-2 flex justify-between font-serif font-bold text-base text-[#28040B]">
-                <span>Grand Total</span>
-                <span className="text-[#8C6C38]">{formatCurrency(order.grandTotal)}</span>
+
+              <div className="border-t border-[#E8C98A]/40 pt-2.5 flex justify-between items-center">
+                <span className="font-serif font-bold text-sm sm:text-base text-[#28040B]">Final Amount</span>
+                <span className="font-serif font-bold text-base sm:text-lg text-[#8C6C38]">
+                  {formatCurrency(order.grandTotal)}
+                </span>
               </div>
             </div>
 
