@@ -1080,6 +1080,15 @@ export const AdminOrderDetailModal: React.FC<AdminOrderDetailModalProps> = ({
                   </div>
                 ) : null}
 
+                {!discountBreakdown.regularDiscountAmount &&
+                !discountBreakdown.prepaid5DiscountAmount &&
+                order.discountTotal > 0 ? (
+                  <div className="flex justify-between text-emerald-400">
+                    <span>Discount</span>
+                    <span>-₹{order.discountTotal.toLocaleString('en-IN')}</span>
+                  </div>
+                ) : null}
+
                 <div className="flex justify-between text-white/70">
                   <span>Shipping Fee</span>
                   <span>
