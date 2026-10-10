@@ -362,66 +362,22 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
           </button>
         </div>
 
-        {/* Scrollable Body (scrollbar hidden, overscroll contained) */}
+        {/* Scrollable Body (overscroll contained) */}
         <div
-          className="flex-1 overflow-y-auto overscroll-y-contain p-5 sm:p-6 space-y-6 text-gray-800 text-sm [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+          className="flex-1 overflow-y-auto overscroll-y-contain p-4 sm:p-5 space-y-3.5 text-gray-800 text-sm"
           style={{
-            scrollbarWidth: 'none',
-            msOverflowStyle: 'none',
             overscrollBehavior: 'contain',
           }}
           data-lenis-prevent
         >
-          {/* Status Badges Row */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
-            {/* Order Status */}
-            <div className="p-3 rounded-xl bg-white border border-[#E8C98A]/20 shadow-xs flex flex-col items-start gap-1.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block">Order Status</span>
-              <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${orderBadge.bgClass}`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${orderBadge.dotClass}`} />
-                <OrderIcon size={12} />
-                <span className="truncate">{orderBadge.label}</span>
-              </div>
-            </div>
-
-            {/* Payment Status */}
-            <div className="p-3 rounded-xl bg-white border border-[#E8C98A]/20 shadow-xs flex flex-col items-start gap-1.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block">Payment Status</span>
-              <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${paymentBadge.bgClass}`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${paymentBadge.dotClass}`} />
-                <PaymentIcon size={12} />
-                <span className="truncate">{paymentBadge.label}</span>
-              </div>
-            </div>
-
-            {/* Shipping Status */}
-            <div className="p-3 rounded-xl bg-white border border-[#E8C98A]/20 shadow-xs flex flex-col items-start gap-1.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block">Shipping Status</span>
-              <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${shippingBadge.bgClass}`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${shippingBadge.dotClass}`} />
-                <ShippingIcon size={12} />
-                <span className="truncate">{shippingBadge.label}</span>
-              </div>
-            </div>
-
-            {/* Payment Method */}
-            <div className="p-3 rounded-xl bg-white border border-[#E8C98A]/20 shadow-xs flex flex-col items-start gap-1.5">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 block">Payment Method</span>
-              <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${paymentMethodBadge.bgClass}`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${paymentMethodBadge.dotClass}`} />
-                <span className="truncate">{paymentMethodBadge.label}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Cancellation Request Feedback Cards */}
+          {/* Cancellation Request Feedback Cards / Alerts */}
           {isPendingReview && order.status !== 'CANCELLED' && (
-            <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 space-y-1 animate-in fade-in">
+            <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 space-y-1 animate-in fade-in">
               <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wide text-amber-800">
-                <Clock size={16} className="text-amber-700 shrink-0" />
+                <Clock size={15} className="text-amber-700 shrink-0" />
                 <span>Cancellation Request Under Review</span>
               </div>
-              <p className="text-xs text-amber-900/80 leading-relaxed pl-6">
+              <p className="text-xs text-amber-900/80 leading-relaxed pl-5">
                 Your request to cancel this order
                 {order.cancellationRequestReason ? ` ("${order.cancellationRequestReason}")` : ''}
                 {' '}has been recorded and is currently being reviewed by our store team prior to dispatch.
@@ -430,12 +386,12 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
           )}
 
           {isRejected && order.status !== 'CANCELLED' && (
-            <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-900 space-y-1 animate-in fade-in">
+            <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-900 space-y-1 animate-in fade-in">
               <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wide text-rose-800">
-                <Alert size={16} className="text-rose-700 shrink-0" />
+                <Alert size={15} className="text-rose-700 shrink-0" />
                 <span>Cancellation Request Declined</span>
               </div>
-              <p className="text-xs text-rose-900/80 leading-relaxed pl-6">
+              <p className="text-xs text-rose-900/80 leading-relaxed pl-5">
                 Your request to cancel this order was reviewed and could not be approved
                 {order.cancellationRejectionReason ? `: "${order.cancellationRejectionReason}"` : '.'}
                 {' '}Your order is continuing towards courier handover and delivery as scheduled.
@@ -445,7 +401,7 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
 
           {cancelFeedback && (
             <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-900 text-xs flex items-center gap-2 animate-in fade-in">
-              <ShieldCheck size={16} className="text-emerald-700 shrink-0" />
+              <ShieldCheck size={15} className="text-emerald-700 shrink-0" />
               <span>{cancelFeedback}</span>
             </div>
           )}
@@ -453,30 +409,30 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
           {/* Payment Notice / Error */}
           {paymentNotice && (
             <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 text-xs flex items-center gap-2">
-              <ShieldCheck size={16} className="text-amber-700 shrink-0" />
+              <ShieldCheck size={15} className="text-amber-700 shrink-0" />
               <span>{paymentNotice}</span>
             </div>
           )}
 
           {paymentError && (
             <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-800 text-xs flex items-center gap-2">
-              <Alert size={16} className="text-rose-600 shrink-0" />
+              <Alert size={15} className="text-rose-600 shrink-0" />
               <span>{paymentError}</span>
             </div>
           )}
 
-          {/* Ordered Items */}
-          <div className="space-y-3">
+          {/* 2. Purchased Items */}
+          <div className="space-y-2">
             <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#8C6C38]">
-              <ShoppingBag size={15} />
+              <ShoppingBag size={14} />
               <span>Purchased Items ({order.items?.length || 0})</span>
             </div>
 
             <div className="divide-y divide-[#E8C98A]/20 bg-white rounded-xl border border-[#E8C98A]/30 overflow-hidden">
               {order.items && order.items.length > 0 ? (
                 order.items.map((item) => (
-                  <div key={item.id} className="p-3.5 sm:p-4 flex items-center gap-3 sm:gap-4 hover:bg-[#FFFDF8] transition-colors">
-                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg bg-[#FAF8F5] border border-[#E8C98A]/30 overflow-hidden shrink-0">
+                  <div key={item.id} className="p-3 sm:p-3.5 flex items-center gap-3 sm:gap-4 hover:bg-[#FFFDF8] transition-colors">
+                    <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg bg-[#FAF8F5] border border-[#E8C98A]/30 overflow-hidden shrink-0">
                       <img
                         src={getOptimizedImageUrl(item.productImage, IMAGE_PRESETS.THUMB_MD)}
                         alt={item.productName}
@@ -488,7 +444,7 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
                       <h4 className="font-serif font-bold text-sm text-[#28040B] truncate">
                         {item.productName}
                       </h4>
-                      <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-gray-500">
+                      <div className="flex flex-wrap items-center gap-2 mt-0.5 text-xs text-gray-500">
                         <span>Qty: {item.quantity}</span>
                         <span>•</span>
                         <span>{formatCurrency(item.unitPrice)} each</span>
@@ -502,21 +458,83 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
                   </div>
                 ))
               ) : (
-                <div className="p-4 text-center text-xs text-gray-500">
+                <div className="p-3.5 text-center text-xs text-gray-500">
                   No item breakdown details recorded for this order.
                 </div>
               )}
             </div>
           </div>
 
-          {/* Shipping Address */}
+          {/* 3. Order Status Cards: Compact 2-column by 2-row grid */}
+          <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
+            {/* Order Status */}
+            <div className="p-2.5 sm:p-3 rounded-xl bg-white border border-[#E8C98A]/30 shadow-2xs flex flex-col justify-between gap-1.5 min-w-0">
+              <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8C6C38] block truncate">
+                Order Status
+              </span>
+              <div
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold tracking-wide border leading-none max-w-full ${orderBadge.bgClass}`}
+                title={`Order Status: ${orderBadge.label}`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${orderBadge.dotClass}`} />
+                <OrderIcon size={12} className="shrink-0" />
+                <span className="truncate">{orderBadge.label}</span>
+              </div>
+            </div>
+
+            {/* Payment Status */}
+            <div className="p-2.5 sm:p-3 rounded-xl bg-white border border-[#E8C98A]/30 shadow-2xs flex flex-col justify-between gap-1.5 min-w-0">
+              <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8C6C38] block truncate">
+                Payment Status
+              </span>
+              <div
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold tracking-wide border leading-none max-w-full ${paymentBadge.bgClass}`}
+                title={`Payment Status: ${paymentBadge.label}`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${paymentBadge.dotClass}`} />
+                <PaymentIcon size={12} className="shrink-0" />
+                <span className="truncate">{paymentBadge.label}</span>
+              </div>
+            </div>
+
+            {/* Shipping Status */}
+            <div className="p-2.5 sm:p-3 rounded-xl bg-white border border-[#E8C98A]/30 shadow-2xs flex flex-col justify-between gap-1.5 min-w-0">
+              <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8C6C38] block truncate">
+                Shipping Status
+              </span>
+              <div
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold tracking-wide border leading-none max-w-full ${shippingBadge.bgClass}`}
+                title={`Shipping Status: ${shippingBadge.label}`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${shippingBadge.dotClass}`} />
+                <ShippingIcon size={12} className="shrink-0" />
+                <span className="truncate">{shippingBadge.label}</span>
+              </div>
+            </div>
+
+            {/* Payment Method */}
+            <div className="p-2.5 sm:p-3 rounded-xl bg-white border border-[#E8C98A]/30 shadow-2xs flex flex-col justify-between gap-1.5 min-w-0">
+              <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#8C6C38] block truncate">
+                Payment Method
+              </span>
+              <div
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold tracking-wide border leading-none max-w-full ${paymentMethodBadge.bgClass}`}
+                title={`Payment Method: ${paymentMethodBadge.fullLabel}`}
+              >
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${paymentMethodBadge.dotClass}`} />
+                <span className="truncate">{paymentMethodBadge.label}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* 4. Delivery Address */}
           {order.shippingAddress && (
-            <div className="p-4 rounded-xl bg-white border border-[#E8C98A]/30 space-y-2">
+            <div className="p-3.5 sm:p-4 rounded-xl bg-white border border-[#E8C98A]/30 space-y-1.5">
               <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#8C6C38]">
-                <Truck size={15} />
+                <Truck size={14} />
                 <span>Delivery Address</span>
               </div>
-              <div className="text-xs text-gray-700 leading-relaxed pl-6">
+              <div className="text-xs text-gray-700 leading-relaxed pl-5">
                 <p className="font-bold text-[#28040B]">{order.customerName}</p>
                 <p>{order.shippingAddress.line1}</p>
                 {order.shippingAddress.line2 && <p>{order.shippingAddress.line2}</p>}
@@ -524,19 +542,19 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
                   {order.shippingAddress.city}, {order.shippingAddress.state} - {order.shippingAddress.pincode}
                 </p>
                 <p>{order.shippingAddress.country}</p>
-                <p className="text-gray-500 mt-1">Phone: {order.customerPhone}</p>
+                <p className="text-gray-500 mt-0.5">Phone: {order.customerPhone}</p>
               </div>
             </div>
           )}
 
-          {/* Payment & Financial Breakdown */}
-          <div className="p-4 rounded-xl bg-[#FAF8F5] border border-[#E8C98A]/30 space-y-3">
+          {/* 5. Order Summary */}
+          <div className="p-3.5 sm:p-4 rounded-xl bg-[#FAF8F5] border border-[#E8C98A]/30 space-y-2.5">
             <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#8C6C38]">
-              <Layers size={15} />
+              <Layers size={14} />
               <span>Order Summary</span>
             </div>
 
-            <div className="space-y-2 text-xs text-gray-600">
+            <div className="space-y-1.5 text-xs text-gray-600">
               <div className="flex justify-between items-center">
                 <span>Payment Method</span>
                 <span className="font-semibold text-[#28040B]">
@@ -593,7 +611,7 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
                 </div>
               )}
 
-              <div className="border-t border-[#E8C98A]/40 pt-2.5 flex justify-between items-center">
+              <div className="border-t border-[#E8C98A]/40 pt-2 flex justify-between items-center">
                 <span className="font-serif font-bold text-sm sm:text-base text-[#28040B]">Final Amount</span>
                 <span className="font-serif font-bold text-base sm:text-lg text-[#8C6C38]">
                   {formatCurrency(order.grandTotal)}
