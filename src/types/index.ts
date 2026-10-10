@@ -26,6 +26,7 @@ export interface Product {
     warranty: string;
   };
   inStock: boolean;
+  availableStock: number;
   createdAt?: string | Date;
   updatedAt?: string | Date;
 }
@@ -246,6 +247,31 @@ export interface ReconcileRazorpayPaymentResponse {
   alreadyPaid?: boolean;
   message?: string;
   order?: Order;
+}
+
+export interface AdminOrderStats {
+  total: number;
+  pendingPayment: number;
+  confirmed: number;
+  processing: number;
+  shipped: number;
+  delivered: number;
+  cancelled: number;
+}
+
+export interface AdminOrdersResponse {
+  orders: Order[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+  stats?: AdminOrderStats;
+}
+
+export interface AdminSingleOrderResponse {
+  order: Order;
 }
 
 export interface RazorpayPaymentFailureResponse {

@@ -1,3 +1,4 @@
+import './testDbGuard.js';
 import 'dotenv/config';
 import crypto from 'crypto';
 import prisma from '../src/lib/prisma.js';
@@ -181,6 +182,7 @@ async function runTests() {
         baseMaterial: 'Brass',
         warranty: 'Lifetime',
         inStock: true,
+        availableStock: 50,
         image: 'https://res.cloudinary.com/alongkar/image/upload/v1/bangle.jpg',
         hoverImage: 'https://res.cloudinary.com/alongkar/image/upload/v1/bangle-hover.jpg',
       },

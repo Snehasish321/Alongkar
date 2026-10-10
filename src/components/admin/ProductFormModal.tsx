@@ -69,6 +69,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
     stoneType: '',
     warranty: '6 Months Polish Guarantee',
     inStock: true,
+    availableStock: 10,
   });
 
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
@@ -76,6 +77,12 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
 
   useEffect(() => {
     if (initialProduct && mode === 'edit') {
+      const stock =
+        typeof initialProduct.availableStock === 'number'
+          ? initialProduct.availableStock
+          : initialProduct.inStock !== false
+            ? 10
+            : 0;
       setFormData({
         name: initialProduct.name || '',
         slug: initialProduct.slug || '',
@@ -96,7 +103,8 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
         baseMaterial: initialProduct.details?.baseMaterial || 'High-Grade Brass Alloy',
         stoneType: initialProduct.details?.stoneType || '',
         warranty: initialProduct.details?.warranty || '6 Months Polish Guarantee',
-        inStock: initialProduct.inStock ?? true,
+        inStock: stock > 0,
+        availableStock: stock,
       });
       setAutoSlug(false);
     } else {
@@ -121,6 +129,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
         stoneType: '',
         warranty: '6 Months Polish Guarantee',
         inStock: true,
+        availableStock: 10,
       });
       setAutoSlug(true);
     }
@@ -168,6 +177,18 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
     if (!formData.baseMaterial.trim()) errors.baseMaterial = 'Base material is required';
     if (!formData.warranty.trim()) errors.warranty = 'Warranty detail is required';
 
+    const parsedStock = Number(formData.availableStock);
+    if (
+      formData.availableStock === undefined ||
+      formData.availableStock === null ||
+      formData.availableStock === ('' as any) ||
+      isNaN(parsedStock) ||
+      !Number.isInteger(parsedStock) ||
+      parsedStock < 0
+    ) {
+      errors.availableStock = 'Available stock must be a non-negative integer (minimum 0)';
+    }
+
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -175,6 +196,8 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
+
+    const safeStock = Math.max(0, Math.floor(Number(formData.availableStock) || 0));
 
     const payload = {
       name: formData.name.trim(),
@@ -196,7 +219,8 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
       baseMaterial: formData.baseMaterial.trim(),
       stoneType: formData.stoneType.trim() ? formData.stoneType.trim() : null,
       warranty: formData.warranty.trim(),
-      inStock: formData.inStock,
+      availableStock: safeStock,
+      inStock: safeStock > 0,
     };
 
     await onSubmit(payload);
@@ -366,7 +390,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
               2. Pricing & Stock
             </h3>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
               <div>
                 <label className="block text-[#EDE4D5]/90 font-medium mb-1.5">
                   Selling Price (₹) <span className="text-red-400">*</span>
@@ -413,21 +437,54 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   className="w-full px-3.5 py-2.5 rounded-xl bg-black/40 border border-white/15 focus:outline-none focus:border-[#D6B878] text-white font-mono"
                 />
               </div>
+
+              <div>
+                <label className="block text-[#EDE4D5]/90 font-medium mb-1.5">
+                  Available Stock (Units) <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={formData.availableStock}
+                  onChange={(e) => {
+                    const rawVal = e.target.value;
+                    const numVal = rawVal === '' ? ('' as any) : Number(rawVal);
+                    setFormData((prev) => ({
+                      ...prev,
+                      availableStock: numVal,
+                      inStock: typeof numVal === 'number' ? numVal > 0 : false,
+                    }));
+                  }}
+                  placeholder="e.g. 10"
+                  className={`w-full px-3.5 py-2.5 rounded-xl bg-black/40 border ${
+                    formErrors.availableStock ? 'border-red-500' : 'border-white/15'
+                  } focus:outline-none focus:border-[#D6B878] text-white font-mono`}
+                />
+                {formErrors.availableStock && (
+                  <p className="text-[10px] text-red-400 mt-1">{formErrors.availableStock}</p>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-              <label className="flex items-center gap-3 p-3 rounded-xl bg-black/30 border border-white/10 cursor-pointer hover:bg-black/50 transition">
-                <input
-                  type="checkbox"
-                  checked={formData.inStock}
-                  onChange={(e) => setFormData({ ...formData, inStock: e.target.checked })}
-                  className="w-4 h-4 rounded accent-emerald-500"
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-black/30 border border-white/10">
+                <div
+                  className={`w-3 h-3 rounded-full ${
+                    Number(formData.availableStock) > 0 ? 'bg-emerald-400' : 'bg-red-400'
+                  }`}
                 />
                 <div>
-                  <p className="font-semibold text-white">In Stock</p>
-                  <p className="text-[10px] text-white/50">Available for customer checkout</p>
+                  <p className="font-semibold text-white text-xs">
+                    {Number(formData.availableStock) > 0 ? 'In Stock' : 'Out of Stock'}
+                  </p>
+                  <p className="text-[10px] text-white/50">
+                    {Number(formData.availableStock) > 0
+                      ? `${Number(formData.availableStock)} sellable units available to customers`
+                      : 'Product will display as Out of Stock on storefront'}
+                  </p>
                 </div>
-              </label>
+              </div>
 
               <div className="grid grid-cols-3 gap-2">
                 <label className="flex flex-col items-center justify-center p-2 rounded-xl bg-black/30 border border-white/10 cursor-pointer hover:bg-black/50 transition text-center">

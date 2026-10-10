@@ -27,6 +27,7 @@ import {
   transitionOrderToPaid,
   fetchAndReconcileGatewayOrder,
 } from '../_utils/razorpay.js';
+import { checkLiveStockAvailability } from '../_utils/inventory.js';
 import { logEvent } from '../_utils/logger.js';
 
 function isValidRazorpayPaymentId(id: unknown): id is string {
@@ -102,6 +103,7 @@ export async function handleCreatePaymentOrder(req: any, res: any, inRequestId?:
     const order = await withTimeout(
       prisma.order.findUnique({
         where: { id: orderId },
+        include: { items: true },
       }),
       DEFAULT_DB_TIMEOUT_MS,
       'fetch_order_for_payment'
@@ -159,6 +161,29 @@ export async function handleCreatePaymentOrder(req: any, res: any, inRequestId?:
         { error: `Order is not eligible for payment: Payment status is ${order.paymentStatus}.` },
         { 'X-Request-ID': requestId }
       );
+    }
+
+    // Live pre-payment stock validation
+    if (order.items && order.items.length > 0) {
+      const itemsToCheck = order.items
+        .filter((it: any) => it.productId)
+        .map((it: any) => ({ productId: it.productId, quantity: it.quantity }));
+
+      if (itemsToCheck.length > 0) {
+        const stockCheck = await checkLiveStockAvailability(prisma, itemsToCheck);
+        if (!stockCheck.available) {
+          const conflict = stockCheck.conflicts[0];
+          const conflictMsg = conflict?.productName
+            ? `Product "${conflict.productName}" is no longer available in the requested quantity (requested ${conflict.requested}, available ${conflict.available}).`
+            : 'One or more items in this order are no longer available in the requested quantity.';
+          return respond(
+            res,
+            400,
+            { error: conflictMsg, details: stockCheck.conflicts },
+            { 'X-Request-ID': requestId }
+          );
+        }
+      }
     }
 
     let amountInPaise: number;
@@ -779,6 +804,21 @@ export async function handleVerifyPayment(req: any, res: any, inRequestId?: stri
     );
   } catch (error: any) {
     const durationMs = Date.now() - startTime;
+    if (typeof error?.message === 'string' && error.message.startsWith('INSUFFICIENT_STOCK')) {
+      logServerError('Payment verified on gateway but stock deduction failed', error, {
+        endpoint: '/api/payments/razorpay/verify',
+        requestId,
+        extra: {
+          orderId: (req.body as any)?.orderId,
+        },
+      });
+      return respond(
+        res,
+        409,
+        { error: 'Payment received on gateway, but one or more items in your order are no longer available in stock. Our support team will process a resolution or refund.' },
+        { 'X-Request-ID': requestId }
+      );
+    }
     logServerError(error, {
       endpoint: '/api/payments/razorpay/verify',
       method: 'POST',
@@ -1016,6 +1056,21 @@ export async function handleReconcilePayment(req: any, res: any, inRequestId?: s
     );
   } catch (error: any) {
     const durationMs = Date.now() - startTime;
+    if (typeof error?.message === 'string' && error.message.startsWith('INSUFFICIENT_STOCK')) {
+      logServerError('Payment reconciled on gateway but stock deduction failed', error, {
+        endpoint: '/api/payments/razorpay/reconcile',
+        requestId,
+        extra: {
+          orderId: (req.body as any)?.orderId,
+        },
+      });
+      return respond(
+        res,
+        409,
+        { error: 'Payment found on gateway, but one or more items in your order are no longer available in stock. Our support team will process a resolution or refund.' },
+        { 'X-Request-ID': requestId }
+      );
+    }
     logServerError(error, {
       endpoint: '/api/payments/razorpay/reconcile',
       method: 'POST',
@@ -1180,7 +1235,21 @@ export async function handleWebhook(req: any, res: any, inRequestId?: string, in
         return respond(res, 200, { received: true, status: 'payment_not_captured' }, { 'X-Request-ID': requestId });
       }
 
-      await transitionOrderToPaid(prisma, order.id, razorpayPaymentId);
+      try {
+        await transitionOrderToPaid(prisma, order.id, razorpayPaymentId);
+      } catch (txErr: any) {
+        if (typeof txErr?.message === 'string' && txErr.message.startsWith('INSUFFICIENT_STOCK')) {
+          logServerError('Webhook payment captured but inventory deduction failed', txErr, {
+            endpoint: '/api/payments/razorpay/webhook',
+            requestId,
+            extra: {
+              orderId: order.id,
+            },
+          });
+          return respond(res, 200, { received: true, status: 'inventory_conflict', orderId: order.id }, { 'X-Request-ID': requestId });
+        }
+        throw txErr;
+      }
 
       return respond(res, 200, { received: true, status: 'processed', orderId: order.id }, { 'X-Request-ID': requestId });
     }
@@ -1238,7 +1307,21 @@ export async function handleWebhook(req: any, res: any, inRequestId?: string, in
         return respond(res, 400, { error: 'Order paid amount mismatch.' }, { 'X-Request-ID': requestId });
       }
 
-      await transitionOrderToPaid(prisma, order.id, razorpayPaymentId || order.paymentTransactionId || null);
+      try {
+        await transitionOrderToPaid(prisma, order.id, razorpayPaymentId || order.paymentTransactionId || null);
+      } catch (txErr: any) {
+        if (typeof txErr?.message === 'string' && txErr.message.startsWith('INSUFFICIENT_STOCK')) {
+          logServerError('Webhook order paid but inventory deduction failed', txErr, {
+            endpoint: '/api/payments/razorpay/webhook',
+            requestId,
+            extra: {
+              orderId: order.id,
+            },
+          });
+          return respond(res, 200, { received: true, status: 'inventory_conflict', orderId: order.id }, { 'X-Request-ID': requestId });
+        }
+        throw txErr;
+      }
 
       return respond(res, 200, { received: true, status: 'processed', orderId: order.id }, { 'X-Request-ID': requestId });
     }

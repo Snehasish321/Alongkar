@@ -48,6 +48,14 @@ export function isValidSlug(slug: string): boolean {
 export function formatProductResponse(product: any) {
   if (!product) return null;
 
+  const availableStock =
+    typeof product.availableStock === 'number'
+      ? Math.max(0, Math.floor(product.availableStock))
+      : product.inStock === false
+        ? 0
+        : 10;
+  const inStock = availableStock > 0;
+
   return {
     id: product.id,
     name: product.name,
@@ -75,7 +83,8 @@ export function formatProductResponse(product: any) {
       ...(product.stoneType ? { stoneType: product.stoneType } : {}),
       warranty: product.warranty,
     },
-    inStock: product.inStock ?? true,
+    inStock,
+    availableStock,
     createdAt: product.createdAt,
     updatedAt: product.updatedAt,
   };
@@ -185,6 +194,10 @@ export function validateProductCreatePayload(body: any): { errors: ValidationErr
     errors.push({ field: 'discountPercent', message: 'Discount percent must be an integer between 0 and 100' });
   }
 
+  if (body.availableStock !== undefined && !isValidInteger(body.availableStock, 0, 10_000_000)) {
+    errors.push({ field: 'availableStock', message: 'Available stock must be a non-negative integer (minimum 0)' });
+  }
+
   if (errors.length > 0) {
     return { errors };
   }
@@ -201,6 +214,14 @@ export function validateProductCreatePayload(body: any): { errors: ValidationErr
       Math.round(((body.originalPrice - body.price) / body.originalPrice) * 100)
     );
   }
+
+  const availableStock =
+    body.availableStock !== undefined
+      ? Math.floor(body.availableStock)
+      : body.inStock !== false
+        ? 10
+        : 0;
+  const inStock = availableStock > 0;
 
   // Explicit field allowlist preventing mass assignment
   const sanitizedData = {
@@ -224,7 +245,8 @@ export function validateProductCreatePayload(body: any): { errors: ValidationErr
     baseMaterial: baseMaterial.trim(),
     stoneType: stoneType ? String(stoneType).trim() : null,
     warranty: warranty.trim(),
-    inStock: body.inStock !== undefined ? Boolean(body.inStock) : true,
+    availableStock,
+    inStock,
   };
 
   return { errors: [], data: sanitizedData };
@@ -392,8 +414,19 @@ export function validateProductUpdatePayload(body: any): { errors: ValidationErr
     }
   }
 
-  if (body.inStock !== undefined) {
+  if (body.availableStock !== undefined) {
+    if (!isValidInteger(body.availableStock, 0, 10_000_000)) {
+      errors.push({ field: 'availableStock', message: 'Available stock must be a non-negative integer (minimum 0)' });
+    } else {
+      const stock = Math.floor(body.availableStock);
+      updateData.availableStock = stock;
+      updateData.inStock = stock > 0;
+    }
+  } else if (body.inStock !== undefined) {
     updateData.inStock = Boolean(body.inStock);
+    if (!updateData.inStock) {
+      updateData.availableStock = 0;
+    }
   }
 
   if (errors.length > 0) {

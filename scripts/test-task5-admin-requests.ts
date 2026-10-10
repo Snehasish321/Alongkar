@@ -1,3 +1,4 @@
+import './testDbGuard.js';
 import prisma from '../src/lib/prisma.js';
 import handler, {
   ALLOWED_STATUS_TRANSITIONS,

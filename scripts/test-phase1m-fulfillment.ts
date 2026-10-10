@@ -1,3 +1,4 @@
+import './testDbGuard.js';
 import 'dotenv/config';
 import prisma from '../src/lib/prisma.js';
 import adminOrdersHandler from '../api/admin/orders.js';

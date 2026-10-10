@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import Razorpay from 'razorpay';
 import { Prisma } from '@prisma/client';
 import { withTimeout, DEFAULT_DB_TIMEOUT_MS, getSafeErrorMessage } from './security.js';
+import { deductOrderInventoryTx, invalidateDeductedProductsCache, type AggregatedOrderItem } from './inventory.js';
 
 /**
  * Validates and retrieves server-side Razorpay configuration.
@@ -164,8 +165,8 @@ export function validateRazorpayWebhookSignature(
 }
 
 /**
- * Atomically transitions an Alongkar order to CONFIRMED + PAID + READY.
- * Idempotent: If already PAID and CONFIRMED, returns the fresh order without modifying it.
+ * Atomically transitions an Alongkar order to CONFIRMED + PAID + READY and deducts inventory.
+ * Idempotent: If already PAID and CONFIRMED, returns the fresh order without modifying or deducting again.
  * Rejects cancelled or refunded orders.
  */
 export async function transitionOrderToPaid(
@@ -175,16 +176,20 @@ export async function transitionOrderToPaid(
   paidAt?: Date
 ): Promise<any> {
   const now = paidAt || new Date();
-  return await withTimeout(
+  let successfullyDeductedItems: AggregatedOrderItem[] = [];
+
+  const updatedOrder = await withTimeout(
     prismaClient.$transaction(async (tx: any) => {
       const freshOrder = await tx.order.findUnique({
         where: { id: orderId },
+        include: { items: true },
       });
 
       if (!freshOrder) {
         throw new Error('ORDER_NOT_FOUND');
       }
 
+      // Idempotency: If order was already marked PAID and CONFIRMED, do not re-deduct inventory
       if (freshOrder.paymentStatus === 'PAID' && freshOrder.status === 'CONFIRMED') {
         return freshOrder;
       }
@@ -197,7 +202,28 @@ export async function transitionOrderToPaid(
         throw new Error('ORDER_REFUNDED');
       }
 
-      const updatedOrder = await tx.order.update({
+      // Atomic inventory deduction for all items in the confirmed order
+      if (freshOrder.items && freshOrder.items.length > 0) {
+        const itemsToDeduct = freshOrder.items
+          .filter((item: any) => item.productId)
+          .map((item: any) => ({
+            productId: item.productId,
+            quantity: item.quantity,
+          }));
+
+        if (itemsToDeduct.length > 0) {
+          const deductionResult = await deductOrderInventoryTx(tx, itemsToDeduct, {
+            orderId: freshOrder.id,
+            reason: 'payment_received_and_confirmed',
+          });
+          if (!deductionResult.success) {
+            throw new Error(`INSUFFICIENT_STOCK:${deductionResult.conflictProductId || 'UNKNOWN'}`);
+          }
+          successfullyDeductedItems = deductionResult.deductedItems;
+        }
+      }
+
+      const updated = await tx.order.update({
         where: { id: freshOrder.id },
         data: {
           paymentStatus: 'PAID',
@@ -221,11 +247,18 @@ export async function transitionOrderToPaid(
         }
       }
 
-      return updatedOrder;
+      return updated;
     }),
     DEFAULT_DB_TIMEOUT_MS,
     'transition_order_to_paid_tx'
   );
+
+  // Invalidate Redis product catalog and item caches for all deducted products
+  if (successfullyDeductedItems.length > 0) {
+    invalidateDeductedProductsCache(successfullyDeductedItems).catch(() => {});
+  }
+
+  return updatedOrder;
 }
 
 export interface GatewayReconciliationResult {

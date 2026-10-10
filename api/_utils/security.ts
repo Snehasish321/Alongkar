@@ -166,6 +166,7 @@ export function getSafeErrorMessage(error: unknown, fallbackMessage = 'Internal 
       ) {
         return fallbackMessage;
       }
+      return msg;
     }
   }
 

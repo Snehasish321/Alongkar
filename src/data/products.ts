@@ -26,6 +26,7 @@ export const productsData: Product[] = [
       warranty: '6 Months Polish Guarantee',
     },
     inStock: true,
+    availableStock: 10,
   },
   {
     id: 'prod-br-2',
@@ -49,6 +50,7 @@ export const productsData: Product[] = [
       warranty: '6 Months Polish Guarantee',
     },
     inStock: true,
+    availableStock: 10,
   },
   {
     id: 'prod-br-3',
@@ -72,6 +74,7 @@ export const productsData: Product[] = [
       warranty: '6 Months Polish Guarantee',
     },
     inStock: true,
+    availableStock: 10,
   },
   {
     id: 'prod-br-4',
@@ -95,6 +98,7 @@ export const productsData: Product[] = [
       warranty: '6 Months Polish Guarantee',
     },
     inStock: true,
+    availableStock: 10,
   },
 
   // ==========================================
@@ -122,6 +126,7 @@ export const productsData: Product[] = [
       warranty: '6 Months Polish Guarantee',
     },
     inStock: true,
+    availableStock: 10,
   },
   {
     id: 'prod-nk-2',
@@ -146,6 +151,7 @@ export const productsData: Product[] = [
       warranty: '6 Months Polish Guarantee',
     },
     inStock: true,
+    availableStock: 10,
   },
   {
     id: 'prod-nk-3',
@@ -167,6 +173,7 @@ export const productsData: Product[] = [
       warranty: '1 Year Anti-Tarnish Guarantee',
     },
     inStock: true,
+    availableStock: 10,
   },
   {
     id: 'prod-nk-4',
@@ -190,6 +197,7 @@ export const productsData: Product[] = [
       warranty: '6 Months Polish Guarantee',
     },
     inStock: true,
+    availableStock: 10,
   },
 
   // ==========================================
@@ -217,6 +225,7 @@ export const productsData: Product[] = [
       warranty: '6 Months Polish Guarantee',
     },
     inStock: true,
+    availableStock: 10,
   },
   {
     id: 'prod-er-2',
@@ -239,6 +248,7 @@ export const productsData: Product[] = [
       warranty: '6 Months Polish Guarantee',
     },
     inStock: true,
+    availableStock: 10,
   },
   {
     id: 'prod-er-3',
@@ -262,6 +272,7 @@ export const productsData: Product[] = [
       warranty: '6 Months Polish Guarantee',
     },
     inStock: true,
+    availableStock: 10,
   },
   {
     id: 'prod-er-4',
@@ -284,6 +295,7 @@ export const productsData: Product[] = [
       warranty: '1 Year Anti-Tarnish Guarantee',
     },
     inStock: true,
+    availableStock: 10,
   },
   {
     id: 'prod-er-5',
@@ -306,6 +318,7 @@ export const productsData: Product[] = [
       warranty: '6 Months Polish Guarantee',
     },
     inStock: true,
+    availableStock: 10,
   },
 
   // ==========================================
@@ -333,6 +346,7 @@ export const productsData: Product[] = [
       warranty: '6 Months Polish Guarantee',
     },
     inStock: true,
+    availableStock: 10,
   },
   {
     id: 'prod-rg-2',
@@ -355,6 +369,7 @@ export const productsData: Product[] = [
       warranty: '6 Months Polish Guarantee',
     },
     inStock: true,
+    availableStock: 10,
   },
   {
     id: 'prod-rg-3',
@@ -377,6 +392,7 @@ export const productsData: Product[] = [
       warranty: '1 Year Anti-Tarnish Guarantee',
     },
     inStock: true,
+    availableStock: 10,
   },
   {
     id: 'prod-rg-4',
@@ -400,6 +416,7 @@ export const productsData: Product[] = [
       warranty: '6 Months Polish Guarantee',
     },
     inStock: true,
+    availableStock: 10,
   },
 
   // ==========================================
@@ -426,6 +443,7 @@ export const productsData: Product[] = [
       warranty: '1 Year Anti-Tarnish Guarantee',
     },
     inStock: true,
+    availableStock: 10,
   },
   {
     id: 'prod-ch-2',
@@ -447,6 +465,7 @@ export const productsData: Product[] = [
       warranty: '1 Year Anti-Tarnish Guarantee',
     },
     inStock: true,
+    availableStock: 10,
   },
   {
     id: 'prod-ch-3',
@@ -469,6 +488,7 @@ export const productsData: Product[] = [
       warranty: '6 Months Polish Guarantee',
     },
     inStock: true,
+    availableStock: 10,
   },
 
   // ==========================================
@@ -496,6 +516,7 @@ export const productsData: Product[] = [
       warranty: '6 Months Polish Guarantee',
     },
     inStock: true,
+    availableStock: 10,
   },
   {
     id: 'prod-pd-2',
@@ -518,6 +539,7 @@ export const productsData: Product[] = [
       warranty: '1 Year Anti-Tarnish Guarantee',
     },
     inStock: true,
+    availableStock: 10,
   },
   {
     id: 'prod-pd-3',
@@ -541,6 +563,7 @@ export const productsData: Product[] = [
       warranty: '6 Months Polish Guarantee',
     },
     inStock: true,
+    availableStock: 10,
   },
   {
     id: 'prod-pd-4',
@@ -564,5 +587,6 @@ export const productsData: Product[] = [
       warranty: '6 Months Polish Guarantee',
     },
     inStock: true,
+    availableStock: 10,
   }
 ];

@@ -29,10 +29,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
   const displayHoverImage = hoverImageError ? displayImage : (product.hoverImage || displayImage);
 
   const isLiked = wishlist.some((p) => p.id === product.id);
+  const isAvailable =
+    product.availableStock !== undefined ? product.availableStock > 0 : product.inStock !== false;
 
   const handleAdd = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (!isAvailable) return;
     addToCart(product);
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
@@ -64,18 +67,23 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
       <div className="relative aspect-[4/5] bg-[#FAF7F2] overflow-hidden">
         {/* Luxury Badges */}
         <div className="absolute top-3 left-3 z-20 flex flex-col gap-1.5 pointer-events-none">
-          {product.isBestSeller && (
+          {!isAvailable && (
+            <span className="px-2.5 py-0.5 rounded-full text-[9px] uppercase font-bold tracking-wider bg-[#1C0106]/90 backdrop-blur-sm text-[#F8F1E3] border border-red-500/40 shadow-sm">
+              Out of Stock
+            </span>
+          )}
+          {isAvailable && product.isBestSeller && (
             <span className="px-2.5 py-0.5 rounded-full text-[9px] uppercase font-semibold tracking-widest bg-[#2A0008] text-[#E8C98A] border border-[#E8C98A]/40 shadow-sm flex items-center gap-1">
               <Sparkles size={9} />
               <span>Bestseller</span>
             </span>
           )}
-          {product.isNew && (
+          {isAvailable && product.isNew && (
             <span className="px-2.5 py-0.5 rounded-full text-[9px] uppercase font-semibold tracking-widest bg-white/90 backdrop-blur-sm text-[#211A17] border border-[#B08D57]/30 shadow-sm">
               New In
             </span>
           )}
-          {product.discountPercent > 0 && (
+          {isAvailable && product.discountPercent > 0 && (
             <span className="px-2.5 py-0.5 rounded-full text-[9px] uppercase font-bold tracking-wider bg-[#5A0015] text-[#F8F1E3] shadow-sm">
               {product.discountPercent}% Off
             </span>
@@ -173,26 +181,32 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onQuickView }
             </div>
           </div>
 
-          <button
-            onClick={handleAdd}
-            className={`p-2 sm:px-3 sm:py-1.5 rounded-md text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5 transition-all duration-300 cursor-pointer shadow-sm ${
-              added
-                ? 'bg-emerald-700 text-white shadow-emerald-700/30'
-                : 'bg-[#2A0008] text-[#F8F1E3] hover:bg-gradient-to-r hover:from-[#E8C98A] hover:to-[#C9A45D] hover:text-[#1C0106]'
-            }`}
-          >
-            {added ? (
-              <>
-                <Check size={13} />
-                <span className="text-[11px]">Added</span>
-              </>
-            ) : (
-              <>
-                <ShoppingBag size={13} />
-                <span className="text-[11px]">Add</span>
-              </>
-            )}
-          </button>
+          {isAvailable ? (
+            <button
+              onClick={handleAdd}
+              className={`p-2 sm:px-3 sm:py-1.5 rounded-md text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5 transition-all duration-300 cursor-pointer shadow-sm ${
+                added
+                  ? 'bg-emerald-700 text-white shadow-emerald-700/30'
+                  : 'bg-[#2A0008] text-[#F8F1E3] hover:bg-gradient-to-r hover:from-[#E8C98A] hover:to-[#C9A45D] hover:text-[#1C0106]'
+              }`}
+            >
+              {added ? (
+                <>
+                  <Check size={13} />
+                  <span className="text-[11px]">Added</span>
+                </>
+              ) : (
+                <>
+                  <ShoppingBag size={13} />
+                  <span className="text-[11px]">Add</span>
+                </>
+              )}
+            </button>
+          ) : (
+            <span className="px-2.5 py-1 rounded-md text-[10px] font-semibold uppercase tracking-wider bg-black/5 text-gray-400 border border-black/10">
+              Out of Stock
+            </span>
+          )}
         </div>
       </div>
     </div>

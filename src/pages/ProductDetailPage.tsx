@@ -99,9 +99,14 @@ export const ProductDetailPage: React.FC = () => {
   }, [slug]);
 
   const isLiked = product ? wishlist.some((p) => p.id === product.id) : false;
+  const isAvailable = product
+    ? product.availableStock !== undefined
+      ? product.availableStock > 0
+      : product.inStock !== false
+    : false;
 
   const handleAddToCart = () => {
-    if (!product) return;
+    if (!product || !isAvailable) return;
     addToCart(product, quantity);
     setAddedToCart(true);
     setTimeout(() => setAddedToCart(false), 2500);
@@ -223,18 +228,23 @@ export const ProductDetailPage: React.FC = () => {
                   >
                     {/* Luxury Badges */}
                     <div className="absolute top-4 left-4 z-20 flex flex-col gap-2 pointer-events-none">
-                      {product.isBestSeller && (
+                      {!isAvailable && (
+                        <span className="px-3 py-1 rounded-full text-[10px] uppercase font-bold tracking-widest bg-[#1C0106]/95 text-[#F8F1E3] border border-red-500/50 shadow-sm">
+                          Out of Stock
+                        </span>
+                      )}
+                      {isAvailable && product.isBestSeller && (
                         <span className="px-3 py-1 rounded-full text-[10px] uppercase font-bold tracking-widest bg-[#2A0008] text-[#E8C98A] border border-[#E8C98A]/50 shadow-sm flex items-center gap-1.5">
                           <Sparkles size={11} />
                           <span>Bestseller</span>
                         </span>
                       )}
-                      {product.isNew && (
+                      {isAvailable && product.isNew && (
                         <span className="px-3 py-1 rounded-full text-[10px] uppercase font-bold tracking-widest bg-white/95 text-[#211A17] border border-[#B08D57]/40 shadow-sm">
                           New In
                         </span>
                       )}
-                      {product.discountPercent > 0 && (
+                      {isAvailable && product.discountPercent > 0 && (
                         <span className="px-3 py-1 rounded-full text-[10px] uppercase font-bold tracking-wider bg-[#5A0015] text-[#F8F1E3] shadow-sm">
                           {product.discountPercent}% Off
                         </span>
@@ -403,10 +413,14 @@ export const ProductDetailPage: React.FC = () => {
                   <div className="space-y-4 pt-4 border-t border-[#E8C98A]/20">
                     <div className="flex items-center gap-4">
                       {/* Quantity Counter */}
-                      <div className="flex items-center border border-[#E8C98A]/40 rounded-xl bg-[#FAF7F2] overflow-hidden">
+                      <div
+                        className={`flex items-center border border-[#E8C98A]/40 rounded-xl bg-[#FAF7F2] overflow-hidden ${
+                          !isAvailable ? 'opacity-40 pointer-events-none' : ''
+                        }`}
+                      >
                         <button
                           onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
-                          disabled={quantity <= 1}
+                          disabled={!isAvailable || quantity <= 1}
                           className="px-3.5 py-2.5 text-[#211A17] hover:bg-[#E8C98A]/20 disabled:opacity-30 cursor-pointer"
                           aria-label="Decrease quantity"
                         >
@@ -417,7 +431,8 @@ export const ProductDetailPage: React.FC = () => {
                         </span>
                         <button
                           onClick={() => setQuantity((prev) => prev + 1)}
-                          className="px-3.5 py-2.5 text-[#211A17] hover:bg-[#E8C98A]/20 cursor-pointer"
+                          disabled={!isAvailable}
+                          className="px-3.5 py-2.5 text-[#211A17] hover:bg-[#E8C98A]/20 disabled:opacity-30 cursor-pointer"
                           aria-label="Increase quantity"
                         >
                           <Plus size={14} />
@@ -426,10 +441,21 @@ export const ProductDetailPage: React.FC = () => {
 
                       {/* Stock Status */}
                       <div className="flex items-center gap-1.5 text-xs font-medium">
-                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 animate-pulse" />
-                        <span className="text-emerald-800">
-                          {product.inStock !== false ? 'In Stock & Ready to Dispatch' : 'Backorder'}
-                        </span>
+                        {isAvailable ? (
+                          <>
+                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-600 animate-pulse" />
+                            <span className="text-emerald-800 font-semibold">
+                              In Stock & Ready to Dispatch
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="w-2.5 h-2.5 rounded-full bg-red-500" />
+                            <span className="text-red-700 font-semibold">
+                              Out of Stock
+                            </span>
+                          </>
+                        )}
                       </div>
                     </div>
 
@@ -437,13 +463,18 @@ export const ProductDetailPage: React.FC = () => {
                     <div className="flex gap-3">
                       <button
                         onClick={handleAddToCart}
-                        className={`flex-1 py-3.5 px-6 rounded-xl text-xs sm:text-sm font-semibold uppercase tracking-[0.18em] flex items-center justify-center gap-2.5 transition-all duration-300 shadow-md cursor-pointer ${
-                          addedToCart
-                            ? 'bg-emerald-700 text-white shadow-emerald-700/30'
-                            : 'bg-[#2A0008] text-[#F8F1E3] hover:bg-gradient-to-r hover:from-[#E8C98A] hover:to-[#C9A45D] hover:text-[#1C0106]'
+                        disabled={!isAvailable}
+                        className={`flex-1 py-3.5 px-6 rounded-xl text-xs sm:text-sm font-semibold uppercase tracking-[0.18em] flex items-center justify-center gap-2.5 transition-all duration-300 shadow-md ${
+                          !isAvailable
+                            ? 'bg-black/10 text-gray-400 border border-black/10 cursor-not-allowed'
+                            : addedToCart
+                              ? 'bg-emerald-700 text-white shadow-emerald-700/30 cursor-pointer'
+                              : 'bg-[#2A0008] text-[#F8F1E3] hover:bg-gradient-to-r hover:from-[#E8C98A] hover:to-[#C9A45D] hover:text-[#1C0106] cursor-pointer'
                         }`}
                       >
-                        {addedToCart ? (
+                        {!isAvailable ? (
+                          <span>Out of Stock</span>
+                        ) : addedToCart ? (
                           <>
                             <Check size={18} />
                             <span>Added to Bag</span>

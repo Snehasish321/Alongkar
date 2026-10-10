@@ -26,12 +26,15 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ product, onClose
   const fallbackImage = 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?q=80&w=800&auto=format&fit=crop';
   const images = [product.image, product.hoverImage].filter(Boolean);
   const isLiked = wishlist.some((p) => p.id === product.id);
+  const isAvailable =
+    product.availableStock !== undefined ? product.availableStock > 0 : product.inStock !== false;
 
   const getRawImageUrl = (url: string, idx: number) => {
     return imageErrors[idx] ? fallbackImage : (url || fallbackImage);
   };
 
   const handleAddToCart = () => {
+    if (!isAvailable) return;
     addToCart(product);
     setAdded(true);
     setTimeout(() => setAdded(false), 2000);
@@ -126,9 +129,15 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ product, onClose
 
                 <div className="flex items-center gap-3 mt-2 mb-4">
                   <StarRating rating={product.rating} showNumber reviewCount={product.reviewCount} />
-                  <span className="text-xs text-emerald-700 font-semibold flex items-center gap-1">
-                    <Check size={14} /> In Stock
-                  </span>
+                  {isAvailable ? (
+                    <span className="text-xs text-emerald-700 font-semibold flex items-center gap-1">
+                      <Check size={14} /> In Stock
+                    </span>
+                  ) : (
+                    <span className="text-xs text-red-600 font-semibold flex items-center gap-1">
+                      <X size={14} /> Out of Stock
+                    </span>
+                  )}
                 </div>
 
                 {/* Price */}
@@ -177,13 +186,16 @@ export const QuickViewModal: React.FC<QuickViewModalProps> = ({ product, onClose
               {/* Action Buttons */}
               <div className="space-y-3">
                 <Button
-                  variant="gold"
+                  variant={isAvailable ? 'gold' : 'secondary'}
+                  disabled={!isAvailable}
                   fullWidth
                   size="lg"
                   onClick={handleAddToCart}
                   className="gap-2"
                 >
-                  {added ? (
+                  {!isAvailable ? (
+                    <span>OUT OF STOCK</span>
+                  ) : added ? (
                     <>
                       <Check size={18} />
                       <span>ADDED TO BAG!</span>

@@ -12,6 +12,7 @@ import {
 } from '../_utils/security.js';
 import { checkOrderFulfillmentEligibility, getOrderFulfillmentEligibility } from '../_utils/fulfillment.js';
 import { createShiprocketOrder } from '../_utils/shiprocket.js';
+import { cancelAdminOrderWorkflow, retryAdminOrderRefundWorkflow } from '../_utils/orderCancellation.js';
 
 export const ALL_ORDER_STATUSES = [
   'PENDING_PAYMENT',
@@ -45,12 +46,13 @@ export const ALL_SHIPPING_STATUSES = [
 /**
  * Valid allowed state transitions for OrderStatus.
  * Terminal states (DELIVERED, CANCELLED) cannot be transitioned forward/backward.
+ * Shipped orders cannot be transitioned back to cancelled.
  */
 export const ALLOWED_ORDER_STATUS_TRANSITIONS: Record<string, string[]> = {
   PENDING_PAYMENT: ['CONFIRMED', 'CANCELLED'],
   CONFIRMED: ['PROCESSING', 'CANCELLED'],
   PROCESSING: ['SHIPPED', 'CANCELLED'],
-  SHIPPED: ['DELIVERED', 'CANCELLED'],
+  SHIPPED: ['DELIVERED'],
   DELIVERED: [],
   CANCELLED: [],
 };
@@ -171,8 +173,9 @@ export function formatAdminOrder(order: any) {
 
 export function extractAdminOrderLookup(req: any, body?: any): { id?: string; orderNumber?: string } | null {
   if (body && typeof body === 'object') {
-    if (body.id && typeof body.id === 'string' && isValidIdentifier(body.id.trim())) {
-      return { id: body.id.trim() };
+    const idVal = body.id || body.orderId;
+    if (idVal && typeof idVal === 'string' && isValidIdentifier(idVal.trim())) {
+      return { id: idVal.trim() };
     }
     if (body.orderNumber && typeof body.orderNumber === 'string') {
       return { orderNumber: body.orderNumber.trim() };
@@ -285,10 +288,19 @@ export default async function handler(req: any, res?: any) {
         where.shippingStatus = shippingStatus;
       }
 
+      const paymentMethod = req.query?.paymentMethod || req.query?.paymentProvider;
+      if (paymentMethod && typeof paymentMethod === 'string') {
+        const cleanMethod = paymentMethod.trim().toUpperCase();
+        if (cleanMethod === 'RAZORPAY' || cleanMethod === 'COD') {
+          where.paymentProvider = cleanMethod;
+        }
+      }
+
       const search = req.query?.search;
       if (search && typeof search === 'string' && search.trim().length > 0) {
         const cleanSearch = search.trim().slice(0, 100);
         where.OR = [
+          { id: { contains: cleanSearch, mode: 'insensitive' } },
           { orderNumber: { contains: cleanSearch, mode: 'insensitive' } },
           { customerName: { contains: cleanSearch, mode: 'insensitive' } },
           { customerEmail: { contains: cleanSearch, mode: 'insensitive' } },
@@ -300,7 +312,7 @@ export default async function handler(req: any, res?: any) {
       const limit = Math.min(100, Math.max(1, parseInt(String(req.query?.limit || 20), 10) || 20));
       const skip = (page - 1) * limit;
 
-      const [orders, total] = await withTimeout(
+      const [orders, total, statusGroups, totalAll] = await withTimeout(
         Promise.all([
           prisma.order.findMany({
             where,
@@ -308,15 +320,35 @@ export default async function handler(req: any, res?: any) {
               items: true,
               user: true,
             },
-            orderBy: { createdAt: 'desc' },
+            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
             skip,
             take: limit,
           }),
           prisma.order.count({ where }),
+          prisma.order.groupBy({
+            by: ['status'],
+            _count: { _all: true },
+          }),
+          prisma.order.count(),
         ]),
         DEFAULT_DB_TIMEOUT_MS,
         'AdminOrder.findMany'
       );
+
+      const countsByStatus: Record<string, number> = {};
+      for (const group of statusGroups) {
+        countsByStatus[group.status] = group._count._all;
+      }
+
+      const stats = {
+        total: totalAll,
+        pendingPayment: countsByStatus['PENDING_PAYMENT'] || 0,
+        confirmed: countsByStatus['CONFIRMED'] || 0,
+        processing: countsByStatus['PROCESSING'] || 0,
+        shipped: countsByStatus['SHIPPED'] || 0,
+        delivered: countsByStatus['DELIVERED'] || 0,
+        cancelled: countsByStatus['CANCELLED'] || 0,
+      };
 
       const totalPages = Math.ceil(total / limit) || 1;
 
@@ -336,6 +368,7 @@ export default async function handler(req: any, res?: any) {
             total,
             totalPages,
           },
+          stats,
         },
         { 'X-Request-ID': requestId }
       );
@@ -377,6 +410,41 @@ export default async function handler(req: any, res?: any) {
         if (!ALL_ORDER_STATUSES.includes(bodyData.status)) {
           return respond(res, 400, { error: `Invalid order status. Allowed: ${ALL_ORDER_STATUSES.join(', ')}` }, { 'X-Request-ID': requestId });
         }
+
+        // If transitioning to CANCELLED, execute atomic cancellation & inventory restoration workflow
+        if (bodyData.status === 'CANCELLED') {
+          const cancelResult = await cancelAdminOrderWorkflow({
+            orderIdOrNumber: existingOrder.id,
+            cancelReason: bodyData.cancelReason || (typeof bodyData.adminNotes === 'string' ? bodyData.adminNotes : undefined),
+            adminClerkUserId: authResult.clerkUserId,
+          });
+
+          if (!cancelResult.success) {
+            return respond(
+              res,
+              cancelResult.status,
+              {
+                error: cancelResult.message || cancelResult.error,
+                code: cancelResult.error,
+              },
+              { 'X-Request-ID': requestId }
+            );
+          }
+
+          return respond(
+            res,
+            cancelResult.status,
+            {
+              order: formatAdminOrder(cancelResult.order),
+              inventoryRestored: cancelResult.inventoryRestored,
+              restoredItems: cancelResult.restoredItems,
+              refundStatus: cancelResult.refundStatus,
+              message: cancelResult.message,
+            },
+            { 'X-Request-ID': requestId }
+          );
+        }
+
         const allowedOrderTransitions = ALLOWED_ORDER_STATUS_TRANSITIONS[currentOrderStatus] || [];
         if (!allowedOrderTransitions.includes(bodyData.status)) {
           return respond(
@@ -389,9 +457,6 @@ export default async function handler(req: any, res?: any) {
           );
         }
         updateData.status = bodyData.status;
-        if (bodyData.status === 'CANCELLED' && !existingOrder.cancelledAt) {
-          updateData.cancelledAt = new Date();
-        }
       }
 
       // 2. Validate Payment Status transition
@@ -399,6 +464,32 @@ export default async function handler(req: any, res?: any) {
         if (!ALL_PAYMENT_STATUSES.includes(bodyData.paymentStatus)) {
           return respond(res, 400, { error: `Invalid payment status. Allowed: ${ALL_PAYMENT_STATUSES.join(', ')}` }, { 'X-Request-ID': requestId });
         }
+
+        // Direct mutation to CANCELLED or REFUNDED without workflow is strictly blocked
+        if (bodyData.paymentStatus === 'CANCELLED') {
+          return respond(
+            res,
+            400,
+            {
+              error: 'Directly setting paymentStatus to CANCELLED via PATCH is disallowed. Use the order cancellation workflow.',
+              code: 'DIRECT_PAYMENT_CANCELLATION_DISALLOWED',
+            },
+            { 'X-Request-ID': requestId }
+          );
+        }
+
+        if (bodyData.paymentStatus === 'REFUNDED' || bodyData.paymentStatus === 'PARTIALLY_REFUNDED') {
+          return respond(
+            res,
+            400,
+            {
+              error: 'Directly setting paymentStatus to REFUNDED via PATCH is disallowed. Use the cancel_order or retry_refund workflow.',
+              code: 'DIRECT_REFUND_DISALLOWED',
+            },
+            { 'X-Request-ID': requestId }
+          );
+        }
+
         const allowedPaymentTransitions = ALLOWED_PAYMENT_STATUS_TRANSITIONS[currentPaymentStatus] || [];
         if (!allowedPaymentTransitions.includes(bodyData.paymentStatus)) {
           return respond(
@@ -421,6 +512,20 @@ export default async function handler(req: any, res?: any) {
         if (!ALL_SHIPPING_STATUSES.includes(bodyData.shippingStatus)) {
           return respond(res, 400, { error: `Invalid shipping status. Allowed: ${ALL_SHIPPING_STATUSES.join(', ')}` }, { 'X-Request-ID': requestId });
         }
+
+        // Direct mutation to CANCELLED without workflow is strictly blocked
+        if (bodyData.shippingStatus === 'CANCELLED') {
+          return respond(
+            res,
+            400,
+            {
+              error: 'Directly setting shippingStatus to CANCELLED via PATCH is disallowed. Use the order cancellation workflow.',
+              code: 'DIRECT_SHIPPING_CANCELLATION_DISALLOWED',
+            },
+            { 'X-Request-ID': requestId }
+          );
+        }
+
         const allowedShippingTransitions = ALLOWED_SHIPPING_STATUS_TRANSITIONS[currentShippingStatus] || [];
         if (!allowedShippingTransitions.includes(bodyData.shippingStatus)) {
           return respond(
@@ -561,6 +666,96 @@ export default async function handler(req: any, res?: any) {
           res,
           shiprocketResult.status,
           shiprocketResult,
+          { 'X-Request-ID': requestId }
+        );
+      }
+
+      if (action === 'cancel_order' || action === 'admin_order_cancel') {
+        const lookup = extractAdminOrderLookup(req, bodyData);
+        const orderIdOrNumber = lookup?.id || lookup?.orderNumber || bodyData?.orderId || bodyData?.orderNumber;
+        if (!orderIdOrNumber) {
+          return respond(
+            res,
+            400,
+            { error: 'Order ID or orderNumber is required to cancel an order.' },
+            { 'X-Request-ID': requestId }
+          );
+        }
+
+        const cancelResult = await cancelAdminOrderWorkflow({
+          orderIdOrNumber,
+          cancelReason: bodyData?.cancelReason,
+          adminClerkUserId: authResult.clerkUserId,
+        });
+
+        if (!cancelResult.success) {
+          return respond(
+            res,
+            cancelResult.status,
+            {
+              error: cancelResult.message || cancelResult.error,
+              code: cancelResult.error,
+            },
+            { 'X-Request-ID': requestId }
+          );
+        }
+
+        return respond(
+          res,
+          cancelResult.status,
+          {
+            success: true,
+            order: formatAdminOrder(cancelResult.order),
+            inventoryRestored: cancelResult.inventoryRestored,
+            restoredItems: cancelResult.restoredItems,
+            refundStatus: cancelResult.refundStatus,
+            refundId: cancelResult.refundId,
+            message: cancelResult.message,
+          },
+          { 'X-Request-ID': requestId }
+        );
+      }
+
+      if (action === 'retry_refund' || action === 'process_refund' || action === 'admin_order_refund') {
+        const lookup = extractAdminOrderLookup(req, bodyData);
+        const orderIdOrNumber = lookup?.id || lookup?.orderNumber || bodyData?.orderId || bodyData?.orderNumber;
+        if (!orderIdOrNumber) {
+          return respond(
+            res,
+            400,
+            { error: 'Order ID or orderNumber is required to process refund.' },
+            { 'X-Request-ID': requestId }
+          );
+        }
+
+        const refundResult = await retryAdminOrderRefundWorkflow({
+          orderIdOrNumber,
+          adminClerkUserId: authResult.clerkUserId,
+        });
+
+        if (!refundResult.success) {
+          return respond(
+            res,
+            refundResult.status,
+            {
+              error: refundResult.message || refundResult.error,
+              code: refundResult.error,
+              order: refundResult.order ? formatAdminOrder(refundResult.order) : undefined,
+            },
+            { 'X-Request-ID': requestId }
+          );
+        }
+
+        return respond(
+          res,
+          refundResult.status,
+          {
+            success: true,
+            order: formatAdminOrder(refundResult.order),
+            refundStatus: refundResult.refundStatus,
+            refundId: refundResult.refundId,
+            message: refundResult.message,
+          },
           { 'X-Request-ID': requestId }
         );
       }
