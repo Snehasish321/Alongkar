@@ -191,3 +191,478 @@ export async function reconcileRazorpayPayment(
     message: data.message,
   };
 }
+
+export interface FetchAdminOrdersParams {
+  page?: number;
+  limit?: number;
+  status?: string;
+  paymentStatus?: string;
+  paymentMethod?: string;
+  search?: string;
+}
+
+/**
+ * Fetches all-customer orders for authenticated admins from GET /api/admin/orders.
+ */
+export async function fetchAdminOrders(
+  token: string | null,
+  params: FetchAdminOrdersParams = {}
+): Promise<{
+  orders: Order[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+  stats?: {
+    total: number;
+    pendingPayment: number;
+    confirmed: number;
+    processing: number;
+    shipped: number;
+    delivered: number;
+    cancelled: number;
+  };
+}> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const queryParams = new URLSearchParams();
+  if (params.page) queryParams.set('page', String(params.page));
+  if (params.limit) queryParams.set('limit', String(params.limit));
+  if (params.status && params.status !== 'ALL') queryParams.set('status', params.status);
+  if (params.paymentStatus && params.paymentStatus !== 'ALL') queryParams.set('paymentStatus', params.paymentStatus);
+  if (params.paymentMethod && params.paymentMethod !== 'ALL') queryParams.set('paymentMethod', params.paymentMethod);
+  if (params.search && params.search.trim()) queryParams.set('search', params.search.trim());
+
+  const response = await fetch(`/api/admin/orders?${queryParams.toString()}`, {
+    method: 'GET',
+    headers,
+  });
+
+  if (response.status === 401) {
+    throw new Error('Unauthorized. Please sign in as an admin.');
+  }
+
+  if (response.status === 403) {
+    throw new Error('Access denied. Administrator privileges required.');
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `Failed to fetch admin orders (HTTP ${response.status})`);
+  }
+
+  const data = await response.json();
+  return {
+    orders: Array.isArray(data.orders) ? data.orders : [],
+    pagination: data.pagination || {
+      page: params.page || 1,
+      limit: params.limit || 20,
+      total: Array.isArray(data.orders) ? data.orders.length : 0,
+      totalPages: 1,
+    },
+    stats: data.stats,
+  };
+}
+
+/**
+ * Fetches a single order's complete details for admins from GET /api/admin/orders.
+ */
+export async function fetchAdminOrder(
+  token: string | null,
+  orderNumberOrId: string
+): Promise<Order> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const queryParams = new URLSearchParams(
+    orderNumberOrId.startsWith('ORD-')
+      ? { orderNumber: orderNumberOrId }
+      : { id: orderNumberOrId }
+  );
+
+  const response = await fetch(`/api/admin/orders?${queryParams.toString()}`, {
+    method: 'GET',
+    headers,
+  });
+
+  if (response.status === 401) {
+    throw new Error('Unauthorized. Please sign in as an admin.');
+  }
+
+  if (response.status === 403) {
+    throw new Error('Access denied. Administrator privileges required.');
+  }
+
+  if (response.status === 404) {
+    throw new Error('Order not found.');
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `Failed to fetch order details (HTTP ${response.status})`);
+  }
+
+  const data = await response.json();
+  if (!data.order) {
+    throw new Error('Order data is missing from server response.');
+  }
+
+  return data.order;
+}
+
+export interface CancelAdminOrderResponse {
+  success: boolean;
+  order: Order;
+  inventoryRestored: boolean;
+  restoredItems?: Array<{ productId: string; quantity: number }>;
+  refundStatus?: 'NOT_APPLICABLE' | 'REFUNDED' | 'REFUND_FAILED' | 'PENDING_RETRY';
+  refundId?: string;
+  message: string;
+}
+
+/**
+ * Initiates an authorized server-authoritative order cancellation workflow
+ * via POST /api/admin/orders with action: 'cancel_order'.
+ */
+export async function cancelAdminOrder(
+  token: string | null,
+  payload: {
+    orderId?: string;
+    orderNumber?: string;
+    cancelReason?: string;
+  }
+): Promise<CancelAdminOrderResponse> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch('/api/admin/orders', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      action: 'cancel_order',
+      ...payload,
+    }),
+  });
+
+  if (response.status === 401) {
+    throw new Error('Unauthorized. Please sign in as an admin.');
+  }
+
+  if (response.status === 403) {
+    throw new Error('Access denied. Administrator privileges required.');
+  }
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.error || data.message || `Failed to cancel order (HTTP ${response.status})`);
+  }
+
+  return {
+    success: Boolean(data.success),
+    order: data.order,
+    inventoryRestored: Boolean(data.inventoryRestored),
+    restoredItems: data.restoredItems,
+    refundStatus: data.refundStatus,
+    refundId: data.refundId,
+    message: data.message || 'Order successfully cancelled.',
+  };
+}
+
+export async function retryAdminRefund(
+  token: string | null,
+  payload: {
+    orderId?: string;
+    orderNumber?: string;
+  }
+): Promise<{
+  success: boolean;
+  order?: Order;
+  refundStatus: 'REFUNDED' | 'REFUND_FAILED' | 'ALREADY_REFUNDED' | 'NOT_APPLICABLE';
+  refundId?: string;
+  message: string;
+}> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch('/api/admin/orders', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      action: 'retry_refund',
+      ...payload,
+    }),
+  });
+
+  if (response.status === 401) {
+    throw new Error('Unauthorized. Please sign in as an admin.');
+  }
+
+  if (response.status === 403) {
+    throw new Error('Access denied. Administrator privileges required.');
+  }
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.error || data.message || `Failed to process refund (HTTP ${response.status})`);
+  }
+
+  return {
+    success: Boolean(data.success),
+    order: data.order,
+    refundStatus: data.refundStatus,
+    refundId: data.refundId,
+    message: data.message || 'Refund successfully processed.',
+  };
+}
+
+export async function reconcileAdminRefund(
+  token: string | null,
+  payload: {
+    orderId?: string;
+    orderNumber?: string;
+  }
+): Promise<{
+  success: boolean;
+  order?: Order;
+  outcome: string;
+  refundId?: string | null;
+  gatewayStatus?: string | null;
+  discrepancyDetected?: boolean;
+  message: string;
+}> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch('/api/admin/orders', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      action: 'reconcile_refund',
+      ...payload,
+    }),
+  });
+
+  if (response.status === 401) {
+    throw new Error('Unauthorized. Please sign in as an admin.');
+  }
+
+  if (response.status === 403) {
+    throw new Error('Access denied. Administrator privileges required.');
+  }
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.error || data.message || `Failed to reconcile refund (HTTP ${response.status})`);
+  }
+
+  return {
+    success: Boolean(data.success),
+    order: data.order,
+    outcome: data.outcome,
+    refundId: data.refundId,
+    gatewayStatus: data.gatewayStatus,
+    discrepancyDetected: Boolean(data.discrepancyDetected),
+    message: data.message || 'Refund reconciliation completed.',
+  };
+}
+
+export async function advanceOrderFulfilmentStage(
+  token: string | null,
+  payload: {
+    orderId?: string;
+    orderNumber?: string;
+    targetStage?: string;
+  }
+): Promise<{
+  success: boolean;
+  order: Order;
+  previousStage: string;
+  currentStage: string;
+  nextStage: string | null;
+  message: string;
+}> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch('/api/admin/orders', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      action: 'advance_fulfillment_stage',
+      ...payload,
+    }),
+  });
+
+  if (response.status === 401) {
+    throw new Error('Unauthorized. Please sign in as an admin.');
+  }
+
+  if (response.status === 403) {
+    throw new Error('Access denied. Administrator privileges required.');
+  }
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.error || data.message || `Failed to advance fulfilment stage (HTTP ${response.status})`);
+  }
+
+  return {
+    success: Boolean(data.success),
+    order: data.order,
+    previousStage: data.previousStage,
+    currentStage: data.currentStage,
+    nextStage: data.nextStage || null,
+    message: data.message || 'Fulfilment stage updated successfully.',
+  };
+}
+
+/**
+ * Submits a customer cancellation request for an eligible order (Reviewing or Packaging)
+ * via POST /api/orders with action: 'request_cancellation'.
+ */
+export async function requestCustomerOrderCancellation(
+  token: string | null,
+  payload: {
+    orderId?: string;
+    orderNumber?: string;
+    reason?: string;
+  }
+): Promise<{
+  success: boolean;
+  order: Order;
+  message: string;
+}> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch('/api/orders', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      action: 'request_cancellation',
+      ...payload,
+    }),
+  });
+
+  if (response.status === 401) {
+    throw new Error('Please sign in to request cancellation for this order.');
+  }
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.error || data.message || `Failed to request cancellation (HTTP ${response.status})`);
+  }
+
+  return {
+    success: Boolean(data.success),
+    order: data.order,
+    message: data.message || 'Cancellation request submitted successfully.',
+  };
+}
+
+/**
+ * Resolves an active customer cancellation request as an admin (APPROVE or REJECT)
+ * via POST /api/admin/orders with action: 'resolve_cancellation_request'.
+ */
+export async function resolveAdminCancellationRequest(
+  token: string | null,
+  payload: {
+    orderId?: string;
+    orderNumber?: string;
+    decision: 'APPROVE' | 'REJECT';
+    rejectionReason?: string;
+  }
+): Promise<{
+  success: boolean;
+  order: Order;
+  decision: 'APPROVE' | 'REJECT';
+  inventoryRestored?: boolean;
+  refundStatus?: string;
+  refundId?: string;
+  message: string;
+}> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch('/api/admin/orders', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      action: 'resolve_cancellation_request',
+      ...payload,
+    }),
+  });
+
+  if (response.status === 401) {
+    throw new Error('Unauthorized. Please sign in as an admin.');
+  }
+
+  if (response.status === 403) {
+    throw new Error('Access denied. Administrator privileges required.');
+  }
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.error || data.message || `Failed to resolve cancellation request (HTTP ${response.status})`);
+  }
+
+  return {
+    success: Boolean(data.success),
+    order: data.order,
+    decision: data.decision,
+    inventoryRestored: data.inventoryRestored,
+    refundStatus: data.refundStatus,
+    refundId: data.refundId,
+    message: data.message || `Cancellation request ${data.decision.toLowerCase()}d successfully.`,
+  };
+}
+

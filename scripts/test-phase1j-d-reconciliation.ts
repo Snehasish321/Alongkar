@@ -1,3 +1,4 @@
+import './testDbGuard.js';
 import 'dotenv/config';
 import crypto from 'crypto';
 import prisma from '../src/lib/prisma.js';
@@ -132,6 +133,7 @@ async function runTests() {
         baseMaterial: '22KT Yellow Gold',
         warranty: 'Lifetime Gold Authenticity Certification',
         inStock: true,
+        availableStock: 50,
       },
     });
 

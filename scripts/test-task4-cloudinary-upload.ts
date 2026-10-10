@@ -1,3 +1,4 @@
+import './testDbGuard.js';
 import prisma from '../src/lib/prisma.js';
 import uploadHandler from '../api/uploads/jewellery-inspiration.js';
 import { isCloudinaryConfigured } from '../api/_utils/cloudinary.js';

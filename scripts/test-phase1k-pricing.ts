@@ -1,3 +1,4 @@
+import './testDbGuard.js';
 import 'dotenv/config';
 
 process.env.NODE_ENV = 'test';
@@ -201,6 +202,7 @@ async function runPhase1KTests() {
       baseMaterial: 'Brass',
       warranty: '1 Year',
       inStock: true,
+      availableStock: 50,
     },
   });
 
@@ -219,6 +221,7 @@ async function runPhase1KTests() {
       baseMaterial: 'Silver',
       warranty: '1 Year',
       inStock: true,
+      availableStock: 50,
     },
   });
 
@@ -237,6 +240,7 @@ async function runPhase1KTests() {
       baseMaterial: 'Silver',
       warranty: '2 Years',
       inStock: true,
+      availableStock: 50,
     },
   });
 
@@ -740,14 +744,8 @@ async function runPhase1KTests() {
   // ==========================================================================
   console.log('\n--- 8. Cleaning Up Test Entities ---');
 
-  if (createdOrderIds.length > 0) {
-    await prisma.orderItem.deleteMany({ where: { orderId: { in: createdOrderIds } } });
-    await prisma.order.deleteMany({ where: { id: { in: createdOrderIds } } });
-  }
-
-  await prisma.product.deleteMany({
-    where: { id: { in: [productLow.id, productMid.id, productHigh.id] } },
-  });
+  await prisma.orderItem.deleteMany({ where: { order: { userId: { in: [user1.id, user2.id] } } } });
+  await prisma.order.deleteMany({ where: { userId: { in: [user1.id, user2.id] } } });
 
   await prisma.cartItem.deleteMany({
     where: { cart: { userId: { in: [user1.id, user2.id] } } },
@@ -757,6 +755,10 @@ async function runPhase1KTests() {
   });
   await prisma.user.deleteMany({
     where: { id: { in: [user1.id, user2.id] } },
+  });
+
+  await prisma.product.deleteMany({
+    where: { id: { in: [productLow.id, productMid.id, productHigh.id] } },
   });
 
   console.log('Cleanup completed.');

@@ -616,6 +616,10 @@ export const OrdersPage: React.FC = () => {
         isOpen={isDetailModalOpen}
         onClose={() => setIsDetailModalOpen(false)}
         order={selectedOrder}
+        onOrderUpdated={(updated) => {
+          setSelectedOrder(updated);
+          loadOrders();
+        }}
       />
     </StorefrontLayout>
   );

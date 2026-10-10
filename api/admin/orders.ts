@@ -10,8 +10,15 @@ import {
   logSlowRequest,
   logSecurityEvent,
 } from '../_utils/security.js';
-import { checkOrderFulfillmentEligibility, getOrderFulfillmentEligibility } from '../_utils/fulfillment.js';
+import { checkOrderFulfillmentEligibility, getOrderFulfillmentEligibility, advanceOrderFulfilmentStageWorkflow } from '../_utils/fulfillment.js';
 import { createShiprocketOrder } from '../_utils/shiprocket.js';
+import {
+  cancelAdminOrderWorkflow,
+  retryAdminOrderRefundWorkflow,
+  reconcileOrderRefundWithGateway,
+  resolveAdminCancellationWorkflow,
+} from '../_utils/orderCancellation.js';
+import { getCancellationRequestDetails } from '../../src/lib/order-status.js';
 
 export const ALL_ORDER_STATUSES = [
   'PENDING_PAYMENT',
@@ -45,12 +52,13 @@ export const ALL_SHIPPING_STATUSES = [
 /**
  * Valid allowed state transitions for OrderStatus.
  * Terminal states (DELIVERED, CANCELLED) cannot be transitioned forward/backward.
+ * Shipped orders cannot be transitioned back to cancelled.
  */
 export const ALLOWED_ORDER_STATUS_TRANSITIONS: Record<string, string[]> = {
   PENDING_PAYMENT: ['CONFIRMED', 'CANCELLED'],
   CONFIRMED: ['PROCESSING', 'CANCELLED'],
   PROCESSING: ['SHIPPED', 'CANCELLED'],
-  SHIPPED: ['DELIVERED', 'CANCELLED'],
+  SHIPPED: ['DELIVERED'],
   DELIVERED: [],
   CANCELLED: [],
 };
@@ -94,6 +102,8 @@ export function formatAdminOrder(order: any) {
     if (val === null || val === undefined) return null;
     return typeof val.toNumber === 'function' ? val.toNumber() : Number(val);
   };
+
+  const cancellationDetails = getCancellationRequestDetails(order);
 
   return {
     id: order.id,
@@ -146,6 +156,11 @@ export function formatAdminOrder(order: any) {
     deliveredAt: order.deliveredAt || null,
     cancelReason: order.cancelReason || null,
     cancelledAt: order.cancelledAt || null,
+    cancellationRequestStatus: cancellationDetails.status,
+    cancellationRequestedAt: cancellationDetails.requestedAt,
+    cancellationRequestReason: cancellationDetails.requestReason,
+    cancellationResolvedAt: cancellationDetails.resolvedAt,
+    cancellationRejectionReason: cancellationDetails.rejectionReason,
     customerNotes: order.customerNotes || null,
     adminNotes: order.adminNotes || null,
     createdAt: order.createdAt,
@@ -171,8 +186,9 @@ export function formatAdminOrder(order: any) {
 
 export function extractAdminOrderLookup(req: any, body?: any): { id?: string; orderNumber?: string } | null {
   if (body && typeof body === 'object') {
-    if (body.id && typeof body.id === 'string' && isValidIdentifier(body.id.trim())) {
-      return { id: body.id.trim() };
+    const idVal = body.id || body.orderId;
+    if (idVal && typeof idVal === 'string' && isValidIdentifier(idVal.trim())) {
+      return { id: idVal.trim() };
     }
     if (body.orderNumber && typeof body.orderNumber === 'string') {
       return { orderNumber: body.orderNumber.trim() };
@@ -268,39 +284,85 @@ export default async function handler(req: any, res?: any) {
         return respond(res, 200, { order: formatAdminOrder(order) }, { 'X-Request-ID': requestId });
       }
 
-      // Query filters
-      const where: any = {};
-      const status = req.query?.status;
-      if (status && typeof status === 'string' && ALL_ORDER_STATUSES.includes(status as any)) {
-        where.status = status;
+      // Extract query parameters from req.query (Vercel) or req.url (Vite dev server / Node)
+      const queryParams: Record<string, string> = {};
+      if (req.query && typeof req.query === 'object') {
+        for (const [k, v] of Object.entries(req.query)) {
+          if (typeof v === 'string') queryParams[k] = v;
+          else if (Array.isArray(v) && typeof v[0] === 'string') queryParams[k] = v[0];
+        }
+      }
+      if (req.url) {
+        try {
+          const parsedUrl = new URL(req.url, 'http://localhost');
+          for (const [k, v] of parsedUrl.searchParams.entries()) {
+            if (queryParams[k] === undefined) queryParams[k] = v;
+          }
+        } catch {}
       }
 
-      const paymentStatus = req.query?.paymentStatus;
+      // Query filters
+      const where: any = {};
+      const andClauses: any[] = [];
+
+      const status = queryParams.status;
+      if (status && typeof status === 'string') {
+        if (status === 'CANCELLATION_REQUESTED') {
+          where.status = { not: 'CANCELLED' };
+          const orConditions: any[] = [
+            { cancelReason: { startsWith: 'Customer requested cancellation' } },
+            { adminNotes: { contains: '[cancellation_pending]' } },
+          ];
+          if (Boolean((prisma as any).order?.fields?.cancellationRequestStatus)) {
+            orConditions.unshift({ cancellationRequestStatus: 'PENDING' });
+          }
+          andClauses.push({ OR: orConditions });
+        } else if (ALL_ORDER_STATUSES.includes(status as any)) {
+          where.status = status;
+        }
+      }
+
+      const paymentStatus = queryParams.paymentStatus;
       if (paymentStatus && typeof paymentStatus === 'string' && ALL_PAYMENT_STATUSES.includes(paymentStatus as any)) {
         where.paymentStatus = paymentStatus;
       }
 
-      const shippingStatus = req.query?.shippingStatus;
+      const shippingStatus = queryParams.shippingStatus;
       if (shippingStatus && typeof shippingStatus === 'string' && ALL_SHIPPING_STATUSES.includes(shippingStatus as any)) {
         where.shippingStatus = shippingStatus;
       }
 
-      const search = req.query?.search;
-      if (search && typeof search === 'string' && search.trim().length > 0) {
-        const cleanSearch = search.trim().slice(0, 100);
-        where.OR = [
-          { orderNumber: { contains: cleanSearch, mode: 'insensitive' } },
-          { customerName: { contains: cleanSearch, mode: 'insensitive' } },
-          { customerEmail: { contains: cleanSearch, mode: 'insensitive' } },
-          { customerPhone: { contains: cleanSearch, mode: 'insensitive' } },
-        ];
+      const paymentMethod = queryParams.paymentMethod || queryParams.paymentProvider;
+      if (paymentMethod && typeof paymentMethod === 'string') {
+        const cleanMethod = paymentMethod.trim().toUpperCase();
+        if (cleanMethod === 'RAZORPAY' || cleanMethod === 'COD') {
+          where.paymentProvider = cleanMethod;
+        }
       }
 
-      const page = Math.max(1, parseInt(String(req.query?.page || 1), 10) || 1);
-      const limit = Math.min(100, Math.max(1, parseInt(String(req.query?.limit || 20), 10) || 20));
+      const search = queryParams.search;
+      if (search && typeof search === 'string' && search.trim().length > 0) {
+        const cleanSearch = search.trim().slice(0, 100);
+        andClauses.push({
+          OR: [
+            { id: { contains: cleanSearch, mode: 'insensitive' } },
+            { orderNumber: { contains: cleanSearch, mode: 'insensitive' } },
+            { customerName: { contains: cleanSearch, mode: 'insensitive' } },
+            { customerEmail: { contains: cleanSearch, mode: 'insensitive' } },
+            { customerPhone: { contains: cleanSearch, mode: 'insensitive' } },
+          ],
+        });
+      }
+
+      if (andClauses.length > 0) {
+        where.AND = andClauses;
+      }
+
+      const page = Math.max(1, parseInt(String(queryParams.page || 1), 10) || 1);
+      const limit = Math.min(100, Math.max(1, parseInt(String(queryParams.limit || 20), 10) || 20));
       const skip = (page - 1) * limit;
 
-      const [orders, total] = await withTimeout(
+      const [orders, total, statusGroups, totalAll] = await withTimeout(
         Promise.all([
           prisma.order.findMany({
             where,
@@ -308,15 +370,35 @@ export default async function handler(req: any, res?: any) {
               items: true,
               user: true,
             },
-            orderBy: { createdAt: 'desc' },
+            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
             skip,
             take: limit,
           }),
           prisma.order.count({ where }),
+          prisma.order.groupBy({
+            by: ['status'],
+            _count: { _all: true },
+          }),
+          prisma.order.count(),
         ]),
         DEFAULT_DB_TIMEOUT_MS,
         'AdminOrder.findMany'
       );
+
+      const countsByStatus: Record<string, number> = {};
+      for (const group of statusGroups) {
+        countsByStatus[group.status] = group._count._all;
+      }
+
+      const stats = {
+        total: totalAll,
+        pendingPayment: countsByStatus['PENDING_PAYMENT'] || 0,
+        confirmed: countsByStatus['CONFIRMED'] || 0,
+        processing: countsByStatus['PROCESSING'] || 0,
+        shipped: countsByStatus['SHIPPED'] || 0,
+        delivered: countsByStatus['DELIVERED'] || 0,
+        cancelled: countsByStatus['CANCELLED'] || 0,
+      };
 
       const totalPages = Math.ceil(total / limit) || 1;
 
@@ -336,6 +418,7 @@ export default async function handler(req: any, res?: any) {
             total,
             totalPages,
           },
+          stats,
         },
         { 'X-Request-ID': requestId }
       );
@@ -377,6 +460,41 @@ export default async function handler(req: any, res?: any) {
         if (!ALL_ORDER_STATUSES.includes(bodyData.status)) {
           return respond(res, 400, { error: `Invalid order status. Allowed: ${ALL_ORDER_STATUSES.join(', ')}` }, { 'X-Request-ID': requestId });
         }
+
+        // If transitioning to CANCELLED, execute atomic cancellation & inventory restoration workflow
+        if (bodyData.status === 'CANCELLED') {
+          const cancelResult = await cancelAdminOrderWorkflow({
+            orderIdOrNumber: existingOrder.id,
+            cancelReason: bodyData.cancelReason || (typeof bodyData.adminNotes === 'string' ? bodyData.adminNotes : undefined),
+            adminClerkUserId: authResult.clerkUserId,
+          });
+
+          if (!cancelResult.success) {
+            return respond(
+              res,
+              cancelResult.status,
+              {
+                error: cancelResult.message || cancelResult.error,
+                code: cancelResult.error,
+              },
+              { 'X-Request-ID': requestId }
+            );
+          }
+
+          return respond(
+            res,
+            cancelResult.status,
+            {
+              order: formatAdminOrder(cancelResult.order),
+              inventoryRestored: cancelResult.inventoryRestored,
+              restoredItems: cancelResult.restoredItems,
+              refundStatus: cancelResult.refundStatus,
+              message: cancelResult.message,
+            },
+            { 'X-Request-ID': requestId }
+          );
+        }
+
         const allowedOrderTransitions = ALLOWED_ORDER_STATUS_TRANSITIONS[currentOrderStatus] || [];
         if (!allowedOrderTransitions.includes(bodyData.status)) {
           return respond(
@@ -389,9 +507,6 @@ export default async function handler(req: any, res?: any) {
           );
         }
         updateData.status = bodyData.status;
-        if (bodyData.status === 'CANCELLED' && !existingOrder.cancelledAt) {
-          updateData.cancelledAt = new Date();
-        }
       }
 
       // 2. Validate Payment Status transition
@@ -399,6 +514,32 @@ export default async function handler(req: any, res?: any) {
         if (!ALL_PAYMENT_STATUSES.includes(bodyData.paymentStatus)) {
           return respond(res, 400, { error: `Invalid payment status. Allowed: ${ALL_PAYMENT_STATUSES.join(', ')}` }, { 'X-Request-ID': requestId });
         }
+
+        // Direct mutation to CANCELLED or REFUNDED without workflow is strictly blocked
+        if (bodyData.paymentStatus === 'CANCELLED') {
+          return respond(
+            res,
+            400,
+            {
+              error: 'Directly setting paymentStatus to CANCELLED via PATCH is disallowed. Use the order cancellation workflow.',
+              code: 'DIRECT_PAYMENT_CANCELLATION_DISALLOWED',
+            },
+            { 'X-Request-ID': requestId }
+          );
+        }
+
+        if (bodyData.paymentStatus === 'REFUNDED' || bodyData.paymentStatus === 'PARTIALLY_REFUNDED') {
+          return respond(
+            res,
+            400,
+            {
+              error: 'Directly setting paymentStatus to REFUNDED via PATCH is disallowed. Use the cancel_order or retry_refund workflow.',
+              code: 'DIRECT_REFUND_DISALLOWED',
+            },
+            { 'X-Request-ID': requestId }
+          );
+        }
+
         const allowedPaymentTransitions = ALLOWED_PAYMENT_STATUS_TRANSITIONS[currentPaymentStatus] || [];
         if (!allowedPaymentTransitions.includes(bodyData.paymentStatus)) {
           return respond(
@@ -421,6 +562,20 @@ export default async function handler(req: any, res?: any) {
         if (!ALL_SHIPPING_STATUSES.includes(bodyData.shippingStatus)) {
           return respond(res, 400, { error: `Invalid shipping status. Allowed: ${ALL_SHIPPING_STATUSES.join(', ')}` }, { 'X-Request-ID': requestId });
         }
+
+        // Direct mutation to CANCELLED without workflow is strictly blocked
+        if (bodyData.shippingStatus === 'CANCELLED') {
+          return respond(
+            res,
+            400,
+            {
+              error: 'Directly setting shippingStatus to CANCELLED via PATCH is disallowed. Use the order cancellation workflow.',
+              code: 'DIRECT_SHIPPING_CANCELLATION_DISALLOWED',
+            },
+            { 'X-Request-ID': requestId }
+          );
+        }
+
         const allowedShippingTransitions = ALLOWED_SHIPPING_STATUS_TRANSITIONS[currentShippingStatus] || [];
         if (!allowedShippingTransitions.includes(bodyData.shippingStatus)) {
           return respond(
@@ -433,9 +588,10 @@ export default async function handler(req: any, res?: any) {
           );
         }
 
-        // Cross-guard: Shipping fulfillment states require completed payment
+        // Cross-guard: Shipping fulfillment states require completed payment for online orders (COD orders collect on delivery)
+        const isOrderCod = (existingOrder.paymentProvider || '').toUpperCase() === 'COD';
         const fulfillmentStates = ['READY', 'PROCESSING', 'SHIPPED', 'IN_TRANSIT', 'DELIVERED'];
-        if (fulfillmentStates.includes(bodyData.shippingStatus) && targetPaymentStatus !== 'PAID') {
+        if (fulfillmentStates.includes(bodyData.shippingStatus) && !isOrderCod && targetPaymentStatus !== 'PAID') {
           return respond(
             res,
             400,
@@ -561,6 +717,251 @@ export default async function handler(req: any, res?: any) {
           res,
           shiprocketResult.status,
           shiprocketResult,
+          { 'X-Request-ID': requestId }
+        );
+      }
+
+      if (action === 'cancel_order' || action === 'admin_order_cancel') {
+        const lookup = extractAdminOrderLookup(req, bodyData);
+        const orderIdOrNumber = lookup?.id || lookup?.orderNumber || bodyData?.orderId || bodyData?.orderNumber;
+        if (!orderIdOrNumber) {
+          return respond(
+            res,
+            400,
+            { error: 'Order ID or orderNumber is required to cancel an order.' },
+            { 'X-Request-ID': requestId }
+          );
+        }
+
+        const cancelResult = await cancelAdminOrderWorkflow({
+          orderIdOrNumber,
+          cancelReason: bodyData?.cancelReason,
+          adminClerkUserId: authResult.clerkUserId,
+        });
+
+        if (!cancelResult.success) {
+          return respond(
+            res,
+            cancelResult.status,
+            {
+              error: cancelResult.message || cancelResult.error,
+              code: cancelResult.error,
+            },
+            { 'X-Request-ID': requestId }
+          );
+        }
+
+        return respond(
+          res,
+          cancelResult.status,
+          {
+            success: true,
+            order: formatAdminOrder(cancelResult.order),
+            inventoryRestored: cancelResult.inventoryRestored,
+            restoredItems: cancelResult.restoredItems,
+            refundStatus: cancelResult.refundStatus,
+            refundId: cancelResult.refundId,
+            message: cancelResult.message,
+          },
+          { 'X-Request-ID': requestId }
+        );
+      }
+
+      if (action === 'retry_refund' || action === 'process_refund' || action === 'admin_order_refund') {
+        const lookup = extractAdminOrderLookup(req, bodyData);
+        const orderIdOrNumber = lookup?.id || lookup?.orderNumber || bodyData?.orderId || bodyData?.orderNumber;
+        if (!orderIdOrNumber) {
+          return respond(
+            res,
+            400,
+            { error: 'Order ID or orderNumber is required to process refund.' },
+            { 'X-Request-ID': requestId }
+          );
+        }
+
+        const refundResult = await retryAdminOrderRefundWorkflow({
+          orderIdOrNumber,
+          adminClerkUserId: authResult.clerkUserId,
+        });
+
+        if (!refundResult.success) {
+          return respond(
+            res,
+            refundResult.status,
+            {
+              error: refundResult.message || refundResult.error,
+              code: refundResult.error,
+              order: refundResult.order ? formatAdminOrder(refundResult.order) : undefined,
+            },
+            { 'X-Request-ID': requestId }
+          );
+        }
+
+        return respond(
+          res,
+          refundResult.status,
+          {
+            success: true,
+            order: formatAdminOrder(refundResult.order),
+            refundStatus: refundResult.refundStatus,
+            refundId: refundResult.refundId,
+            message: refundResult.message,
+          },
+          { 'X-Request-ID': requestId }
+        );
+      }
+
+      if (action === 'reconcile_refund' || action === 'admin_order_reconcile_refund') {
+        const lookup = extractAdminOrderLookup(req, bodyData);
+        const orderIdOrNumber = lookup?.id || lookup?.orderNumber || bodyData?.orderId || bodyData?.orderNumber;
+        if (!orderIdOrNumber) {
+          return respond(
+            res,
+            400,
+            { error: 'Order ID or orderNumber is required to reconcile refund.' },
+            { 'X-Request-ID': requestId }
+          );
+        }
+
+        const reconcileResult = await reconcileOrderRefundWithGateway({
+          orderIdOrNumber,
+          adminClerkUserId: authResult.clerkUserId,
+        });
+
+        if (!reconcileResult.success) {
+          return respond(
+            res,
+            reconcileResult.status,
+            {
+              error: reconcileResult.message || reconcileResult.error,
+              code: reconcileResult.error || reconcileResult.outcome,
+              outcome: reconcileResult.outcome,
+              discrepancyDetected: Boolean(reconcileResult.discrepancyDetected),
+              order: reconcileResult.order ? formatAdminOrder(reconcileResult.order) : undefined,
+            },
+            { 'X-Request-ID': requestId }
+          );
+        }
+
+        return respond(
+          res,
+          reconcileResult.status,
+          {
+            success: true,
+            outcome: reconcileResult.outcome,
+            order: formatAdminOrder(reconcileResult.order),
+            refundId: reconcileResult.refundId || null,
+            gatewayStatus: reconcileResult.gatewayStatus || null,
+            discrepancyDetected: Boolean(reconcileResult.discrepancyDetected),
+            message: reconcileResult.message,
+          },
+          { 'X-Request-ID': requestId }
+        );
+      }
+
+      if (action === 'advance_fulfillment_stage' || action === 'advance_fulfilment_stage') {
+        const lookup = extractAdminOrderLookup(req, bodyData);
+        const orderIdOrNumber = lookup?.id || lookup?.orderNumber || bodyData?.orderId || bodyData?.orderNumber;
+        if (!orderIdOrNumber) {
+          return respond(
+            res,
+            400,
+            { error: 'Order ID or orderNumber is required to advance fulfilment stage.' },
+            { 'X-Request-ID': requestId }
+          );
+        }
+
+        const advanceResult = await advanceOrderFulfilmentStageWorkflow({
+          orderIdOrNumber,
+          targetStage: bodyData?.targetStage,
+          adminClerkUserId: authResult.clerkUserId,
+        });
+
+        if (!advanceResult.success) {
+          return respond(
+            res,
+            advanceResult.status,
+            {
+              error: advanceResult.message || advanceResult.error,
+              code: advanceResult.error,
+              previousStage: advanceResult.previousStage,
+              currentStage: advanceResult.currentStage,
+              nextStage: advanceResult.nextStage,
+              order: advanceResult.order ? formatAdminOrder(advanceResult.order) : undefined,
+            },
+            { 'X-Request-ID': requestId }
+          );
+        }
+
+        return respond(
+          res,
+          advanceResult.status,
+          {
+            success: true,
+            order: formatAdminOrder(advanceResult.order),
+            previousStage: advanceResult.previousStage,
+            currentStage: advanceResult.currentStage,
+            nextStage: advanceResult.nextStage,
+            message: advanceResult.message,
+          },
+          { 'X-Request-ID': requestId }
+        );
+      }
+
+      if (action === 'resolve_cancellation_request' || action === 'admin_resolve_cancellation') {
+        const lookup = extractAdminOrderLookup(req, bodyData);
+        const orderIdOrNumber = lookup?.id || lookup?.orderNumber || bodyData?.orderId || bodyData?.orderNumber;
+        if (!orderIdOrNumber) {
+          return respond(
+            res,
+            400,
+            { error: 'Order ID or orderNumber is required to resolve cancellation request.' },
+            { 'X-Request-ID': requestId }
+          );
+        }
+
+        const decision = bodyData?.decision;
+        if (decision !== 'APPROVE' && decision !== 'REJECT') {
+          return respond(
+            res,
+            400,
+            { error: 'Decision must be either "APPROVE" or "REJECT".' },
+            { 'X-Request-ID': requestId }
+          );
+        }
+
+        const resolveResult = await resolveAdminCancellationWorkflow({
+          orderIdOrNumber,
+          decision,
+          rejectionReason: bodyData?.rejectionReason,
+          adminClerkUserId: authResult.clerkUserId,
+        });
+
+        if (!resolveResult.success) {
+          return respond(
+            res,
+            resolveResult.status,
+            {
+              error: resolveResult.message || resolveResult.error,
+              code: resolveResult.error,
+              order: resolveResult.order ? formatAdminOrder(resolveResult.order) : undefined,
+            },
+            { 'X-Request-ID': requestId }
+          );
+        }
+
+        return respond(
+          res,
+          resolveResult.status,
+          {
+            success: true,
+            order: formatAdminOrder(resolveResult.order),
+            decision: resolveResult.decision,
+            inventoryRestored: resolveResult.inventoryRestored,
+            refundStatus: resolveResult.refundStatus,
+            refundId: resolveResult.refundId,
+            message: resolveResult.message,
+          },
           { 'X-Request-ID': requestId }
         );
       }

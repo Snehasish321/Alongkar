@@ -1,3 +1,4 @@
+import './testDbGuard.js';
 import 'dotenv/config';
 import prisma from '../src/lib/prisma.js';
 import ordersHandler from '../api/orders.js';
@@ -106,6 +107,7 @@ async function runTests() {
         baseMaterial: 'Brass',
         warranty: '1 Year Warranty',
         inStock: true,
+        availableStock: 50,
       },
     });
 
@@ -298,7 +300,7 @@ async function runTests() {
     assert(paymentOrderRes.data?.razorpayKeyId?.startsWith('rzp_'), 'razorpayKeyId has expected rzp_ prefix');
     assert(typeof paymentOrderRes.data?.razorpayOrderId === 'string', 'Server-created razorpayOrderId returned');
     assert(paymentOrderRes.data?.razorpayOrderId?.startsWith('order_'), 'razorpayOrderId has order_ prefix');
-    assert(paymentOrderRes.data?.amount === 249900, 'Authoritative server amount in paise (249900) returned');
+    assert(paymentOrderRes.data?.amount === 237400, 'Authoritative server amount in paise (237400 after 5% prepaid discount) returned');
     assert(paymentOrderRes.data?.currency === 'INR', 'Server currency INR returned (tampered values ignored)');
     assert(paymentOrderRes.data?.alongkarOrderId === alongkarOrderId, 'Alongkar order ID matches');
 

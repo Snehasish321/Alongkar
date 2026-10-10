@@ -1,3 +1,4 @@
+import './testDbGuard.js';
 import 'dotenv/config';
 import crypto from 'crypto';
 import prisma from '../src/lib/prisma.js';
@@ -135,6 +136,7 @@ async function runCartPersistenceTests() {
         stoneType: 'Ruby',
         warranty: '6 Months Guarantee',
         inStock: true,
+        availableStock: 50,
       },
     });
 
@@ -157,6 +159,7 @@ async function runCartPersistenceTests() {
         stoneType: 'Freshwater Pearl',
         warranty: '6 Months Guarantee',
         inStock: true,
+        availableStock: 50,
       },
     });
 

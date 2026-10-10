@@ -36,10 +36,9 @@ export const AdminLayout: React.FC = () => {
     },
     {
       name: 'Orders',
-      path: '#',
+      path: '/admin/orders',
       icon: ShoppingBag,
-      disabled: true,
-      badge: 'Coming Soon',
+      active: location.pathname.startsWith('/admin/orders'),
     },
     {
       name: 'Customers',

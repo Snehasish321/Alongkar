@@ -27,6 +27,14 @@ export function normalizeProduct(raw: any): Product {
     discountPercent = Math.round(((originalPrice - price) / originalPrice) * 100);
   }
 
+  const availableStock =
+    typeof raw.availableStock === 'number'
+      ? Math.max(0, Math.floor(raw.availableStock))
+      : raw.inStock === false
+        ? 0
+        : 10;
+  const inStock = availableStock > 0;
+
   return {
     id: String(raw.id || ''),
     name: String(raw.name || ''),
@@ -54,7 +62,8 @@ export function normalizeProduct(raw: any): Product {
       ...(stoneType ? { stoneType } : {}),
       warranty,
     },
-    inStock: raw.inStock !== false,
+    inStock,
+    availableStock,
     createdAt: raw.createdAt,
     updatedAt: raw.updatedAt,
   };

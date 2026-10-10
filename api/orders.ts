@@ -14,6 +14,13 @@ import {
 } from './_utils/security.js';
 import { calculateAuthoritativePricing, type PaymentMethod } from './_utils/pricing.js';
 import { checkOrderFulfillmentEligibility } from './_utils/fulfillment.js';
+import {
+  checkLiveStockAvailability,
+  deductOrderInventoryTx,
+  invalidateDeductedProductsCache,
+} from './_utils/inventory.js';
+import { requestCustomerCancellationWorkflow } from './_utils/orderCancellation.js';
+import { getCancellationRequestDetails } from '../src/lib/order-status.js';
 import { Prisma } from '@prisma/client';
 
 export interface OrderValidationError {
@@ -94,6 +101,11 @@ export function formatOrderResponse(order: any) {
     deliveredAt: order.deliveredAt || null,
     cancelReason: order.cancelReason || null,
     cancelledAt: order.cancelledAt || null,
+    cancellationRequestStatus: getCancellationRequestDetails(order).status,
+    cancellationRequestedAt: getCancellationRequestDetails(order).requestedAt,
+    cancellationRequestReason: getCancellationRequestDetails(order).requestReason,
+    cancellationResolvedAt: getCancellationRequestDetails(order).resolvedAt,
+    cancellationRejectionReason: getCancellationRequestDetails(order).rejectionReason,
     customerNotes: order.customerNotes || null,
     adminNotes: order.adminNotes || null,
     createdAt: order.createdAt,
@@ -401,8 +413,45 @@ export default async function handler(req: any, res?: any) {
       return respond(res, 401, { error: 'Authentication required' }, { 'X-Request-ID': requestId });
     }
 
-    // ─── POST /api/orders — Create Order ───────────────────────────────────────
+    // ─── POST /api/orders — Create Order OR Customer Actions ──────────────────
     if (method === 'POST') {
+      if (bodyData?.action === 'request_cancellation') {
+        const orderIdOrNumber = bodyData.orderId || bodyData.orderNumber;
+        if (!orderIdOrNumber || typeof orderIdOrNumber !== 'string') {
+          return respond(res, 400, { error: 'Order ID or orderNumber is required to request cancellation.' }, { 'X-Request-ID': requestId });
+        }
+
+        const cancelReqResult = await requestCustomerCancellationWorkflow({
+          orderIdOrNumber,
+          customerClerkUserId: user.clerkUserId,
+          reason: bodyData.reason,
+        });
+
+        if (!cancelReqResult.success) {
+          return respond(
+            res,
+            cancelReqResult.status,
+            {
+              error: cancelReqResult.message || cancelReqResult.error,
+              code: cancelReqResult.error,
+              order: cancelReqResult.order ? formatOrderResponse(cancelReqResult.order) : undefined,
+            },
+            { 'X-Request-ID': requestId }
+          );
+        }
+
+        return respond(
+          res,
+          cancelReqResult.status,
+          {
+            success: true,
+            order: formatOrderResponse(cancelReqResult.order),
+            message: cancelReqResult.message,
+          },
+          { 'X-Request-ID': requestId }
+        );
+      }
+
       const { errors, data } = validateCreateOrderPayload(bodyData);
       if (errors.length > 0 || !data) {
         return respond(res, 400, { error: 'Validation failed', details: errors }, { 'X-Request-ID': requestId });
@@ -474,15 +523,25 @@ export default async function handler(req: any, res?: any) {
         productMap.set(p.id, p);
       }
 
-      // Validate all products exist and are in stock
-      for (const item of cartItemsToOrder) {
-        const prod = productMap.get(item.productId);
-        if (!prod) {
-          return respond(res, 400, { error: `Product with ID ${item.productId} no longer exists.` }, { 'X-Request-ID': requestId });
+      // Validate live stock availability for all products before price calculation and order creation
+      const stockCheck = await checkLiveStockAvailability(prisma, cartItemsToOrder);
+      if (!stockCheck.available) {
+        const conflict = stockCheck.conflicts[0];
+        let conflictMsg = 'One or more items in your order are no longer available in the requested quantity.';
+        if (conflict) {
+          if (conflict.reason === 'NOT_FOUND') {
+            conflictMsg = `Product with ID ${conflict.productId} no longer exists.`;
+          } else if (conflict.reason === 'OUT_OF_STOCK') {
+            conflictMsg = conflict.productName
+              ? `Product "${conflict.productName}" is currently out of stock.`
+              : `Product ${conflict.productId} is currently out of stock.`;
+          } else if (conflict.reason === 'INSUFFICIENT_QUANTITY') {
+            conflictMsg = conflict.productName
+              ? `Product "${conflict.productName}" is no longer available in the requested quantity (requested ${conflict.requested}, available ${conflict.available}).`
+              : `Product ${conflict.productId} does not have enough stock.`;
+          }
         }
-        if (prod.inStock === false) {
-          return respond(res, 400, { error: `Product "${prod.name}" is currently out of stock.` }, { 'X-Request-ID': requestId });
-        }
+        return respond(res, 400, { error: conflictMsg, details: stockCheck.conflicts }, { 'X-Request-ID': requestId });
       }
 
       // Server-side authoritative price calculation using PostgreSQL product records and payment method rules
@@ -543,7 +602,7 @@ export default async function handler(req: any, res?: any) {
       const paymentNotes = isCod ? `Payment Method: Cash on Delivery` : `Payment Method: Online (Razorpay)`;
       const adminNotes = [couponNotes, prepaidNotes, paymentNotes].filter(Boolean).join(' | ');
 
-      // Execute atomic transaction: Create Order + OrderItems + Clear Cart (for COD orders)
+      // Execute atomic transaction: Create Order + OrderItems + Deduct Inventory (for COD) + Clear Cart (for COD)
       const createdOrder = await withTimeout(
         prisma.$transaction(
           async (tx) => {
@@ -553,7 +612,7 @@ export default async function handler(req: any, res?: any) {
                 userId: user.id,
                 status: orderStatus,
                 paymentStatus,
-                shippingStatus: 'NOT_READY',
+                shippingStatus: isCod ? 'READY' : 'NOT_READY',
                 paymentProvider,
                 subtotal: pricing.subtotalDec,
                 discountTotal: pricing.discountTotalDec,
@@ -588,6 +647,18 @@ export default async function handler(req: any, res?: any) {
               },
             });
 
+            // For COD orders, deduct inventory atomically inside the transaction and record durable ledger
+            if (isCod) {
+              const deduction = await deductOrderInventoryTx(tx, cartItemsToOrder, {
+                orderId: newOrder.id,
+                clerkUserId: user.clerkUserId,
+                reason: 'cod_order_placed',
+              });
+              if (!deduction.success) {
+                throw new Error(`INSUFFICIENT_STOCK:${deduction.conflictProductId || 'UNKNOWN'}`);
+              }
+            }
+
             // For COD orders, clear cart atomically upon successful order creation
             if (isCod && userCart?.id) {
               await tx.cartItem.deleteMany({
@@ -605,6 +676,11 @@ export default async function handler(req: any, res?: any) {
         15000,
         'Order.createTransaction'
       );
+
+      // Invalidate cache for COD deducted products
+      if (isCod) {
+        invalidateDeductedProductsCache(cartItemsToOrder).catch(() => {});
+      }
 
       const durationMs = Date.now() - startTime;
       if (durationMs > 1000) {
@@ -684,6 +760,14 @@ export default async function handler(req: any, res?: any) {
     // Method not allowed
     return respond(res, 405, { error: `Method ${method} Not Allowed` }, { 'X-Request-ID': requestId });
   } catch (error: any) {
+    if (typeof error?.message === 'string' && error.message.startsWith('INSUFFICIENT_STOCK')) {
+      return respond(
+        res,
+        400,
+        { error: 'One or more items in your order are no longer available in the requested quantity. Please review your cart and try again.' },
+        { 'X-Request-ID': requestId }
+      );
+    }
     logServerError('Order API Error', error, { requestId, method });
     return respond(res, 500, { error: getSafeErrorMessage(error) }, { 'X-Request-ID': requestId });
   }

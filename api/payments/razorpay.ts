@@ -27,6 +27,7 @@ import {
   transitionOrderToPaid,
   fetchAndReconcileGatewayOrder,
 } from '../_utils/razorpay.js';
+import { checkLiveStockAvailability } from '../_utils/inventory.js';
 import { logEvent } from '../_utils/logger.js';
 
 function isValidRazorpayPaymentId(id: unknown): id is string {
@@ -102,6 +103,7 @@ export async function handleCreatePaymentOrder(req: any, res: any, inRequestId?:
     const order = await withTimeout(
       prisma.order.findUnique({
         where: { id: orderId },
+        include: { items: true },
       }),
       DEFAULT_DB_TIMEOUT_MS,
       'fetch_order_for_payment'
@@ -159,6 +161,29 @@ export async function handleCreatePaymentOrder(req: any, res: any, inRequestId?:
         { error: `Order is not eligible for payment: Payment status is ${order.paymentStatus}.` },
         { 'X-Request-ID': requestId }
       );
+    }
+
+    // Live pre-payment stock validation
+    if (order.items && order.items.length > 0) {
+      const itemsToCheck = order.items
+        .filter((it: any) => it.productId)
+        .map((it: any) => ({ productId: it.productId, quantity: it.quantity }));
+
+      if (itemsToCheck.length > 0) {
+        const stockCheck = await checkLiveStockAvailability(prisma, itemsToCheck);
+        if (!stockCheck.available) {
+          const conflict = stockCheck.conflicts[0];
+          const conflictMsg = conflict?.productName
+            ? `Product "${conflict.productName}" is no longer available in the requested quantity (requested ${conflict.requested}, available ${conflict.available}).`
+            : 'One or more items in this order are no longer available in the requested quantity.';
+          return respond(
+            res,
+            400,
+            { error: conflictMsg, details: stockCheck.conflicts },
+            { 'X-Request-ID': requestId }
+          );
+        }
+      }
     }
 
     let amountInPaise: number;
@@ -779,6 +804,21 @@ export async function handleVerifyPayment(req: any, res: any, inRequestId?: stri
     );
   } catch (error: any) {
     const durationMs = Date.now() - startTime;
+    if (typeof error?.message === 'string' && error.message.startsWith('INSUFFICIENT_STOCK')) {
+      logServerError('Payment verified on gateway but stock deduction failed', error, {
+        endpoint: '/api/payments/razorpay/verify',
+        requestId,
+        extra: {
+          orderId: (req.body as any)?.orderId,
+        },
+      });
+      return respond(
+        res,
+        409,
+        { error: 'Payment received on gateway, but one or more items in your order are no longer available in stock. Our support team will process a resolution or refund.' },
+        { 'X-Request-ID': requestId }
+      );
+    }
     logServerError(error, {
       endpoint: '/api/payments/razorpay/verify',
       method: 'POST',
@@ -1016,6 +1056,21 @@ export async function handleReconcilePayment(req: any, res: any, inRequestId?: s
     );
   } catch (error: any) {
     const durationMs = Date.now() - startTime;
+    if (typeof error?.message === 'string' && error.message.startsWith('INSUFFICIENT_STOCK')) {
+      logServerError('Payment reconciled on gateway but stock deduction failed', error, {
+        endpoint: '/api/payments/razorpay/reconcile',
+        requestId,
+        extra: {
+          orderId: (req.body as any)?.orderId,
+        },
+      });
+      return respond(
+        res,
+        409,
+        { error: 'Payment found on gateway, but one or more items in your order are no longer available in stock. Our support team will process a resolution or refund.' },
+        { 'X-Request-ID': requestId }
+      );
+    }
     logServerError(error, {
       endpoint: '/api/payments/razorpay/reconcile',
       method: 'POST',
@@ -1031,6 +1086,117 @@ export async function handleReconcilePayment(req: any, res: any, inRequestId?: s
       { 'X-Request-ID': requestId }
     );
   }
+}
+
+/**
+ * Resolves the associated Alongkar Order for an incoming Razorpay refund webhook entity.
+ *
+ * Trustworthy Provider Identifiers evaluated:
+ * 1. notes.orderId (Primary Key CUID)
+ * 2. notes.orderNumber (Unique Order Number)
+ * 3. receipt (ref_<orderNumber>)
+ * 4. payment_id (Payment Transaction ID)
+ *
+ * Contradiction Guard:
+ * If an order is found, any identifier provided in the refund entity must not contradict the order.
+ * Amount alone is never used for order resolution.
+ */
+export async function findOrderForRefundWebhook(
+  refundEntity: any,
+  prismaClient: any = prisma
+): Promise<{ order: any | null; error?: string }> {
+  if (!refundEntity || typeof refundEntity !== 'object') {
+    return { order: null, error: 'Invalid or missing refund entity' };
+  }
+
+  const notesOrderId = typeof refundEntity.notes?.orderId === 'string' ? refundEntity.notes.orderId.trim() : null;
+  const notesOrderNumber = typeof refundEntity.notes?.orderNumber === 'string' ? refundEntity.notes.orderNumber.trim() : null;
+  const receipt = typeof refundEntity.receipt === 'string' ? refundEntity.receipt.trim() : null;
+  const paymentId = typeof refundEntity.payment_id === 'string' ? refundEntity.payment_id.trim() : null;
+
+  let order: any = null;
+
+  // 1. Primary key lookup: notes.orderId
+  if (notesOrderId && isValidIdentifier(notesOrderId)) {
+    order = await withTimeout(
+      prismaClient.order.findUnique({
+        where: { id: notesOrderId },
+      }),
+      DEFAULT_DB_TIMEOUT_MS,
+      'fetch_order_for_webhook_refund_byId'
+    );
+  }
+
+  // 2. Lookup by notes.orderNumber
+  if (!order && notesOrderNumber) {
+    order = await withTimeout(
+      prismaClient.order.findUnique({
+        where: { orderNumber: notesOrderNumber },
+      }),
+      DEFAULT_DB_TIMEOUT_MS,
+      'fetch_order_for_webhook_refund_byNotesOrderNumber'
+    );
+  }
+
+  // 3. Lookup by deterministic receipt (ref_<orderNumber>)
+  if (!order && receipt && receipt.startsWith('ref_')) {
+    const orderNumberFromReceipt = receipt.slice(4).trim();
+    if (orderNumberFromReceipt) {
+      order = await withTimeout(
+        prismaClient.order.findUnique({
+          where: { orderNumber: orderNumberFromReceipt },
+        }),
+        DEFAULT_DB_TIMEOUT_MS,
+        'fetch_order_for_webhook_refund_byReceipt'
+      );
+    }
+  }
+
+  // 4. Lookup by paymentTransactionId
+  if (!order && paymentId) {
+    order = await withTimeout(
+      prismaClient.order.findFirst({
+        where: { paymentTransactionId: paymentId },
+      }),
+      DEFAULT_DB_TIMEOUT_MS,
+      'fetch_order_for_webhook_refund_byPaymentId'
+    );
+  }
+
+  if (!order) {
+    return { order: null, error: 'Order not found for refund identifiers' };
+  }
+
+  // Cross-Validation: Ensure candidate order does NOT contradict any provider identifier
+  if (paymentId && order.paymentTransactionId && order.paymentTransactionId !== paymentId) {
+    return {
+      order: null,
+      error: `Payment ID mismatch: webhook payment_id "${paymentId}" does not match order paymentTransactionId "${order.paymentTransactionId}"`,
+    };
+  }
+
+  if (notesOrderId && order.id !== notesOrderId) {
+    return {
+      order: null,
+      error: `Order ID mismatch: notes.orderId "${notesOrderId}" does not match order id "${order.id}"`,
+    };
+  }
+
+  if (notesOrderNumber && order.orderNumber !== notesOrderNumber) {
+    return {
+      order: null,
+      error: `Order number mismatch: notes.orderNumber "${notesOrderNumber}" does not match order orderNumber "${order.orderNumber}"`,
+    };
+  }
+
+  if (receipt && receipt !== `ref_${order.orderNumber}`) {
+    return {
+      order: null,
+      error: `Receipt mismatch: refund receipt "${receipt}" does not match expected receipt "ref_${order.orderNumber}"`,
+    };
+  }
+
+  return { order };
 }
 
 // ============================================================================
@@ -1180,7 +1346,21 @@ export async function handleWebhook(req: any, res: any, inRequestId?: string, in
         return respond(res, 200, { received: true, status: 'payment_not_captured' }, { 'X-Request-ID': requestId });
       }
 
-      await transitionOrderToPaid(prisma, order.id, razorpayPaymentId);
+      try {
+        await transitionOrderToPaid(prisma, order.id, razorpayPaymentId);
+      } catch (txErr: any) {
+        if (typeof txErr?.message === 'string' && txErr.message.startsWith('INSUFFICIENT_STOCK')) {
+          logServerError('Webhook payment captured but inventory deduction failed', txErr, {
+            endpoint: '/api/payments/razorpay/webhook',
+            requestId,
+            extra: {
+              orderId: order.id,
+            },
+          });
+          return respond(res, 200, { received: true, status: 'inventory_conflict', orderId: order.id }, { 'X-Request-ID': requestId });
+        }
+        throw txErr;
+      }
 
       return respond(res, 200, { received: true, status: 'processed', orderId: order.id }, { 'X-Request-ID': requestId });
     }
@@ -1238,7 +1418,21 @@ export async function handleWebhook(req: any, res: any, inRequestId?: string, in
         return respond(res, 400, { error: 'Order paid amount mismatch.' }, { 'X-Request-ID': requestId });
       }
 
-      await transitionOrderToPaid(prisma, order.id, razorpayPaymentId || order.paymentTransactionId || null);
+      try {
+        await transitionOrderToPaid(prisma, order.id, razorpayPaymentId || order.paymentTransactionId || null);
+      } catch (txErr: any) {
+        if (typeof txErr?.message === 'string' && txErr.message.startsWith('INSUFFICIENT_STOCK')) {
+          logServerError('Webhook order paid but inventory deduction failed', txErr, {
+            endpoint: '/api/payments/razorpay/webhook',
+            requestId,
+            extra: {
+              orderId: order.id,
+            },
+          });
+          return respond(res, 200, { received: true, status: 'inventory_conflict', orderId: order.id }, { 'X-Request-ID': requestId });
+        }
+        throw txErr;
+      }
 
       return respond(res, 200, { received: true, status: 'processed', orderId: order.id }, { 'X-Request-ID': requestId });
     }
@@ -1290,6 +1484,155 @@ export async function handleWebhook(req: any, res: any, inRequestId?: string, in
       );
 
       return respond(res, 200, { received: true, status: 'failure_recorded', orderId: order.id }, { 'X-Request-ID': requestId });
+    }
+
+    if (event === 'refund.processed') {
+      const refundEntity = payload?.payload?.refund?.entity;
+      if (!refundEntity) {
+        return respond(res, 400, { error: 'Missing refund entity in webhook payload.' }, { 'X-Request-ID': requestId });
+      }
+
+      const refundId = typeof refundEntity.id === 'string' ? refundEntity.id.trim() : null;
+      if (!refundId) {
+        return respond(res, 400, { error: 'Missing refund ID in refund.processed webhook.' }, { 'X-Request-ID': requestId });
+      }
+
+      const { order, error: lookupError } = await findOrderForRefundWebhook(refundEntity, prisma);
+      if (!order) {
+        logEvent('WARN', {
+          endpoint: '/api/payments/razorpay/webhook',
+          operation: 'order_not_found_for_refund_processed',
+          extra: { refundId, lookupError },
+          message: `refund.processed webhook received but order could not be resolved: ${lookupError}`,
+        });
+        return respond(res, 200, { received: true, status: 'order_not_found_or_mismatched', reason: lookupError }, { 'X-Request-ID': requestId });
+      }
+
+      // Idempotency: If already marked REFUNDED, acknowledge duplicate replay safely
+      if (order.paymentStatus === 'REFUNDED') {
+        logEvent('INFO', {
+          endpoint: '/api/payments/razorpay/webhook',
+          operation: 'refund_processed_already_refunded',
+          extra: { orderId: order.id, refundId },
+          message: 'Ignored duplicate refund.processed event for already-refunded order',
+        });
+        return respond(res, 200, { received: true, status: 'already_processed', idempotentReplay: true, orderId: order.id }, { 'X-Request-ID': requestId });
+      }
+
+      let expectedAmountPaise: number;
+      try {
+        expectedAmountPaise = rupeesToPaise(order.grandTotal);
+      } catch (err: any) {
+        return respond(res, 500, { error: 'Failed to compute order payable amount.' }, { 'X-Request-ID': requestId });
+      }
+
+      const refundAmount = Number(refundEntity.amount);
+      if (refundAmount !== expectedAmountPaise) {
+        logSecurityEvent('webhook_refund_amount_mismatch', {
+          endpoint: '/api/payments/razorpay/webhook',
+          orderId: order.id,
+          expectedAmount: expectedAmountPaise,
+          receivedAmount: refundAmount,
+          refundId,
+          requestId,
+        });
+        return respond(res, 200, { received: true, status: 'refund_amount_mismatch', orderId: order.id }, { 'X-Request-ID': requestId });
+      }
+
+      const finalNotes = order.adminNotes
+        ? `${order.adminNotes} | Razorpay Refund Processed (Webhook): ${refundId}`
+        : `Razorpay Refund Processed (Webhook): ${refundId}`;
+
+      await withTimeout(
+        prisma.order.update({
+          where: { id: order.id },
+          data: {
+            paymentStatus: 'REFUNDED',
+            paymentSessionId: null, // Release claim token
+            paymentFailureReason: null,
+            adminNotes: finalNotes.slice(0, 2000),
+          },
+        }),
+        DEFAULT_DB_TIMEOUT_MS,
+        'webhook_update_refund_processed'
+      );
+
+      logEvent('INFO', {
+        endpoint: '/api/payments/razorpay/webhook',
+        operation: 'order_refund_processed_via_webhook',
+        extra: { orderId: order.id, refundId, refundAmount },
+        message: `Order #${order.orderNumber} successfully marked REFUNDED via webhook.`,
+      });
+
+      return respond(res, 200, { received: true, status: 'refund_processed', orderId: order.id, refundId }, { 'X-Request-ID': requestId });
+    }
+
+    if (event === 'refund.failed') {
+      const refundEntity = payload?.payload?.refund?.entity;
+      if (!refundEntity) {
+        return respond(res, 400, { error: 'Missing refund entity in webhook payload.' }, { 'X-Request-ID': requestId });
+      }
+
+      const refundId = typeof refundEntity.id === 'string' ? refundEntity.id.trim() : null;
+      const errorDescription =
+        refundEntity.error_description ||
+        refundEntity.error_reason ||
+        refundEntity.error_code ||
+        'Refund failed on gateway';
+
+      const { order, error: lookupError } = await findOrderForRefundWebhook(refundEntity, prisma);
+      if (!order) {
+        logEvent('WARN', {
+          endpoint: '/api/payments/razorpay/webhook',
+          operation: 'order_not_found_for_refund_failed',
+          extra: { refundId, lookupError },
+          message: `refund.failed webhook received but order could not be resolved: ${lookupError}`,
+        });
+        return respond(res, 200, { received: true, status: 'order_not_found_or_mismatched', reason: lookupError }, { 'X-Request-ID': requestId });
+      }
+
+      if (order.paymentStatus === 'CANCELLED' && (order.paymentProvider || '').toUpperCase() === 'COD') {
+        return respond(res, 200, { received: true, status: 'ignored_cod_order', orderId: order.id }, { 'X-Request-ID': requestId });
+      }
+
+      const finalNotes = order.adminNotes
+        ? `${order.adminNotes} | Razorpay Refund Failed (Webhook ${refundId || 'N/A'}): ${String(errorDescription).slice(0, 200)}`
+        : `Razorpay Refund Failed (Webhook ${refundId || 'N/A'}): ${String(errorDescription).slice(0, 200)}`;
+
+      await withTimeout(
+        prisma.order.update({
+          where: { id: order.id },
+          data: {
+            paymentStatus: 'PAID',
+            paymentSessionId: null, // Clear claim so admin can retry
+            paymentFailureReason: `Gateway refund failed: ${String(errorDescription).slice(0, 450)}`,
+            adminNotes: finalNotes.slice(0, 2000),
+          },
+        }),
+        DEFAULT_DB_TIMEOUT_MS,
+        'webhook_update_refund_failed'
+      );
+
+      logEvent('WARN', {
+        endpoint: '/api/payments/razorpay/webhook',
+        operation: 'order_refund_failed_via_webhook',
+        extra: { orderId: order.id, refundId, errorDescription },
+        message: `Order #${order.orderNumber} refund failed on gateway: ${errorDescription}`,
+      });
+
+      return respond(res, 200, { received: true, status: 'refund_failure_recorded', orderId: order.id, refundId }, { 'X-Request-ID': requestId });
+    }
+
+    if (event === 'refund.created') {
+      const refundEntity = payload?.payload?.refund?.entity;
+      const refundId = refundEntity?.id ? String(refundEntity.id).trim() : 'N/A';
+      logEvent('INFO', {
+        endpoint: '/api/payments/razorpay/webhook',
+        operation: 'refund_created_webhook_received',
+        extra: { refundId },
+        message: `Razorpay refund.created event received: ${refundId} (awaiting settlement/processed event)`,
+      });
+      return respond(res, 200, { received: true, status: 'refund_created_acknowledged', refundId }, { 'X-Request-ID': requestId });
     }
 
     return respond(res, 200, { received: true, status: 'ignored_unsupported_event' }, { 'X-Request-ID': requestId });

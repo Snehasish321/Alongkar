@@ -89,17 +89,20 @@ model Product {
   stoneType       String?
   warranty        String
   inStock         Boolean        @default(true)
+  availableStock  Int            @default(0)
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
   cartItems       CartItem[]
   wishlistItems   WishlistItem[]
   orderItems      OrderItem[]
+  inventoryMovements InventoryMovement[]
 
   @@index([category, createdAt])
   @@index([collectionId, createdAt])
   @@index([createdAt])
   @@index([price])
   @@index([inStock])
+  @@index([availableStock])
 }
 
 enum RequestStatus {
@@ -244,6 +247,7 @@ model Order {
 
   // Relations
   items                  OrderItem[]
+  inventoryMovements     InventoryMovement[]
 
   @@index([userId, createdAt])
   @@index([status, createdAt])
@@ -275,6 +279,30 @@ model OrderItem {
 
   @@index([orderId])
   @@index([productId])
+}
+
+enum InventoryMovementType {
+  DEDUCTION
+  RESTORATION_CANCELLATION
+  RESTORATION_RETURN
+}
+
+model InventoryMovement {
+  id             String                @id @default(cuid())
+  orderId        String
+  order          Order                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId      String
+  product        Product               @relation(fields: [productId], references: [id], onDelete: Restrict)
+  quantity       Int
+  type           InventoryMovementType
+  idempotencyKey String                @unique
+  reason         String?
+  clerkUserId    String?
+  createdAt      DateTime              @default(now())
+
+  @@index([orderId, type])
+  @@index([productId, type])
+  @@index([createdAt])
 }
 
 

@@ -96,8 +96,10 @@ export const AdminProductsPage: React.FC = () => {
 
       const matchesStock =
         stockFilter === 'all' ||
-        (stockFilter === 'in-stock' && product.inStock) ||
-        (stockFilter === 'out-of-stock' && !product.inStock);
+        (stockFilter === 'in-stock' &&
+          (product.availableStock > 0 || (product.availableStock === undefined && product.inStock))) ||
+        (stockFilter === 'out-of-stock' &&
+          (product.availableStock === 0 || (product.availableStock === undefined && !product.inStock)));
 
       return matchesSearch && matchesCategory && matchesStock;
     });
@@ -106,7 +108,9 @@ export const AdminProductsPage: React.FC = () => {
   // Product Counts for KPI stats
   const stats = useMemo(() => {
     const total = products.length;
-    const inStockCount = products.filter((p) => p.inStock).length;
+    const inStockCount = products.filter(
+      (p) => p.availableStock > 0 || (p.availableStock === undefined && p.inStock)
+    ).length;
     const bestSellersCount = products.filter((p) => p.isBestSeller).length;
     const trendingCount = products.filter((p) => p.isTrending).length;
     return { total, inStockCount, bestSellersCount, trendingCount };
@@ -364,7 +368,7 @@ export const AdminProductsPage: React.FC = () => {
                 <th className="py-3.5 px-4">Masterwork</th>
                 <th className="py-3.5 px-4">Category / Style</th>
                 <th className="py-3.5 px-4">Price</th>
-                <th className="py-3.5 px-4">Stock Status</th>
+                <th className="py-3.5 px-4">Available Stock</th>
                 <th className="py-3.5 px-4">Highlights</th>
                 <th className="py-3.5 px-4">Rating</th>
                 <th className="py-3.5 px-4 text-right">Actions</th>
@@ -454,19 +458,32 @@ export const AdminProductsPage: React.FC = () => {
                       )}
                     </td>
 
-                    {/* Stock Status */}
+                    {/* Available Stock & Status */}
                     <td className="py-3.5 px-4">
-                      {product.inStock ? (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-400">
-                          <TickCircle className="w-3.5 h-3.5" />
-                          <span>In Stock</span>
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-red-400">
-                          <XCircle2 className="w-3.5 h-3.5" />
-                          <span>Out of Stock</span>
-                        </span>
-                      )}
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono font-semibold text-white text-xs">
+                            {typeof product.availableStock === 'number'
+                              ? product.availableStock
+                              : product.inStock
+                                ? 10
+                                : 0}
+                          </span>
+                          <span className="text-[10px] text-white/50">units</span>
+                        </div>
+                        {product.availableStock > 0 ||
+                        (product.availableStock === undefined && product.inStock) ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-400">
+                            <TickCircle className="w-3 h-3" />
+                            <span>In Stock</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-red-400">
+                            <XCircle2 className="w-3 h-3" />
+                            <span>Out of Stock</span>
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     {/* Badges / Highlights */}

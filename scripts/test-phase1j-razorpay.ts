@@ -1,3 +1,4 @@
+import './testDbGuard.js';
 import 'dotenv/config';
 import prisma from '../src/lib/prisma.js';
 import { handleCreatePaymentOrder as razorpayOrderHandler } from '../api/payments/razorpay.js';

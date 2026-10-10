@@ -1,3 +1,4 @@
+import './testDbGuard.js';
 import prisma from '../src/lib/prisma.js';
 import { CacheKey } from '../api/_utils/cache.js';
 import productHandler from '../api/products.js';

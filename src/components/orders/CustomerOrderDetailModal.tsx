@@ -11,6 +11,8 @@ import {
   Lock,
   Alert,
   Refresh,
+  Clock,
+  CloseCircle,
 } from 'reicon-react';
 import type {
   Order,
@@ -24,10 +26,16 @@ import {
   getShippingStatusBadgeInfo,
   getPaymentMethodBadgeInfo,
   parseOrderDiscounts,
+  hasPendingCancellationRequest,
+  isOrderCancellationEligible,
 } from '../../lib/order-status';
 import { getOptimizedImageUrl, IMAGE_PRESETS } from '../../lib/image';
 import { loadRazorpayScript, openRazorpayCheckout } from '../../lib/razorpay';
-import { verifyRazorpayPayment, reconcileRazorpayPayment } from '../../services/orderApi';
+import {
+  verifyRazorpayPayment,
+  reconcileRazorpayPayment,
+  requestCustomerOrderCancellation,
+} from '../../services/orderApi';
 import { Button } from '../ui/Button';
 
 interface CustomerOrderDetailModalProps {
@@ -35,20 +43,38 @@ interface CustomerOrderDetailModalProps {
   onClose: () => void;
   order: Order | null;
   onPaymentSuccess?: () => void;
+  onOrderUpdated?: (updatedOrder: Order) => void;
 }
 
 export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> = ({
   isOpen,
   onClose,
-  order,
+  order: initialOrder,
   onPaymentSuccess,
+  onOrderUpdated,
 }) => {
   const { getToken } = useAuth();
   const { user } = useUser();
 
+  const [currentOrder, setCurrentOrder] = useState<Order | null>(initialOrder);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [paymentNotice, setPaymentNotice] = useState<string | null>(null);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+
+  // Customer Cancellation Request State
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [cancellationReason, setCancellationReason] = useState('');
+  const [isSubmittingCancellation, setIsSubmittingCancellation] = useState(false);
+  const [cancelFeedback, setCancelFeedback] = useState<string | null>(null);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setCurrentOrder(initialOrder);
+    setIsCancelModalOpen(false);
+    setCancellationReason('');
+    setCancelFeedback(null);
+    setCancelError(null);
+  }, [initialOrder, isOpen]);
 
   // Lock body scroll when modal is open and restore on close
   useEffect(() => {
@@ -69,7 +95,11 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        if (isCancelModalOpen) {
+          setIsCancelModalOpen(false);
+        } else {
+          onClose();
+        }
       }
     };
 
@@ -79,9 +109,10 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
       document.body.style.paddingRight = originalPaddingRight;
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, isCancelModalOpen]);
 
-  if (!isOpen || !order) return null;
+  if (!isOpen || !currentOrder) return null;
+  const order = currentOrder;
 
   const orderBadge = getOrderStatusBadgeInfo(order.status);
   const paymentBadge = getPaymentStatusBadgeInfo(order.paymentStatus);
@@ -100,6 +131,11 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
     order.paymentStatus !== 'PAID' &&
     order.paymentStatus !== 'REFUNDED' &&
     order.paymentStatus !== 'PARTIALLY_REFUNDED';
+
+  // Cancellation status evaluations
+  const isCancellable = isOrderCancellationEligible(order);
+  const isPendingReview = order.cancellationRequestStatus === 'PENDING' || hasPendingCancellationRequest(order);
+  const isRejected = order.cancellationRequestStatus === 'REJECTED';
 
   const formatDate = (dateValue: string | Date | undefined) => {
     if (!dateValue) return 'N/A';
@@ -123,6 +159,36 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
       currency: 'INR',
       maximumFractionDigits: 0,
     }).format(val);
+  };
+
+  const handleRequestCancellation = async () => {
+    if (!order || isSubmittingCancellation) return;
+    setIsSubmittingCancellation(true);
+    setCancelError(null);
+    setCancelFeedback(null);
+
+    try {
+      const token = await getToken();
+      if (!token) {
+        throw new Error('Authentication required. Please sign in.');
+      }
+
+      const res = await requestCustomerOrderCancellation(token, {
+        orderId: order.id,
+        reason: cancellationReason.trim() || undefined,
+      });
+
+      setCurrentOrder(res.order);
+      setIsCancelModalOpen(false);
+      setCancelFeedback(res.message || 'Cancellation request submitted successfully. Our team will review your request.');
+      if (onOrderUpdated) {
+        onOrderUpdated(res.order);
+      }
+    } catch (err: any) {
+      setCancelError(err.message || 'Failed to submit cancellation request. Please try again.');
+    } finally {
+      setIsSubmittingCancellation(false);
+    }
   };
 
   const handlePayNow = async () => {
@@ -348,6 +414,42 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
             </div>
           </div>
 
+          {/* Cancellation Request Feedback Cards */}
+          {isPendingReview && order.status !== 'CANCELLED' && (
+            <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 space-y-1 animate-in fade-in">
+              <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wide text-amber-800">
+                <Clock size={16} className="text-amber-700 shrink-0" />
+                <span>Cancellation Request Under Review</span>
+              </div>
+              <p className="text-xs text-amber-900/80 leading-relaxed pl-6">
+                Your request to cancel this order
+                {order.cancellationRequestReason ? ` ("${order.cancellationRequestReason}")` : ''}
+                {' '}has been recorded and is currently being reviewed by our store team prior to dispatch.
+              </p>
+            </div>
+          )}
+
+          {isRejected && order.status !== 'CANCELLED' && (
+            <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-900 space-y-1 animate-in fade-in">
+              <div className="flex items-center gap-2 font-bold text-xs uppercase tracking-wide text-rose-800">
+                <Alert size={16} className="text-rose-700 shrink-0" />
+                <span>Cancellation Request Declined</span>
+              </div>
+              <p className="text-xs text-rose-900/80 leading-relaxed pl-6">
+                Your request to cancel this order was reviewed and could not be approved
+                {order.cancellationRejectionReason ? `: "${order.cancellationRejectionReason}"` : '.'}
+                {' '}Your order is continuing towards courier handover and delivery as scheduled.
+              </p>
+            </div>
+          )}
+
+          {cancelFeedback && (
+            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-900 text-xs flex items-center gap-2 animate-in fade-in">
+              <ShieldCheck size={16} className="text-emerald-700 shrink-0" />
+              <span>{cancelFeedback}</span>
+            </div>
+          )}
+
           {/* Payment Notice / Error */}
           {paymentNotice && (
             <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 text-xs flex items-center gap-2">
@@ -510,15 +612,32 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
 
         {/* Footer Actions */}
         <div className="p-4 sm:p-5 bg-white border-t border-[#E8C98A]/30 flex flex-col-reverse sm:flex-row items-center justify-between gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            onClick={onClose}
-            className="w-full sm:w-auto text-xs cursor-pointer"
-          >
-            CLOSE
-          </Button>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={onClose}
+              className="w-full sm:w-auto text-xs cursor-pointer"
+            >
+              CLOSE
+            </Button>
+
+            {isCancellable && (
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={() => {
+                  setCancelError(null);
+                  setIsCancelModalOpen(true);
+                }}
+                className="w-full sm:w-auto text-xs text-rose-700 border-rose-300 hover:bg-rose-50 hover:text-rose-800 cursor-pointer"
+              >
+                REQUEST CANCELLATION
+              </Button>
+            )}
+          </div>
 
           {isPendingPayment && (
             <Button
@@ -544,6 +663,105 @@ export const CustomerOrderDetailModal: React.FC<CustomerOrderDetailModalProps> =
           )}
         </div>
       </div>
+
+      {/* Customer Cancellation Request Confirmation Modal */}
+      {isCancelModalOpen && (
+        <div
+          className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-150"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="customer-cancel-dialog-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isSubmittingCancellation) {
+              setIsCancelModalOpen(false);
+            }
+          }}
+        >
+          <div
+            className="relative w-full max-w-md bg-[#FFFDF8] rounded-2xl border border-[#E8C98A]/50 shadow-2xl p-5 sm:p-6 space-y-4 animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-700 shrink-0">
+                <CloseCircle size={20} />
+              </div>
+              <div className="space-y-1">
+                <h3 id="customer-cancel-dialog-title" className="font-serif text-lg font-bold text-[#28040B]">
+                  Request Cancellation
+                </h3>
+                <p className="text-xs text-gray-600 leading-relaxed">
+                  Are you sure you want to request cancellation for Order <span className="font-semibold text-[#28040B] font-mono">#{order.orderNumber}</span>?
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-900 text-xs leading-relaxed space-y-1">
+              <p className="font-semibold">Important:</p>
+              <p className="text-amber-900/80">
+                Cancellation requests are subject to store approval before dispatch. If approved, prepaid orders will be refunded back to your original payment method.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="customer-cancellation-reason" className="block text-xs font-semibold text-gray-700">
+                Reason for cancellation (Optional):
+              </label>
+              <textarea
+                id="customer-cancellation-reason"
+                value={cancellationReason}
+                onChange={(e) => setCancellationReason(e.target.value)}
+                placeholder="e.g., Ordered by mistake, found another design, change of mind..."
+                rows={3}
+                maxLength={500}
+                disabled={isSubmittingCancellation}
+                className="w-full p-2.5 rounded-xl border border-[#E8C98A]/50 bg-white text-xs text-gray-800 placeholder:text-gray-400 focus:outline-none focus:border-[#8C6C38] resize-none"
+              />
+            </div>
+
+            {cancelError && (
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-800 text-xs flex items-center gap-2">
+                <Alert size={15} className="text-rose-600 shrink-0" />
+                <span>{cancelError}</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-[#E8C98A]/30">
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={() => {
+                  if (!isSubmittingCancellation) {
+                    setIsCancelModalOpen(false);
+                    setCancelError(null);
+                  }
+                }}
+                disabled={isSubmittingCancellation}
+                className="text-xs cursor-pointer"
+              >
+                KEEP ORDER
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={handleRequestCancellation}
+                disabled={isSubmittingCancellation}
+                className="text-xs text-rose-700 border-rose-300 hover:bg-rose-600 hover:text-white cursor-pointer"
+              >
+                {isSubmittingCancellation ? (
+                  <span className="flex items-center gap-1.5">
+                    <Refresh size={14} className="animate-spin" />
+                    <span>SUBMITTING...</span>
+                  </span>
+                ) : (
+                  <span>CONFIRM REQUEST</span>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

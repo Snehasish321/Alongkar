@@ -1,3 +1,4 @@
+import './testDbGuard.js';
 import prisma from '../src/lib/prisma.js';
 import { clerkClient } from '../api/_utils/auth.js';
 import productsHandler from '../api/products.js';

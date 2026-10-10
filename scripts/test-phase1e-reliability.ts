@@ -1,3 +1,4 @@
+import './testDbGuard.js';
 import prisma from '../src/lib/prisma.js';
 import productsHandler from '../api/products.js';
 import cartHandler, { getOrCreateCart } from '../api/cart.js';

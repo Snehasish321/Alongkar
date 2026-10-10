@@ -1,3 +1,4 @@
+import './testDbGuard.js';
 import prisma from '../src/lib/prisma';
 import productHandler from '../api/products';
 import { normalizeProduct } from '../src/services/productApi';
