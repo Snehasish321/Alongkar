@@ -166,10 +166,19 @@ export interface Order {
   customerNotes?: string | null;
   adminNotes?: string | null;
 
+  // Customer cancellation request lifecycle
+  cancellationRequestStatus?: CancellationRequestStatus | null;
+  cancellationRequestedAt?: string | Date | null;
+  cancellationRequestReason?: string | null;
+  cancellationResolvedAt?: string | Date | null;
+  cancellationRejectionReason?: string | null;
+
   createdAt: string | Date;
   updatedAt: string | Date;
   items: OrderItem[];
 }
+
+export type CancellationRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
 
 export type PaymentMethod = 'RAZORPAY' | 'COD';
 

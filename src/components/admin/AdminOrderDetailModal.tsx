@@ -15,6 +15,7 @@ import {
   Alert,
   XCircle2,
   Refresh,
+  ArrowRight,
 } from 'reicon-react';
 import type { Order } from '../../types';
 import {
@@ -23,9 +24,21 @@ import {
   getShippingStatusBadgeInfo,
   getPaymentMethodBadgeInfo,
   parseOrderDiscounts,
+  getOrderFulfilmentStage,
+  hasPendingCancellationRequest,
+  FULFILMENT_STAGE_METADATA,
+  FULFILMENT_STAGE_SEQUENCE,
+  type FulfilmentStage,
 } from '../../lib/order-status';
 import { getOptimizedImageUrl, IMAGE_PRESETS } from '../../lib/image';
-import { cancelAdminOrder, retryAdminRefund } from '../../services/orderApi';
+import {
+  cancelAdminOrder,
+  retryAdminRefund,
+  reconcileAdminRefund,
+  advanceOrderFulfilmentStage,
+  resolveAdminCancellationRequest,
+  fetchAdminOrder,
+} from '../../services/orderApi';
 
 interface AdminOrderDetailModalProps {
   isOpen: boolean;
@@ -51,17 +64,100 @@ export const AdminOrderDetailModal: React.FC<AdminOrderDetailModalProps> = ({
   const [cancelReason, setCancelReason] = useState('');
   const [isCancelling, setIsCancelling] = useState(false);
   const [isRetryingRefund, setIsRetryingRefund] = useState(false);
+  const [isReconcilingRefund, setIsReconcilingRefund] = useState(false);
+  const [isAdvancingFulfilment, setIsAdvancingFulfilment] = useState(false);
+  const [isConfirmRejectOpen, setIsConfirmRejectOpen] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [isResolvingCancellation, setIsResolvingCancellation] = useState(false);
+  const [isApprovingCancellation, setIsApprovingCancellation] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
   const [cancelFeedback, setCancelFeedback] = useState<string | null>(null);
+  const [fulfilmentError, setFulfilmentError] = useState<string | null>(null);
+  const [fulfilmentFeedback, setFulfilmentFeedback] = useState<string | null>(null);
+  const [isRefreshingOrder, setIsRefreshingOrder] = useState(false);
+
+  const prevOrderIdRef = React.useRef<string | null>(initialOrder?.id || null);
+  const prevIsOpenRef = React.useRef<boolean>(isOpen);
+  const onOrderUpdatedRef = React.useRef(onOrderUpdated);
 
   useEffect(() => {
-    setCurrentOrder(initialOrder);
-    setIsConfirmCancelOpen(false);
-    setCancelReason('');
-    setCancelError(null);
-    setCancelFeedback(null);
-    setIsRetryingRefund(false);
+    onOrderUpdatedRef.current = onOrderUpdated;
+  }, [onOrderUpdated]);
+
+  useEffect(() => {
+    const isNewOrder = initialOrder?.id !== prevOrderIdRef.current;
+    const isJustOpened = isOpen && !prevIsOpenRef.current;
+
+    prevOrderIdRef.current = initialOrder?.id || null;
+    prevIsOpenRef.current = isOpen;
+
+    if (isNewOrder || isJustOpened) {
+      setCurrentOrder(initialOrder);
+      setIsConfirmCancelOpen(false);
+      setIsConfirmRejectOpen(false);
+      setCancelReason('');
+      setRejectionReason('');
+      setCancelError(null);
+      setCancelFeedback(null);
+      setFulfilmentError(null);
+      setFulfilmentFeedback(null);
+      setIsRetryingRefund(false);
+      setIsReconcilingRefund(false);
+      setIsAdvancingFulfilment(false);
+      setIsResolvingCancellation(false);
+      setIsApprovingCancellation(false);
+    } else if (initialOrder) {
+      // Retain existing local feedback & active modal view when syncing fresh order attributes
+      setCurrentOrder(initialOrder);
+    }
   }, [initialOrder, isOpen]);
+
+  // Fetch fresh order details from server when modal opens to avoid stale cached state
+  useEffect(() => {
+    if (!isOpen || !initialOrder?.id) return;
+
+    let isMounted = true;
+    const refreshModalOrder = async () => {
+      try {
+        const token = await getToken();
+        if (!token) return;
+        const freshOrder = await fetchAdminOrder(token, initialOrder.id);
+        if (isMounted && freshOrder) {
+          setCurrentOrder(freshOrder);
+          if (onOrderUpdatedRef.current) {
+            onOrderUpdatedRef.current(freshOrder);
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to refresh order details in modal:', err);
+      }
+    };
+
+    refreshModalOrder();
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, initialOrder?.id, getToken]);
+
+  const handleManualRefresh = async () => {
+    if (!currentOrder?.id || isRefreshingOrder) return;
+    setIsRefreshingOrder(true);
+    try {
+      const token = await getToken();
+      if (!token) return;
+      const freshOrder = await fetchAdminOrder(token, currentOrder.id);
+      if (freshOrder) {
+        setCurrentOrder(freshOrder);
+        if (onOrderUpdated) {
+          onOrderUpdated(freshOrder);
+        }
+      }
+    } catch (err: any) {
+      console.warn('Failed to refresh order:', err);
+    } finally {
+      setIsRefreshingOrder(false);
+    }
+  };
 
   const handleCopy = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -84,7 +180,13 @@ export const AdminOrderDetailModal: React.FC<AdminOrderDetailModalProps> = ({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        if (isConfirmCancelOpen) {
+          setIsConfirmCancelOpen(false);
+        } else if (isConfirmRejectOpen) {
+          setIsConfirmRejectOpen(false);
+        } else {
+          onClose();
+        }
       }
     };
 
@@ -94,7 +196,7 @@ export const AdminOrderDetailModal: React.FC<AdminOrderDetailModalProps> = ({
       document.body.style.paddingRight = originalPaddingRight;
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, isConfirmCancelOpen, isConfirmRejectOpen]);
 
   if (!isOpen || !currentOrder) return null;
   const order = currentOrder;
@@ -119,6 +221,44 @@ export const AdminOrderDetailModal: React.FC<AdminOrderDetailModalProps> = ({
       !isCod &&
       Boolean(order.paymentTransactionId)
   );
+
+  const isRefundReconcilable = Boolean(
+    order &&
+      order.status === 'CANCELLED' &&
+      !isCod &&
+      Boolean(order.paymentTransactionId)
+  );
+
+  const handleExecuteRefundReconcile = async () => {
+    if (!order || isReconcilingRefund) return;
+    setIsReconcilingRefund(true);
+    setCancelError(null);
+    setCancelFeedback(null);
+
+    try {
+      const token = await getToken();
+      if (!token) {
+        throw new Error('Authentication required. Please sign in as an admin.');
+      }
+
+      const res = await reconcileAdminRefund(token, {
+        orderId: order.id,
+      });
+
+      if (res.order) {
+        setCurrentOrder(res.order);
+        if (onOrderUpdated) {
+          onOrderUpdated(res.order);
+        }
+      }
+      setCancelFeedback(res.message || 'Refund reconciliation completed.');
+    } catch (err: any) {
+      console.error('Failed to reconcile refund:', err);
+      setCancelError(err.message || 'Failed to reconcile refund. Please try again.');
+    } finally {
+      setIsReconcilingRefund(false);
+    }
+  };
 
   const handleExecuteRefundRetry = async () => {
     if (!order || isRetryingRefund) return;
@@ -180,6 +320,114 @@ export const AdminOrderDetailModal: React.FC<AdminOrderDetailModalProps> = ({
       setCancelError(err.message || 'Failed to cancel order. Please try again.');
     } finally {
       setIsCancelling(false);
+    }
+  };
+
+  const handleResolveCancellation = async (decision: 'APPROVE' | 'REJECT') => {
+    if (!order || isResolvingCancellation || isApprovingCancellation) return;
+    setIsResolvingCancellation(true);
+    if (decision === 'APPROVE') {
+      setIsApprovingCancellation(true);
+    }
+    setCancelError(null);
+    setCancelFeedback(null);
+
+    try {
+      const token = await getToken();
+      if (!token) {
+        throw new Error('Authentication required. Please sign in as an admin.');
+      }
+
+      const res = await resolveAdminCancellationRequest(token, {
+        orderId: order.id,
+        decision,
+        rejectionReason: decision === 'REJECT' ? rejectionReason.trim() || undefined : undefined,
+      });
+
+      if (res.order) {
+        setCurrentOrder(res.order);
+      }
+
+      let message = res.message;
+      if (decision === 'APPROVE') {
+        if (res.refundStatus === 'PENDING_RETRY') {
+          message = `Cancellation request for Order #${order.orderNumber} approved and inventory restored, but payment refund is pending retry. Please use the refund action below to retry.`;
+        } else if (res.refundStatus === 'REFUND_FAILED') {
+          message = `Cancellation request for Order #${order.orderNumber} approved and inventory restored, but automatic payment refund failed. Please retry the refund below.`;
+        } else if (res.refundStatus === 'REFUNDED') {
+          message = `Cancellation request for Order #${order.orderNumber} approved. Order cancelled, inventory restored, and refund processed.`;
+        }
+      }
+
+      setCancelFeedback(message);
+      setIsConfirmRejectOpen(false);
+      setIsConfirmCancelOpen(false);
+
+      if (res.order && onOrderUpdated) {
+        onOrderUpdated(res.order);
+      }
+    } catch (err: any) {
+      console.error('Failed to resolve cancellation request:', err);
+      setCancelError(err.message || 'Failed to resolve cancellation request. Please try again.');
+    } finally {
+      setIsResolvingCancellation(false);
+      setIsApprovingCancellation(false);
+    }
+  };
+
+  const currentStage: FulfilmentStage | null = order ? getOrderFulfilmentStage(order) : null;
+  const stageMeta = currentStage ? FULFILMENT_STAGE_METADATA[currentStage] : null;
+  const nextStage: FulfilmentStage | null = stageMeta?.nextStage || null;
+  const nextStageMeta = nextStage ? FULFILMENT_STAGE_METADATA[nextStage] : null;
+
+  const isCancellationPending = Boolean(order && hasPendingCancellationRequest(order));
+  const isAdvanceBlockedByCancellation = Boolean(
+    isCancellationPending &&
+    nextStage &&
+    ['PICKUP_BY_DELIVERY_PARTNER', 'OUT_FOR_DELIVERY', 'DELIVERED'].includes(nextStage)
+  );
+
+  const isUnpaidOnline = !isCod && order.paymentStatus !== 'PAID';
+
+  const canAdvanceStage = Boolean(
+    order &&
+    order.status !== 'CANCELLED' &&
+    order.status !== 'DELIVERED' &&
+    order.shippingStatus !== 'DELIVERED' &&
+    nextStage &&
+    !isAdvanceBlockedByCancellation &&
+    !isUnpaidOnline
+  );
+
+  const handleExecuteAdvanceFulfilment = async () => {
+    if (!order || !nextStage || isAdvancingFulfilment || !canAdvanceStage) return;
+    setIsAdvancingFulfilment(true);
+    setFulfilmentError(null);
+    setFulfilmentFeedback(null);
+
+    try {
+      const token = await getToken();
+      if (!token) {
+        throw new Error('Authentication required. Please sign in as an admin.');
+      }
+
+      const res = await advanceOrderFulfilmentStage(token, {
+        orderId: order.id,
+        targetStage: nextStage,
+      });
+
+      if (res.order) {
+        setCurrentOrder(res.order);
+        if (onOrderUpdated) {
+          onOrderUpdated(res.order);
+        }
+      }
+      setFulfilmentFeedback(res.message || `Order successfully advanced to ${nextStageMeta?.label}.`);
+    } catch (err: any) {
+      console.error('Failed to advance fulfilment stage:', err);
+      setFulfilmentError(err.message || 'Failed to advance fulfilment stage. Please try again.');
+    } finally {
+      setIsAdvancingFulfilment(false);
     }
   };
 
@@ -295,18 +543,67 @@ export const AdminOrderDetailModal: React.FC<AdminOrderDetailModalProps> = ({
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-2 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition-colors"
-            aria-label="Close modal"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={handleManualRefresh}
+              disabled={isRefreshingOrder}
+              className="p-2 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-50 cursor-pointer"
+              title="Refresh order details"
+              aria-label="Refresh order details"
+            >
+              <Refresh className={`w-4 h-4 ${isRefreshingOrder ? 'animate-spin text-[#D6B878]' : ''}`} />
+            </button>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-2 rounded-xl text-white/50 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+              aria-label="Close modal"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Modal Content */}
         <div className="p-5 sm:p-6 overflow-y-auto space-y-6">
+          {/* Top-Level Cancellation / Action Feedback Banner */}
+          {cancelFeedback && (
+            <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center justify-between shadow-sm">
+              <div className="flex items-center gap-2">
+                <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span className="font-medium">{cancelFeedback}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCancelFeedback(null)}
+                className="text-emerald-400/60 hover:text-emerald-300 p-1 cursor-pointer transition-colors"
+                title="Dismiss message"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
+          {/* Top-Level Action Error Banner */}
+          {cancelError && !isConfirmCancelOpen && !isConfirmRejectOpen && (
+            <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center justify-between shadow-sm">
+              <div className="flex items-center gap-2">
+                <Alert className="w-4 h-4 text-rose-400 shrink-0" />
+                <span className="font-medium">{cancelError}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCancelError(null)}
+                className="text-rose-400/60 hover:text-rose-300 p-1 cursor-pointer transition-colors"
+                title="Dismiss message"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
           {/* Status Overview Badges */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-white/[0.02] p-3.5 rounded-xl border border-white/5">
             <div>
@@ -355,6 +652,265 @@ export const AdminOrderDetailModal: React.FC<AdminOrderDetailModalProps> = ({
                 <ShippingIcon className="w-3.5 h-3.5" />
                 {shippingBadge.label}
               </span>
+            </div>
+          </div>
+
+          {/* Fulfilment Lifecycle Progression Card */}
+          <div className="bg-[#180F20] border border-[#D6B878]/30 rounded-2xl p-4 sm:p-5 shadow-xl space-y-4 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-32 bg-[#D6B878]/5 rounded-full blur-3xl pointer-events-none" />
+
+            {/* Header row */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/5 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-[#D6B878]/10 border border-[#D6B878]/30 flex items-center justify-center text-[#D6B878]">
+                  <Truck className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-serif font-bold tracking-wider text-[#F8F4EC] uppercase">
+                    Fulfilment Lifecycle
+                  </h4>
+                  <p className="text-[11px] text-white/50">
+                    Order preparation, carrier pickup, and delivery tracking
+                  </p>
+                </div>
+              </div>
+
+              {/* Current Stage Badge */}
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                <span className="text-[10px] uppercase font-semibold text-white/40">Current Stage:</span>
+                <span className={`px-2.5 py-1 rounded-full text-xs font-semibold border flex items-center gap-1.5 ${
+                  order.status === 'CANCELLED'
+                    ? 'bg-rose-500/10 text-rose-300 border-rose-500/30'
+                    : order.status === 'DELIVERED'
+                    ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                    : 'bg-[#D6B878]/15 text-[#D6B878] border-[#D6B878]/30'
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${
+                    order.status === 'CANCELLED'
+                      ? 'bg-rose-400'
+                      : order.status === 'DELIVERED'
+                      ? 'bg-emerald-400'
+                      : 'bg-[#D6B878] animate-pulse'
+                  }`} />
+                  {stageMeta?.label || (order.status === 'CANCELLED' ? 'Cancelled' : 'Reviewing')}
+                </span>
+              </div>
+            </div>
+
+            {/* Stepper Progress Bar */}
+            <div className="py-2">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-1.5 relative">
+                {FULFILMENT_STAGE_SEQUENCE.map((stageKey, idx) => {
+                  const meta = FULFILMENT_STAGE_METADATA[stageKey];
+                  const currentIdx = currentStage ? FULFILMENT_STAGE_SEQUENCE.indexOf(currentStage) : -1;
+                  const isCancelled = order.status === 'CANCELLED';
+                  const isDone = !isCancelled && currentIdx > idx;
+                  const isCurrent = !isCancelled && currentIdx === idx;
+
+                  return (
+                    <div
+                      key={stageKey}
+                      className={`relative flex flex-col items-center sm:items-start p-2.5 rounded-xl border transition-all ${
+                        isCurrent
+                          ? 'bg-[#D6B878]/10 border-[#D6B878]/60 shadow-md shadow-[#D6B878]/10'
+                          : isDone
+                          ? 'bg-emerald-500/5 border-emerald-500/25 text-emerald-300'
+                          : 'bg-white/[0.01] border-white/5 opacity-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <span
+                          className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                            isDone
+                              ? 'bg-emerald-500 text-black'
+                              : isCurrent
+                              ? 'bg-[#D6B878] text-[#180F20]'
+                              : 'bg-white/10 text-white/40'
+                          }`}
+                        >
+                          {isDone ? <Check className="w-3 h-3" /> : idx + 1}
+                        </span>
+                        <span className={`text-[11px] font-semibold leading-tight ${
+                          isCurrent
+                            ? 'text-[#F8F4EC]'
+                            : isDone
+                            ? 'text-emerald-300'
+                            : 'text-white/40'
+                        }`}>
+                          {meta.label}
+                        </span>
+                      </div>
+                      <span className="hidden sm:block text-[10px] text-white/40 line-clamp-1">
+                        {meta.description}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Pending Cancellation Alert with Admin Actions */}
+            {isCancellationPending && (
+              <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs space-y-3">
+                <div className="flex items-start gap-2.5">
+                  <Alert className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5 flex-1">
+                    <span className="font-semibold block text-amber-300">
+                      Pending Customer Cancellation Request:
+                    </span>
+                    <p className="text-white/80">
+                      {order.cancellationRequestReason || order.cancelReason
+                        ? `Reason provided: "${order.cancellationRequestReason || order.cancelReason}"`
+                        : 'Customer requested cancellation.'}
+                    </p>
+                    <p className="text-amber-300/80 text-[11px]">
+                      Fulfilment progression to carrier pickup and delivery is paused until this request is resolved.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-amber-500/20">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCancelError(null);
+                      setIsConfirmCancelOpen(true);
+                    }}
+                    disabled={isResolvingCancellation || isApprovingCancellation}
+                    className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer shadow-sm"
+                  >
+                    {isApprovingCancellation ? (
+                      <>
+                        <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <span>Approving Cancellation...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Approve Cancellation</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCancelError(null);
+                      setRejectionReason('');
+                      setIsConfirmRejectOpen(true);
+                    }}
+                    disabled={isResolvingCancellation || isApprovingCancellation}
+                    className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white/90 font-semibold text-xs border border-white/20 transition-colors flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+                  >
+                    <XCircle2 className="w-3.5 h-3.5 text-white/60" />
+                    <span>Reject Request & Resume Fulfilment</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Resolved Cancellation Alert (Rejected) */}
+            {!isCancellationPending && order.cancellationRequestStatus === 'REJECTED' && (
+              <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 text-white/70 text-xs space-y-1">
+                <span className="font-semibold block text-white/90">
+                  Customer Cancellation Request: Resolved (Rejected)
+                </span>
+                {order.cancellationRejectionReason && (
+                  <p className="text-white/60 text-[11px]">
+                    Rejection note: "{order.cancellationRejectionReason}"
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Unpaid Online Order Warning */}
+            {isUnpaidOnline && order.status !== 'CANCELLED' && (
+              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs flex items-center gap-2">
+                <Alert className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>
+                  Online payment status is currently <span className="font-semibold text-amber-300">{order.paymentStatus}</span>. Payment must be completed before advancing past order review.
+                </span>
+              </div>
+            )}
+
+            {/* Error Message */}
+            {fulfilmentError && (
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
+                <Alert className="w-4 h-4 text-rose-400 shrink-0" />
+                <span>{fulfilmentError}</span>
+              </div>
+            )}
+
+            {/* Success Message */}
+            {fulfilmentFeedback && (
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2">
+                <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>{fulfilmentFeedback}</span>
+              </div>
+            )}
+
+            {/* Action Row */}
+            <div className="pt-2 border-t border-white/5">
+              {order.status === 'CANCELLED' ? (
+                <div className="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center gap-2">
+                  <XCircle2 className="w-4 h-4 text-rose-400" />
+                  <span>Order is cancelled. Fulfilment lifecycle is terminated.</span>
+                </div>
+              ) : order.status === 'DELIVERED' || order.shippingStatus === 'DELIVERED' ? (
+                <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <Check className="w-4 h-4 text-emerald-400" />
+                    <span>Fulfilment completed — order successfully delivered to customer.</span>
+                  </span>
+                  {order.deliveredAt && (
+                    <span className="text-[11px] text-emerald-400/80">
+                      {new Date(order.deliveredAt).toLocaleDateString('en-IN', {
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="text-xs">
+                    {nextStageMeta ? (
+                      <>
+                        <span className="text-white/40 block text-[10px] uppercase font-semibold">
+                          Next Stage: {nextStageMeta.label}
+                        </span>
+                        <span className="text-white/70">{nextStageMeta.description}</span>
+                      </>
+                    ) : (
+                      <span className="text-white/40">No further stage transitions available</span>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleExecuteAdvanceFulfilment}
+                    disabled={!canAdvanceStage || isAdvancingFulfilment}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold tracking-wide transition-all flex items-center justify-center gap-2 shrink-0 ${
+                      canAdvanceStage && !isAdvancingFulfilment
+                        ? 'bg-gradient-to-r from-[#D6B878] to-[#C49B45] hover:from-[#E2C78D] hover:to-[#D6B878] text-[#180F20] shadow-md shadow-[#D6B878]/20 cursor-pointer'
+                        : 'bg-white/5 border border-white/10 text-white/30 cursor-not-allowed opacity-60'
+                    }`}
+                  >
+                    {isAdvancingFulfilment ? (
+                      <>
+                        <span className="w-3.5 h-3.5 border-2 border-[#180F20]/30 border-t-[#180F20] rounded-full animate-spin" />
+                        <span>Updating Stage...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>{stageMeta?.actionButtonLabel || (nextStageMeta ? `Advance to ${nextStageMeta.label}` : 'Advance Stage')}</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
@@ -662,6 +1218,26 @@ export const AdminOrderDetailModal: React.FC<AdminOrderDetailModalProps> = ({
         {/* Modal Footer */}
         <div className="flex items-center justify-between px-5 sm:px-6 py-3.5 bg-[#180F20] border-t border-[#D6B878]/20 text-xs text-white/40">
           <div className="flex items-center gap-2">
+            {canAdvanceStage && nextStageMeta && (
+              <button
+                type="button"
+                onClick={handleExecuteAdvanceFulfilment}
+                disabled={isAdvancingFulfilment}
+                className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#D6B878] to-[#C49B45] hover:from-[#E2C78D] hover:to-[#D6B878] text-[#180F20] text-xs font-bold shadow-md shadow-[#D6B878]/20 transition-all flex items-center gap-1.5 disabled:opacity-50"
+              >
+                {isAdvancingFulfilment ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-[#180F20]/30 border-t-[#180F20] rounded-full animate-spin" />
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>{stageMeta?.actionButtonLabel || `Advance: ${nextStageMeta.label}`}</span>
+                    <ArrowRight className="w-3.5 h-3.5 text-[#180F20]" />
+                  </>
+                )}
+              </button>
+            )}
             {isCancellable && (
               <button
                 type="button"
@@ -679,7 +1255,7 @@ export const AdminOrderDetailModal: React.FC<AdminOrderDetailModalProps> = ({
               <button
                 type="button"
                 onClick={handleExecuteRefundRetry}
-                disabled={isRetryingRefund}
+                disabled={isRetryingRefund || isReconcilingRefund}
                 className="px-3.5 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-semibold transition-all flex items-center gap-1.5 disabled:opacity-50"
               >
                 {isRetryingRefund ? (
@@ -695,7 +1271,28 @@ export const AdminOrderDetailModal: React.FC<AdminOrderDetailModalProps> = ({
                 )}
               </button>
             )}
-            {!isCancellable && !isRefundRetryable && (
+            {isRefundReconcilable && (
+              <button
+                type="button"
+                onClick={handleExecuteRefundReconcile}
+                disabled={isReconcilingRefund || isRetryingRefund}
+                className="px-3.5 py-1.5 rounded-xl bg-sky-500/10 hover:bg-sky-500/20 text-sky-300 border border-sky-500/30 text-xs font-semibold transition-all flex items-center gap-1.5 disabled:opacity-50"
+                title="Verify refund status against Razorpay gateway records without issuing duplicate refunds"
+              >
+                {isReconcilingRefund ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Reconciling...</span>
+                  </>
+                ) : (
+                  <>
+                    <Refresh className="w-3.5 h-3.5 text-sky-400" />
+                    <span>Reconcile Refund</span>
+                  </>
+                )}
+              </button>
+            )}
+            {!isCancellable && !isRefundRetryable && !isRefundReconcilable && (
               <span className="text-[11px] text-white/30 italic">
                 {order.status === 'CANCELLED'
                   ? 'Order is cancelled'
@@ -718,12 +1315,22 @@ export const AdminOrderDetailModal: React.FC<AdminOrderDetailModalProps> = ({
 
       {/* Cancel Order Confirmation Dialog Overlay */}
       {isConfirmCancelOpen && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-[#07030A]/90 backdrop-blur-md">
+        <div
+          className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-[#07030A]/90 backdrop-blur-md"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (!isCancelling && !isResolvingCancellation && !isApprovingCancellation) {
+              setIsConfirmCancelOpen(false);
+              setCancelError(null);
+            }
+          }}
+        >
           <div
             className="relative w-full max-w-md bg-[#180F20] border border-rose-500/30 rounded-2xl p-6 shadow-2xl space-y-4 text-[#EDE4D5]"
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="cancel-dialog-title"
+            onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
             <div className="flex items-start gap-3">
@@ -803,29 +1410,118 @@ export const AdminOrderDetailModal: React.FC<AdminOrderDetailModalProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  if (!isCancelling) {
+                  if (!isCancelling && !isResolvingCancellation && !isApprovingCancellation) {
                     setIsConfirmCancelOpen(false);
                     setCancelError(null);
                   }
                 }}
-                disabled={isCancelling}
-                className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white/80 text-xs font-semibold transition-colors disabled:opacity-50"
+                disabled={isCancelling || isResolvingCancellation || isApprovingCancellation}
+                className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white/80 text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
               >
                 Keep Order
               </button>
               <button
                 type="button"
-                onClick={handleExecuteCancellation}
-                disabled={isCancelling}
-                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold shadow-lg shadow-rose-600/30 transition-all flex items-center gap-1.5 disabled:opacity-50"
+                onClick={isCancellationPending ? () => handleResolveCancellation('APPROVE') : handleExecuteCancellation}
+                disabled={isCancelling || isResolvingCancellation || isApprovingCancellation}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold shadow-lg shadow-rose-600/30 transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
               >
-                {isCancelling ? (
+                {isCancelling || isResolvingCancellation || isApprovingCancellation ? (
                   <>
                     <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     <span>Processing...</span>
                   </>
                 ) : (
-                  <span>Confirm Cancellation</span>
+                  <span>{isCancellationPending ? 'Approve Cancellation' : 'Confirm Cancellation'}</span>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Cancellation Request Confirmation Dialog Overlay */}
+      {isConfirmRejectOpen && (
+        <div
+          className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-[#07030A]/90 backdrop-blur-md"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (!isResolvingCancellation && !isApprovingCancellation) {
+              setIsConfirmRejectOpen(false);
+              setCancelError(null);
+            }
+          }}
+        >
+          <div
+            className="relative w-full max-w-md bg-[#180F20] border border-amber-500/30 rounded-2xl p-6 shadow-2xl space-y-4 text-[#EDE4D5]"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="reject-dialog-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                <Alert className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 id="reject-dialog-title" className="font-serif text-lg font-bold text-[#F8F4EC]">
+                  Reject Cancellation Request?
+                </h3>
+                <p className="text-xs text-white/60 mt-0.5">
+                  Order #{order.orderNumber} will be unblocked and will proceed with packaging and delivery.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-1.5 text-xs">
+              <label htmlFor="admin-rejection-reason" className="block text-white/60 font-medium">
+                Reason for rejection (Optional):
+              </label>
+              <textarea
+                id="admin-rejection-reason"
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                placeholder="e.g., Order has already been prepared and packaged for handover..."
+                rows={3}
+                maxLength={500}
+                className="w-full p-2.5 bg-white/5 border border-white/10 rounded-xl text-xs text-[#EDE4D5] placeholder:text-white/30 focus:outline-none focus:border-amber-500/50 resize-none transition-colors"
+              />
+            </div>
+
+            {cancelError && (
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
+                <Alert className="w-4 h-4 text-rose-400 shrink-0" />
+                <span>{cancelError}</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-white/10">
+              <button
+                type="button"
+                onClick={() => {
+                  if (!isResolvingCancellation && !isApprovingCancellation) {
+                    setIsConfirmRejectOpen(false);
+                    setCancelError(null);
+                  }
+                }}
+                disabled={isResolvingCancellation || isApprovingCancellation}
+                className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white/80 text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                onClick={() => handleResolveCancellation('REJECT')}
+                disabled={isResolvingCancellation || isApprovingCancellation}
+                className="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold shadow-lg shadow-amber-600/30 transition-all flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+              >
+                {isResolvingCancellation || isApprovingCancellation ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Processing...</span>
+                  </>
+                ) : (
+                  <span>Reject Request</span>
                 )}
               </button>
             </div>

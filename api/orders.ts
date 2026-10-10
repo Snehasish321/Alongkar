@@ -19,6 +19,8 @@ import {
   deductOrderInventoryTx,
   invalidateDeductedProductsCache,
 } from './_utils/inventory.js';
+import { requestCustomerCancellationWorkflow } from './_utils/orderCancellation.js';
+import { getCancellationRequestDetails } from '../src/lib/order-status.js';
 import { Prisma } from '@prisma/client';
 
 export interface OrderValidationError {
@@ -99,6 +101,11 @@ export function formatOrderResponse(order: any) {
     deliveredAt: order.deliveredAt || null,
     cancelReason: order.cancelReason || null,
     cancelledAt: order.cancelledAt || null,
+    cancellationRequestStatus: getCancellationRequestDetails(order).status,
+    cancellationRequestedAt: getCancellationRequestDetails(order).requestedAt,
+    cancellationRequestReason: getCancellationRequestDetails(order).requestReason,
+    cancellationResolvedAt: getCancellationRequestDetails(order).resolvedAt,
+    cancellationRejectionReason: getCancellationRequestDetails(order).rejectionReason,
     customerNotes: order.customerNotes || null,
     adminNotes: order.adminNotes || null,
     createdAt: order.createdAt,
@@ -406,8 +413,45 @@ export default async function handler(req: any, res?: any) {
       return respond(res, 401, { error: 'Authentication required' }, { 'X-Request-ID': requestId });
     }
 
-    // ─── POST /api/orders — Create Order ───────────────────────────────────────
+    // ─── POST /api/orders — Create Order OR Customer Actions ──────────────────
     if (method === 'POST') {
+      if (bodyData?.action === 'request_cancellation') {
+        const orderIdOrNumber = bodyData.orderId || bodyData.orderNumber;
+        if (!orderIdOrNumber || typeof orderIdOrNumber !== 'string') {
+          return respond(res, 400, { error: 'Order ID or orderNumber is required to request cancellation.' }, { 'X-Request-ID': requestId });
+        }
+
+        const cancelReqResult = await requestCustomerCancellationWorkflow({
+          orderIdOrNumber,
+          customerClerkUserId: user.clerkUserId,
+          reason: bodyData.reason,
+        });
+
+        if (!cancelReqResult.success) {
+          return respond(
+            res,
+            cancelReqResult.status,
+            {
+              error: cancelReqResult.message || cancelReqResult.error,
+              code: cancelReqResult.error,
+              order: cancelReqResult.order ? formatOrderResponse(cancelReqResult.order) : undefined,
+            },
+            { 'X-Request-ID': requestId }
+          );
+        }
+
+        return respond(
+          res,
+          cancelReqResult.status,
+          {
+            success: true,
+            order: formatOrderResponse(cancelReqResult.order),
+            message: cancelReqResult.message,
+          },
+          { 'X-Request-ID': requestId }
+        );
+      }
+
       const { errors, data } = validateCreateOrderPayload(bodyData);
       if (errors.length > 0 || !data) {
         return respond(res, 400, { error: 'Validation failed', details: errors }, { 'X-Request-ID': requestId });

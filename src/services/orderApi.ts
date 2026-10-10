@@ -440,4 +440,229 @@ export async function retryAdminRefund(
   };
 }
 
+export async function reconcileAdminRefund(
+  token: string | null,
+  payload: {
+    orderId?: string;
+    orderNumber?: string;
+  }
+): Promise<{
+  success: boolean;
+  order?: Order;
+  outcome: string;
+  refundId?: string | null;
+  gatewayStatus?: string | null;
+  discrepancyDetected?: boolean;
+  message: string;
+}> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch('/api/admin/orders', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      action: 'reconcile_refund',
+      ...payload,
+    }),
+  });
+
+  if (response.status === 401) {
+    throw new Error('Unauthorized. Please sign in as an admin.');
+  }
+
+  if (response.status === 403) {
+    throw new Error('Access denied. Administrator privileges required.');
+  }
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.error || data.message || `Failed to reconcile refund (HTTP ${response.status})`);
+  }
+
+  return {
+    success: Boolean(data.success),
+    order: data.order,
+    outcome: data.outcome,
+    refundId: data.refundId,
+    gatewayStatus: data.gatewayStatus,
+    discrepancyDetected: Boolean(data.discrepancyDetected),
+    message: data.message || 'Refund reconciliation completed.',
+  };
+}
+
+export async function advanceOrderFulfilmentStage(
+  token: string | null,
+  payload: {
+    orderId?: string;
+    orderNumber?: string;
+    targetStage?: string;
+  }
+): Promise<{
+  success: boolean;
+  order: Order;
+  previousStage: string;
+  currentStage: string;
+  nextStage: string | null;
+  message: string;
+}> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch('/api/admin/orders', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      action: 'advance_fulfillment_stage',
+      ...payload,
+    }),
+  });
+
+  if (response.status === 401) {
+    throw new Error('Unauthorized. Please sign in as an admin.');
+  }
+
+  if (response.status === 403) {
+    throw new Error('Access denied. Administrator privileges required.');
+  }
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.error || data.message || `Failed to advance fulfilment stage (HTTP ${response.status})`);
+  }
+
+  return {
+    success: Boolean(data.success),
+    order: data.order,
+    previousStage: data.previousStage,
+    currentStage: data.currentStage,
+    nextStage: data.nextStage || null,
+    message: data.message || 'Fulfilment stage updated successfully.',
+  };
+}
+
+/**
+ * Submits a customer cancellation request for an eligible order (Reviewing or Packaging)
+ * via POST /api/orders with action: 'request_cancellation'.
+ */
+export async function requestCustomerOrderCancellation(
+  token: string | null,
+  payload: {
+    orderId?: string;
+    orderNumber?: string;
+    reason?: string;
+  }
+): Promise<{
+  success: boolean;
+  order: Order;
+  message: string;
+}> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch('/api/orders', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      action: 'request_cancellation',
+      ...payload,
+    }),
+  });
+
+  if (response.status === 401) {
+    throw new Error('Please sign in to request cancellation for this order.');
+  }
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.error || data.message || `Failed to request cancellation (HTTP ${response.status})`);
+  }
+
+  return {
+    success: Boolean(data.success),
+    order: data.order,
+    message: data.message || 'Cancellation request submitted successfully.',
+  };
+}
+
+/**
+ * Resolves an active customer cancellation request as an admin (APPROVE or REJECT)
+ * via POST /api/admin/orders with action: 'resolve_cancellation_request'.
+ */
+export async function resolveAdminCancellationRequest(
+  token: string | null,
+  payload: {
+    orderId?: string;
+    orderNumber?: string;
+    decision: 'APPROVE' | 'REJECT';
+    rejectionReason?: string;
+  }
+): Promise<{
+  success: boolean;
+  order: Order;
+  decision: 'APPROVE' | 'REJECT';
+  inventoryRestored?: boolean;
+  refundStatus?: string;
+  refundId?: string;
+  message: string;
+}> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch('/api/admin/orders', {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      action: 'resolve_cancellation_request',
+      ...payload,
+    }),
+  });
+
+  if (response.status === 401) {
+    throw new Error('Unauthorized. Please sign in as an admin.');
+  }
+
+  if (response.status === 403) {
+    throw new Error('Access denied. Administrator privileges required.');
+  }
+
+  const data = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    throw new Error(data.error || data.message || `Failed to resolve cancellation request (HTTP ${response.status})`);
+  }
+
+  return {
+    success: Boolean(data.success),
+    order: data.order,
+    decision: data.decision,
+    inventoryRestored: data.inventoryRestored,
+    refundStatus: data.refundStatus,
+    refundId: data.refundId,
+    message: data.message || `Cancellation request ${data.decision.toLowerCase()}d successfully.`,
+  };
+}
 

@@ -21,6 +21,7 @@ import {
   getOrderStatusBadgeInfo,
   getPaymentStatusBadgeInfo,
   getPaymentMethodBadgeInfo,
+  hasPendingCancellationRequest,
 } from '../../lib/order-status';
 import { fetchAdminOrders } from '../../services/orderApi';
 import { AdminOrderDetailModal } from '../../components/admin/AdminOrderDetailModal';
@@ -119,6 +120,19 @@ export const AdminOrdersPage: React.FC = () => {
     loadOrders(1);
   }, [loadOrders]);
 
+  // Auto-refresh orders when tab gains focus / visibility
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        loadOrders(pagination.page);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [loadOrders, pagination.page]);
+
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= pagination.totalPages && newPage !== pagination.page) {
       loadOrders(newPage);
@@ -141,6 +155,15 @@ export const AdminOrdersPage: React.FC = () => {
     setPaymentStatusFilter('ALL');
     setPaymentMethodFilter('ALL');
   };
+
+  const handleOrderUpdated = useCallback(
+    (updatedOrder: Order) => {
+      if (!updatedOrder) return;
+      setSelectedOrder(updatedOrder);
+      loadOrders(pagination.page);
+    },
+    [loadOrders, pagination.page]
+  );
 
   const handleOpenDetail = (order: Order) => {
     setSelectedOrder(order);
@@ -274,6 +297,7 @@ export const AdminOrdersPage: React.FC = () => {
               className="w-full px-3 py-2 bg-[#180F20] border border-white/10 rounded-xl text-xs text-[#EDE4D5] focus:outline-none focus:border-[#D6B878]/60 transition-colors cursor-pointer"
             >
               <option value="ALL">All Order Statuses</option>
+              <option value="CANCELLATION_REQUESTED">Cancellation Requested</option>
               <option value="PENDING_PAYMENT">Pending Payment</option>
               <option value="CONFIRMED">Confirmed</option>
               <option value="PROCESSING">Processing</option>
@@ -485,12 +509,23 @@ export const AdminOrdersPage: React.FC = () => {
 
                       {/* Order Status */}
                       <td className="py-3.5 px-4">
-                        <span
-                          className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${orderBadge.bgClass}`}
-                        >
-                          <OrderIcon className="w-3 h-3" />
-                          {orderBadge.label}
-                        </span>
+                        <div className="flex flex-col gap-1 items-start">
+                          <span
+                            className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${orderBadge.bgClass}`}
+                          >
+                            <OrderIcon className="w-3 h-3" />
+                            {orderBadge.label}
+                          </span>
+                          {hasPendingCancellationRequest(order) && (
+                            <span
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 animate-pulse"
+                              title="Customer requested cancellation"
+                            >
+                              <Alert className="w-3 h-3 text-amber-400 shrink-0" />
+                              Cancellation Requested
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Created Date */}
@@ -580,10 +615,7 @@ export const AdminOrdersPage: React.FC = () => {
         isOpen={isDetailModalOpen}
         onClose={() => setIsDetailModalOpen(false)}
         order={selectedOrder}
-        onOrderUpdated={(updatedOrder) => {
-          setSelectedOrder(updatedOrder);
-          loadOrders(pagination.page);
-        }}
+        onOrderUpdated={handleOrderUpdated}
       />
     </div>
   );
