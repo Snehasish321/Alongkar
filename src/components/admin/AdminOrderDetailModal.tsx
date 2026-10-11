@@ -40,6 +40,78 @@ import {
   fetchAdminOrder,
 } from '../../services/orderApi';
 
+// Module-scoped state for body scroll locking with reference counting for stacked dialogs
+let activeScrollLockCount = 0;
+let preservedScrollY = 0;
+let previousBodyOverflow = '';
+let previousHtmlOverflow = '';
+let previousPaddingRight = '';
+
+const acquireBodyScrollLock = (): (() => void) => {
+  if (typeof window === 'undefined') return () => {};
+
+  if (activeScrollLockCount === 0) {
+    preservedScrollY = window.scrollY || document.documentElement.scrollTop || 0;
+    previousBodyOverflow = document.body.style.overflow;
+    previousHtmlOverflow = document.documentElement.style.overflow;
+    previousPaddingRight = document.body.style.paddingRight;
+
+    // Compensate scrollbar width to prevent background layout shift
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${scrollbarWidth}px`;
+    }
+
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+
+    // Pause Lenis smooth scrolling if active on window
+    const globalLenis = (window as unknown as { __lenis?: { stop: () => void } }).__lenis;
+    if (globalLenis && typeof globalLenis.stop === 'function') {
+      try {
+        globalLenis.stop();
+      } catch (e) {
+        console.warn('Failed to stop Lenis:', e);
+      }
+    }
+  }
+
+  activeScrollLockCount++;
+  let hasReleased = false;
+
+  return () => {
+    if (hasReleased) return;
+    hasReleased = true;
+    activeScrollLockCount = Math.max(0, activeScrollLockCount - 1);
+
+    if (activeScrollLockCount === 0) {
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousHtmlOverflow;
+      document.body.style.paddingRight = previousPaddingRight;
+
+      const globalLenis = (window as unknown as {
+        __lenis?: {
+          start: () => void;
+          scrollTo: (pos: number, opts?: { immediate: boolean }) => void;
+        };
+      }).__lenis;
+
+      if (globalLenis && typeof globalLenis.start === 'function') {
+        try {
+          globalLenis.start();
+          if (typeof globalLenis.scrollTo === 'function') {
+            globalLenis.scrollTo(preservedScrollY, { immediate: true });
+          }
+        } catch (e) {
+          console.warn('Failed to restart Lenis:', e);
+        }
+      }
+
+      window.scrollTo(0, preservedScrollY);
+    }
+  };
+};
+
 interface AdminOrderDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -79,6 +151,22 @@ export const AdminOrderDetailModal: React.FC<AdminOrderDetailModalProps> = ({
   const prevOrderIdRef = React.useRef<string | null>(initialOrder?.id || null);
   const prevIsOpenRef = React.useRef<boolean>(isOpen);
   const onOrderUpdatedRef = React.useRef(onOrderUpdated);
+  const isConfirmCancelOpenRef = React.useRef(isConfirmCancelOpen);
+  const isConfirmRejectOpenRef = React.useRef(isConfirmRejectOpen);
+  const onCloseRef = React.useRef(onClose);
+  const contentScrollRef = React.useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    isConfirmCancelOpenRef.current = isConfirmCancelOpen;
+  }, [isConfirmCancelOpen]);
+
+  useEffect(() => {
+    isConfirmRejectOpenRef.current = isConfirmRejectOpen;
+  }, [isConfirmRejectOpen]);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     onOrderUpdatedRef.current = onOrderUpdated;
@@ -165,38 +253,56 @@ export const AdminOrderDetailModal: React.FC<AdminOrderDetailModalProps> = ({
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  // Lock body scroll when modal is open and restore on close
+  // Lock body scroll when modal opens, preserving scroll position and restoring on close
   useEffect(() => {
     if (!isOpen) return;
 
-    const originalOverflow = document.body.style.overflow;
-    const originalPaddingRight = document.body.style.paddingRight;
-    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    const releaseLock = acquireBodyScrollLock();
+    return () => {
+      releaseLock();
+    };
+  }, [isOpen]);
 
-    if (scrollbarWidth > 0) {
-      document.body.style.paddingRight = `${scrollbarWidth}px`;
-    }
-    document.body.style.overflow = 'hidden';
+  // Support stacked subdialogs without releasing background lock prematurely
+  useEffect(() => {
+    if (!isConfirmCancelOpen) return;
+    const releaseLock = acquireBodyScrollLock();
+    return () => {
+      releaseLock();
+    };
+  }, [isConfirmCancelOpen]);
+
+  useEffect(() => {
+    if (!isConfirmRejectOpen) return;
+    const releaseLock = acquireBodyScrollLock();
+    return () => {
+      releaseLock();
+    };
+  }, [isConfirmRejectOpen]);
+
+  // Keyboard navigation: Escape closes stacked dialogs first, then modal
+  useEffect(() => {
+    if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (isConfirmCancelOpen) {
+        if (isConfirmCancelOpenRef.current) {
           setIsConfirmCancelOpen(false);
-        } else if (isConfirmRejectOpen) {
+          setCancelError(null);
+        } else if (isConfirmRejectOpenRef.current) {
           setIsConfirmRejectOpen(false);
+          setCancelError(null);
         } else {
-          onClose();
+          onCloseRef.current();
         }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => {
-      document.body.style.overflow = originalOverflow;
-      document.body.style.paddingRight = originalPaddingRight;
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen, onClose, isConfirmCancelOpen, isConfirmRejectOpen]);
+  }, [isOpen]);
 
   if (!isOpen || !currentOrder) return null;
   const order = currentOrder;
@@ -489,7 +595,10 @@ export const AdminOrderDetailModal: React.FC<AdminOrderDetailModalProps> = ({
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 overflow-y-auto">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 md:p-6 overflow-hidden"
+      data-lenis-prevent
+    >
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-[#07030A]/85 backdrop-blur-md transition-opacity"
@@ -499,13 +608,15 @@ export const AdminOrderDetailModal: React.FC<AdminOrderDetailModalProps> = ({
 
       {/* Modal Container */}
       <div
-        className="relative w-full max-w-4xl bg-[#140B1A] border border-[#D6B878]/30 rounded-2xl shadow-2xl overflow-hidden z-10 flex flex-col max-h-[92vh] text-[#EDE4D5]"
+        className="relative w-full max-w-4xl bg-[#140B1A] border border-[#D6B878]/30 rounded-2xl shadow-2xl overflow-hidden z-10 flex flex-col max-h-[90vh] [max-height:90dvh] min-h-0 min-w-0 text-[#EDE4D5]"
+        style={{ maxHeight: '90dvh' }}
         role="dialog"
         aria-modal="true"
         aria-labelledby="admin-order-modal-title"
+        data-lenis-prevent
       >
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-5 sm:px-6 py-4 bg-[#180F20] border-b border-[#D6B878]/20 sticky top-0 z-20">
+        <div className="flex items-center justify-between px-5 sm:px-6 py-4 bg-[#180F20] border-b border-[#D6B878]/20 shrink-0 z-20">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-[#40000D] border border-[#D6B878]/30 flex items-center justify-center text-[#D6B878]">
               <ShoppingBag className="w-5 h-5" />
@@ -567,7 +678,19 @@ export const AdminOrderDetailModal: React.FC<AdminOrderDetailModalProps> = ({
         </div>
 
         {/* Modal Content */}
-        <div className="p-5 sm:p-6 overflow-y-auto space-y-6">
+        <div
+          ref={contentScrollRef}
+          tabIndex={0}
+          role="region"
+          aria-label="Order details content"
+          className="flex-1 min-h-0 min-w-0 p-5 sm:p-6 overflow-y-auto overscroll-y-contain space-y-6 text-[#EDE4D5] no-scrollbar scrollbar-none focus:outline-none focus-visible:ring-1 focus-visible:ring-[#D6B878]/40"
+          style={{
+            overscrollBehaviorY: 'contain',
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none',
+          }}
+          data-lenis-prevent
+        >
           {/* Top-Level Cancellation / Action Feedback Banner */}
           {cancelFeedback && (
             <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center justify-between shadow-sm">
@@ -1225,7 +1348,7 @@ export const AdminOrderDetailModal: React.FC<AdminOrderDetailModalProps> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="flex items-center justify-between px-5 sm:px-6 py-3.5 bg-[#180F20] border-t border-[#D6B878]/20 text-xs text-white/40">
+        <div className="flex items-center justify-between px-5 sm:px-6 py-3.5 bg-[#180F20] border-t border-[#D6B878]/20 text-xs text-white/40 shrink-0 z-20">
           <div className="flex items-center gap-2">
             {canAdvanceStage && nextStageMeta && (
               <button
@@ -1325,7 +1448,8 @@ export const AdminOrderDetailModal: React.FC<AdminOrderDetailModalProps> = ({
       {/* Cancel Order Confirmation Dialog Overlay */}
       {isConfirmCancelOpen && (
         <div
-          className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-[#07030A]/90 backdrop-blur-md"
+          className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-[#07030A]/90 backdrop-blur-md overflow-hidden"
+          data-lenis-prevent
           onClick={(e) => {
             e.stopPropagation();
             if (!isCancelling && !isResolvingCancellation && !isApprovingCancellation) {
@@ -1452,7 +1576,8 @@ export const AdminOrderDetailModal: React.FC<AdminOrderDetailModalProps> = ({
       {/* Reject Cancellation Request Confirmation Dialog Overlay */}
       {isConfirmRejectOpen && (
         <div
-          className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-[#07030A]/90 backdrop-blur-md"
+          className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-[#07030A]/90 backdrop-blur-md overflow-hidden"
+          data-lenis-prevent
           onClick={(e) => {
             e.stopPropagation();
             if (!isResolvingCancellation && !isApprovingCancellation) {
