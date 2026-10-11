@@ -339,3 +339,129 @@ declare global {
     Razorpay?: new (options: RazorpayCheckoutOptions) => RazorpayInstance;
   }
 }
+
+// -------------------------------------------------------------
+// Admin Customer Types (Read-Only Customer Directory & Detail)
+// -------------------------------------------------------------
+
+export interface AdminCustomerSummary {
+  id: string;
+  clerkUserId: string;
+  registeredEmail: string | null;
+  displayName: string | null;
+  phone: string | null;
+  createdAt: string;
+  lastOrderDate: string | null;
+  totalOrders: number;
+  activeOrders: number;
+  cancelledOrders: number;
+  repeatBuyer: boolean;
+  grossOrderValue: number;
+  realizedSpend: number;
+  refundedValue: number;
+  customRequestsCount: number;
+}
+
+export interface AdminCustomerKPISummary {
+  totalCustomers: number;
+  customersWithOrders: number;
+  totalRepeatCustomers: number;
+  customersWithCustomRequests: number;
+  totalGrossOrderValue: number;
+  totalRealizedSpend: number;
+  scope?: string;
+}
+
+export interface AdminCustomerPagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface AdminCustomerDetailMetrics {
+  totalOrders: number;
+  activeOrders: number;
+  cancelledOrders: number;
+  repeatBuyer: boolean;
+  grossOrderValue: number;
+  realizedSpend: number;
+  refundedValue: number;
+  customRequestsCount: number;
+  lastOrderDate: string | null;
+}
+
+export interface AdminCustomerDetailOrderItem {
+  id: string;
+  productName: string;
+  productSku?: string | null;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+}
+
+export interface AdminCustomerDetailOrder {
+  id: string;
+  orderNumber: string;
+  createdAt: string;
+  status: string;
+  paymentStatus: string;
+  shippingStatus: string;
+  paymentProvider: string | null;
+  subtotal: number;
+  discountTotal: number;
+  shippingFee: number;
+  taxTotal: number;
+  grandTotal: number;
+  currency: string;
+  customerName: string;
+  customerEmail?: string | null;
+  customerPhone: string;
+  shippingAddress: {
+    line1: string;
+    line2?: string | null;
+    city: string;
+    state: string;
+    pincode: string;
+    country?: string;
+  };
+  itemCount: number;
+  items: AdminCustomerDetailOrderItem[];
+}
+
+export interface AdminCustomerShippingAddress {
+  orderNumber: string;
+  usedAt: string;
+  line1: string;
+  line2?: string | null;
+  city: string;
+  state: string;
+  pincode: string;
+  country?: string;
+}
+
+export interface AdminCustomerJewelleryRequest {
+  id: string;
+  requestNumber: string;
+  status: string;
+  jewelleryType: string;
+  description: string;
+  phone: string;
+  budget: number | null;
+  quotedPrice: number | null;
+  createdAt: string;
+}
+
+export interface AdminCustomerDetail {
+  id: string;
+  clerkUserId: string;
+  registeredEmail: string | null;
+  displayName: string | null;
+  phone: string | null;
+  createdAt: string;
+  updatedAt: string;
+  metrics: AdminCustomerDetailMetrics;
+  orders: AdminCustomerDetailOrder[];
+  shippingAddresses: AdminCustomerShippingAddress[];
+  jewelleryRequests: AdminCustomerJewelleryRequest[];
+}
