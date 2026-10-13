@@ -6,7 +6,7 @@ import cartHandler from '../api/cart.js';
 import wishlistHandler from '../api/wishlist.js';
 import jewelleryRequestsHandler from '../api/jewellery-requests.js';
 import adminJewelleryRequestsHandler from '../api/admin/jewellery-requests.js';
-import uploadProductImageHandler from '../api/uploads/product-image.js';
+import { handleProductImageUpload as uploadProductImageHandler } from '../api/uploads.js';
 import {
   getOrCreateRequestId,
   maskSensitiveString,

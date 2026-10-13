@@ -3,7 +3,7 @@ import prisma from '../src/lib/prisma.js';
 import { clerkClient } from '../api/_utils/auth.js';
 import productsHandler from '../api/products.js';
 import adminJewelleryRequestsHandler from '../api/admin/jewellery-requests.js';
-import productImageUploadHandler from '../api/uploads/product-image.js';
+import { handleProductImageUpload as productImageUploadHandler } from '../api/uploads.js';
 
 function createMockRes() {
   let statusCode = 200;

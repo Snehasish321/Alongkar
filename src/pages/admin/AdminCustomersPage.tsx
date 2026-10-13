@@ -26,18 +26,13 @@ import type {
 import { fetchAdminCustomers } from '../../services/customerApi';
 import { AdminCustomerDetailModal } from '../../components/admin/AdminCustomerDetailModal';
 import { AdminCustomerAnalyticsView } from '../../components/admin/AdminCustomerAnalyticsView';
-import { AdminCustomerSegmentsView } from '../../components/admin/AdminCustomerSegmentsView';
 
 export const AdminCustomersPage: React.FC = () => {
   const { getToken } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const viewParam = searchParams.get('view');
-  const currentView: 'directory' | 'analytics' | 'segments' =
-    viewParam === 'segments'
-      ? 'segments'
-      : viewParam === 'analytics'
-      ? 'analytics'
-      : 'directory';
+  const currentView: 'directory' | 'analytics' =
+    viewParam === 'analytics' ? 'analytics' : 'directory';
   const activeRequestIdRef = useRef(0);
 
   const [customers, setCustomers] = useState<AdminCustomerSummary[]>([]);
@@ -196,12 +191,7 @@ export const AdminCustomersPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="font-serif text-2xl sm:text-3xl font-bold text-[#F8F4EC] tracking-wide flex items-center gap-2.5">
-            {currentView === 'segments' ? (
-              <>
-                <Filter className="w-7 h-7 text-[#D6B878]" />
-                Customer Segmentation
-              </>
-            ) : currentView === 'analytics' ? (
+            {currentView === 'analytics' ? (
               <>
                 <Chart3 className="w-7 h-7 text-[#D6B878]" />
                 Customer Analytics & Insights
@@ -214,9 +204,7 @@ export const AdminCustomersPage: React.FC = () => {
             )}
           </h1>
           <p className="text-xs sm:text-sm text-white/50 mt-1">
-            {currentView === 'segments'
-              ? 'Targeted customer cohorts across acquisition recency, purchase counts, high-value spend, and custom requests.'
-              : currentView === 'analytics'
+            {currentView === 'analytics'
               ? 'Aggregated retention metrics, repeat buyer rates, and acquisition trends.'
               : 'Read-only registry of all customer accounts, transaction histories, and bespoke requests.'}
           </p>
@@ -249,18 +237,6 @@ export const AdminCustomersPage: React.FC = () => {
               <Chart3 className="w-3.5 h-3.5" />
               <span>Analytics</span>
             </button>
-            <button
-              type="button"
-              onClick={() => setSearchParams({ view: 'segments' })}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                currentView === 'segments'
-                  ? 'bg-[#B08D57] text-[#140B1A] shadow-sm font-bold'
-                  : 'text-white/60 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <Filter className="w-3.5 h-3.5" />
-              <span>Segments</span>
-            </button>
           </div>
 
           {currentView === 'directory' && (
@@ -277,12 +253,7 @@ export const AdminCustomersPage: React.FC = () => {
         </div>
       </div>
 
-      {currentView === 'segments' ? (
-        <AdminCustomerSegmentsView
-          onOpenCustomerDetail={handleOpenDetail}
-          onNavigateToDirectory={() => setSearchParams({})}
-        />
-      ) : currentView === 'analytics' ? (
+      {currentView === 'analytics' ? (
         <AdminCustomerAnalyticsView onNavigateToDirectory={() => setSearchParams({})} />
       ) : (
         <>

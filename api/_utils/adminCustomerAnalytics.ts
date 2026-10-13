@@ -1,5 +1,5 @@
-import prisma from '../../../src/lib/prisma.js';
-import { requireAdmin, respond } from '../../_utils/auth.js';
+import prisma from '../../src/lib/prisma.js';
+import { requireAdmin, respond } from './auth.js';
 import {
   getSafeErrorMessage,
   withTimeout,
@@ -8,7 +8,7 @@ import {
   logSlowRequest,
   logSecurityEvent,
   checkRateLimit,
-} from '../../_utils/security.js';
+} from './security.js';
 
 export const ALLOWED_TIME_RANGES = ['30d', '90d', '1y', 'all'] as const;
 export type AnalyticsTimeRange = (typeof ALLOWED_TIME_RANGES)[number];

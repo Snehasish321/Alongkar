@@ -25,7 +25,7 @@ import handler, {
   QUALIFYING_ORDER_WHERE,
   getTimeRangeBounds,
   ALLOWED_TIME_RANGES,
-} from '../api/admin/customers/analytics.js';
+} from '../api/_utils/adminCustomerAnalytics.js';
 
 let passed = 0;
 let failed = 0;

@@ -1,6 +1,6 @@
 import './testDbGuard.js';
 import prisma from '../src/lib/prisma.js';
-import uploadHandler from '../api/uploads/jewellery-inspiration.js';
+import { handleJewelleryInspirationUpload as uploadHandler } from '../api/uploads.js';
 import { isCloudinaryConfigured } from '../api/_utils/cloudinary.js';
 import {
   ALLOWED_MIME_TYPES,
