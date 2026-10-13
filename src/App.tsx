@@ -66,6 +66,9 @@ const AdminJewelleryRequestsPage = lazy(() =>
 const AdminOrdersPage = lazy(() =>
   import('./pages/admin/AdminOrdersPage').then((m) => ({ default: m.AdminOrdersPage }))
 );
+const AdminCustomersPage = lazy(() =>
+  import('./pages/admin/AdminCustomersPage').then((m) => ({ default: m.AdminCustomersPage }))
+);
 
 function ScrollToTopOnNavigate() {
   const location = useLocation();
@@ -155,6 +158,7 @@ export const AppContent: React.FC = () => {
             <Route index element={<Navigate to="/admin/products" replace />} />
             <Route path="products" element={<AdminProductsPage />} />
             <Route path="orders" element={<AdminOrdersPage />} />
+            <Route path="customers" element={<AdminCustomersPage />} />
             <Route path="jewellery-requests" element={<AdminJewelleryRequestsPage />} />
           </Route>
 

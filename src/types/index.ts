@@ -339,3 +339,267 @@ declare global {
     Razorpay?: new (options: RazorpayCheckoutOptions) => RazorpayInstance;
   }
 }
+
+// -------------------------------------------------------------
+// Admin Customer Types (Read-Only Customer Directory & Detail)
+// -------------------------------------------------------------
+
+export interface AdminCustomerSummary {
+  id: string;
+  clerkUserId: string;
+  registeredEmail: string | null;
+  displayName: string | null;
+  phone: string | null;
+  createdAt: string;
+  lastOrderDate: string | null;
+  totalOrders: number;
+  activeOrders: number;
+  cancelledOrders: number;
+  repeatBuyer: boolean;
+  grossOrderValue: number;
+  realizedSpend: number;
+  refundedValue: number;
+  customRequestsCount: number;
+}
+
+export interface AdminCustomerKPISummary {
+  totalCustomers: number;
+  customersWithOrders: number;
+  totalRepeatCustomers: number;
+  customersWithCustomRequests: number;
+  totalGrossOrderValue: number;
+  totalRealizedSpend: number;
+  scope?: string;
+}
+
+export interface AdminCustomerPagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface AdminCustomerDetailMetrics {
+  totalOrders: number;
+  activeOrders: number;
+  cancelledOrders: number;
+  repeatBuyer: boolean;
+  grossOrderValue: number;
+  realizedSpend: number;
+  refundedValue: number;
+  customRequestsCount: number;
+  lastOrderDate: string | null;
+}
+
+export interface AdminCustomerDetailOrderItem {
+  id: string;
+  productName: string;
+  productSku?: string | null;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+}
+
+export interface AdminCustomerDetailOrder {
+  id: string;
+  orderNumber: string;
+  createdAt: string;
+  status: string;
+  paymentStatus: string;
+  shippingStatus: string;
+  paymentProvider: string | null;
+  subtotal: number;
+  discountTotal: number;
+  shippingFee: number;
+  taxTotal: number;
+  grandTotal: number;
+  currency: string;
+  customerName: string;
+  customerEmail?: string | null;
+  customerPhone: string;
+  shippingAddress: {
+    line1: string;
+    line2?: string | null;
+    city: string;
+    state: string;
+    pincode: string;
+    country?: string;
+  };
+  itemCount: number;
+  items: AdminCustomerDetailOrderItem[];
+}
+
+export interface AdminCustomerShippingAddress {
+  orderNumber: string;
+  usedAt: string;
+  line1: string;
+  line2?: string | null;
+  city: string;
+  state: string;
+  pincode: string;
+  country?: string;
+}
+
+export interface AdminCustomerJewelleryRequest {
+  id: string;
+  requestNumber: string;
+  status: string;
+  jewelleryType: string;
+  description: string;
+  phone: string;
+  budget: number | null;
+  quotedPrice: number | null;
+  createdAt: string;
+}
+
+export interface AdminCustomerDetail {
+  id: string;
+  clerkUserId: string;
+  registeredEmail: string | null;
+  displayName: string | null;
+  phone: string | null;
+  createdAt: string;
+  updatedAt: string;
+  metrics: AdminCustomerDetailMetrics;
+  orders: AdminCustomerDetailOrder[];
+  shippingAddresses: AdminCustomerShippingAddress[];
+  jewelleryRequests: AdminCustomerJewelleryRequest[];
+}
+
+// -------------------------------------------------------------
+// Admin Customer Analytics Types
+// -------------------------------------------------------------
+
+export type AnalyticsTimeRange = '30d' | '90d' | '1y' | 'all';
+
+export interface CustomerAcquisitionTrendPoint {
+  period: string;
+  label: string;
+  count: number;
+  date: string;
+}
+
+export interface OrderFrequencyBucket {
+  key: string;
+  label: string;
+  count: number;
+  percentage: number;
+}
+
+export interface PurchaseRecencyBucket {
+  key: string;
+  label: string;
+  count: number;
+  percentage: number;
+}
+
+export interface JewelleryRequestStatusCount {
+  status: string;
+  count: number;
+  label: string;
+}
+
+export interface AdminCustomerAnalyticsSummary {
+  // Lifetime Customer Metrics
+  totalRegisteredCustomers: number;
+  customersWithQualifyingPurchases: number;
+  firstTimeBuyers: number;
+  repeatBuyers: number;
+  repeatPurchaseRate: number;
+
+  // Selected Period Financial Metrics
+  periodQualifyingOrdersCount: number;
+  grossOrderValue: number;
+  grossAov: number | null;
+  realizedAov: number | null;
+  realizedSpend: number;
+  refundedValue: number;
+  newCustomersInPeriod: number;
+
+  // Jewellery Requests Activity
+  totalJewelleryRequests: number;
+  periodJewelleryRequests: number;
+}
+
+export interface AdminCustomerAnalyticsLimitations {
+  refundLimitation: string;
+  realizedAovLimitation: string;
+  requestAttributionLimitation: string;
+  qualifyingPurchaseRule: string;
+}
+
+export interface AdminCustomerAnalyticsResponse {
+  success: boolean;
+  timeRange: AnalyticsTimeRange;
+  generatedAt: string;
+  summary: AdminCustomerAnalyticsSummary;
+  acquisitionTrend: CustomerAcquisitionTrendPoint[];
+  orderFrequencyDistribution: OrderFrequencyBucket[];
+  purchaseRecencyDistribution: PurchaseRecencyBucket[];
+  jewelleryRequestBreakdown: JewelleryRequestStatusCount[];
+  limitations: AdminCustomerAnalyticsLimitations;
+}
+
+// -------------------------------------------------------------
+// Admin Customer Segmentation Types
+// -------------------------------------------------------------
+
+export type CustomerSegmentId =
+  | 'new_customers'
+  | 'first_time_buyers'
+  | 'repeat_buyers'
+  | 'high_value_customers'
+  | 'jewellery_request_customers'
+  | 'inactive_customers';
+
+export type CustomerSegmentSortOption =
+  | 'newest'
+  | 'oldest'
+  | 'most_purchases'
+  | 'highest_spend'
+  | 'last_purchased';
+
+export interface AdminCustomerSegmentMeta {
+  id: CustomerSegmentId;
+  label: string;
+  definition: string;
+  purpose: string;
+  customerCount: number;
+  thresholdBadge: string;
+}
+
+export interface AdminCustomerSegmentMember {
+  id: string;
+  registeredEmail: string | null;
+  displayName: string | null;
+  phone: string | null;
+  createdAt: string;
+  qualifyingPurchasesCount: number;
+  lifetimeGrossPurchaseValue: number;
+  lastQualifyingPurchaseDate: string | null;
+  hasJewelleryRequests: boolean;
+  jewelleryRequestsCount: number;
+  segmentTags: string[];
+}
+
+export interface AdminCustomerSegmentsRules {
+  qualifyingPurchaseRule: string;
+  highValueThresholdRule: string;
+  inactivityRule: string;
+  refundLimitation: string;
+}
+
+export interface AdminCustomerSegmentsResponse {
+  success: boolean;
+  generatedAt: string;
+  selectedSegment: CustomerSegmentId;
+  segments: AdminCustomerSegmentMeta[];
+  customers: AdminCustomerSegmentMember[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+  rules: AdminCustomerSegmentsRules;
+}

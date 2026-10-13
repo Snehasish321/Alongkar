@@ -9,8 +9,10 @@ import jewelleryRequestsHandler, {
   validateJewelleryRequestCreatePayload,
 } from '../api/jewellery-requests.js';
 import adminJewelleryRequestsHandler from '../api/admin/jewellery-requests.js';
-import productImageUploadHandler from '../api/uploads/product-image.js';
-import inspirationUploadHandler from '../api/uploads/jewellery-inspiration.js';
+import {
+  handleProductImageUpload as productImageUploadHandler,
+  handleJewelleryInspirationUpload as inspirationUploadHandler,
+} from '../api/uploads.js';
 import {
   isValidString,
   isValidNumber,

@@ -5,8 +5,10 @@ import cartHandler, { getOrCreateCart } from '../api/cart.js';
 import wishlistHandler, { getOrCreateWishlist } from '../api/wishlist.js';
 import jewelleryRequestsHandler from '../api/jewellery-requests.js';
 import adminJewelleryRequestsHandler from '../api/admin/jewellery-requests.js';
-import productImageUploadHandler from '../api/uploads/product-image.js';
-import inspirationUploadHandler from '../api/uploads/jewellery-inspiration.js';
+import {
+  handleProductImageUpload as productImageUploadHandler,
+  handleJewelleryInspirationUpload as inspirationUploadHandler,
+} from '../api/uploads.js';
 import {
   withTimeout,
   getSafeErrorMessage,

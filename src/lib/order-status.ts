@@ -278,13 +278,33 @@ export const parseOrderDiscounts = (order: {
     regularDiscountAmount = parseFloat(couponMatch[3]);
   }
 
-  // Match: Prepaid Incentive (PREPAID5): ₹142 or PREPAID5: ₹142
+  // Match: Prepaid Incentive (PREPAID5): ₹70 or PREPAID5: ₹70
   if (!isCod) {
-    const prepaidMatch =
-      order.adminNotes.match(/Prepaid Incentive.*?₹?(\d+(?:\.\d+)?)/i) ||
-      order.adminNotes.match(/PREPAID5.*?₹?(\d+(?:\.\d+)?)/i);
+    // Specifically require a colon or explicit "- Discount:" delimiter followed by the amount,
+    // avoiding matching the numeral "5" inside the token "PREPAID5" or "(5% Extra Off)"
+    const prepaidMatch = order.adminNotes.match(
+      /(?:Prepaid Incentive|PREPAID5)[^:\n\r|]*?(?::|\bDiscount:)\s*₹?\s*(\d+(?:\.\d+)?)/i
+    );
     if (prepaidMatch) {
       prepaid5DiscountAmount = parseFloat(prepaidMatch[1]);
+    }
+
+    // Defensive reconciliation with authoritative totalDiscount:
+    // If regular discount was parsed (or absent) and prepaid incentive was mentioned,
+    // verify the sum matches totalDiscount. If not, or if prepaidMatch was missed,
+    // reconcile against (totalDiscount - regularDiscountAmount).
+    const regularPart = regularDiscountAmount || 0;
+    const remainingDiscount = Math.max(0, totalDiscount - regularPart);
+
+    if (prepaid5DiscountAmount !== undefined) {
+      if (regularPart + prepaid5DiscountAmount !== totalDiscount && remainingDiscount > 0) {
+        prepaid5DiscountAmount = remainingDiscount;
+      }
+    } else if (
+      remainingDiscount > 0 &&
+      (order.adminNotes.includes('PREPAID5') || /Prepaid Incentive/i.test(order.adminNotes))
+    ) {
+      prepaid5DiscountAmount = remainingDiscount;
     }
   }
 

@@ -1,7 +1,7 @@
 import './testDbGuard.js';
 import prisma from '../src/lib/prisma.ts';
 import { validateImageMagicBytes, ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES } from '../api/_utils/multipart.ts';
-import uploadHandler from '../api/uploads/product-image.ts';
+import { handleProductImageUpload as uploadHandler } from '../api/uploads.ts';
 import productHandler from '../api/products.ts';
 
 // Helper mock response object

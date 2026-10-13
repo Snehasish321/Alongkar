@@ -27,7 +27,6 @@ import {
   getOrderStatusBadgeInfo,
   getPaymentStatusBadgeInfo,
   getShippingStatusBadgeInfo,
-  getPaymentMethodBadgeInfo,
 } from '../lib/order-status';
 import { CustomerOrderDetailModal } from '../components/orders/CustomerOrderDetailModal';
 import { loadRazorpayScript, openRazorpayCheckout } from '../lib/razorpay';
@@ -398,7 +397,6 @@ export const OrdersPage: React.FC = () => {
                 const orderBadge = getOrderStatusBadgeInfo(order.status);
                 const paymentBadge = getPaymentStatusBadgeInfo(order.paymentStatus);
                 const shippingBadge = getShippingStatusBadgeInfo(order.shippingStatus);
-                const paymentMethodBadge = getPaymentMethodBadgeInfo(order.paymentProvider);
                 const OrderIcon = orderBadge.icon;
                 const PaymentIcon = paymentBadge.icon;
                 const ShippingIcon = shippingBadge.icon;
@@ -414,76 +412,71 @@ export const OrdersPage: React.FC = () => {
                 return (
                   <div
                     key={order.id}
-                    className="bg-white rounded-2xl border border-[#E8C98A]/30 shadow-xs hover:border-[#E8C98A]/60 transition-all duration-200 overflow-hidden"
+                    className="bg-[#FFFDF8] rounded-2xl border border-[#E8C98A]/35 shadow-xs hover:border-[#8C6C38]/40 hover:shadow-md transition-all duration-200 overflow-hidden"
                   >
-                    {/* Order Card Header */}
-                    <div className="p-4 sm:p-5 bg-gradient-to-r from-[#FAF8F5] to-[#FFFDF8] border-b border-[#E8C98A]/20 flex flex-wrap items-center justify-between gap-3">
-                      <div className="space-y-1">
+                    {/* Order Card Header: Exactly 3 Status Badges */}
+                    <div className="p-4 sm:p-5 bg-gradient-to-r from-[#FAF8F5] via-[#FFFDF8] to-[#FAF8F5] border-b border-[#E8C98A]/25 flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
+                      <div className="space-y-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="font-serif font-bold text-base sm:text-lg text-[#28040B]">
+                          <span className="font-serif font-bold text-base sm:text-lg text-[#28040B] tracking-tight truncate">
                             {order.orderNumber}
                           </span>
                         </div>
-                        <div className="flex items-center gap-1.5 text-xs text-gray-500 font-sans">
-                          <span>
-                            {order.items?.length || 0} item{(order.items?.length || 0) === 1 ? '' : 's'}
-                          </span>
-                          <span className="text-gray-300">•</span>
-                          <span className="flex items-center gap-1">
-                            <Calendar size={12} className="text-[#8C6C38]" />
+                        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-neutral-500 font-sans mt-0.5">
+                          <span className="flex items-center gap-1.5 font-medium text-neutral-600">
+                            <Calendar size={13} className="text-[#8C6C38] shrink-0" />
                             {formatDate(order.createdAt)}
+                          </span>
+                          <span className="text-neutral-300">•</span>
+                          <span>
+                            {order.items?.length || 0} {(order.items?.length || 0) === 1 ? 'item' : 'items'}
                           </span>
                         </div>
                       </div>
 
-                      {/* Status Badges Group */}
-                      <div className="flex flex-wrap items-center gap-2">
+                      {/* Status Badges Group (Order, Payment, Shipping only) */}
+                      <div className="flex flex-wrap items-center gap-2 md:justify-end shrink-0">
                         {/* Order Status */}
                         <span
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${orderBadge.bgClass}`}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold tracking-wide border leading-none shrink-0 ${orderBadge.bgClass}`}
+                          title={`Order: ${orderBadge.label}`}
                         >
-                          <span className={`w-1.5 h-1.5 rounded-full ${orderBadge.dotClass}`} />
-                          <OrderIcon size={12} />
+                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${orderBadge.dotClass}`} />
+                          <OrderIcon size={12} className="shrink-0" />
                           <span>{orderBadge.label}</span>
                         </span>
 
                         {/* Payment Status */}
                         <span
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${paymentBadge.bgClass}`}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold tracking-wide border leading-none shrink-0 ${paymentBadge.bgClass}`}
+                          title={`Payment: ${paymentBadge.label}`}
                         >
-                          <span className={`w-1.5 h-1.5 rounded-full ${paymentBadge.dotClass}`} />
-                          <PaymentIcon size={12} />
+                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${paymentBadge.dotClass}`} />
+                          <PaymentIcon size={12} className="shrink-0" />
                           <span>{paymentBadge.label}</span>
                         </span>
 
                         {/* Shipping Status */}
                         <span
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${shippingBadge.bgClass}`}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold tracking-wide border leading-none shrink-0 ${shippingBadge.bgClass}`}
+                          title={`Shipping: ${shippingBadge.label}`}
                         >
-                          <span className={`w-1.5 h-1.5 rounded-full ${shippingBadge.dotClass}`} />
-                          <ShippingIcon size={12} />
+                          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${shippingBadge.dotClass}`} />
+                          <ShippingIcon size={12} className="shrink-0" />
                           <span>{shippingBadge.label}</span>
-                        </span>
-
-                        {/* Payment Method */}
-                        <span
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border ${paymentMethodBadge.bgClass}`}
-                        >
-                          <span className={`w-1.5 h-1.5 rounded-full ${paymentMethodBadge.dotClass}`} />
-                          <span>{paymentMethodBadge.fullLabel}</span>
                         </span>
                       </div>
                     </div>
 
                     {/* Order Card Body: Items Preview */}
-                    <div className="p-4 sm:p-5 divide-y divide-[#E8C98A]/15">
+                    <div className="p-4 sm:p-5 divide-y divide-[#E8C98A]/20">
                       {order.items && order.items.length > 0 ? (
                         order.items.slice(0, 3).map((item) => (
                           <div
                             key={item.id}
-                            className="py-3 first:pt-0 last:pb-0 flex items-center gap-3 sm:gap-4"
+                            className="py-3.5 first:pt-0 last:pb-0 flex items-center gap-3.5 sm:gap-4"
                           >
-                            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg bg-[#FAF8F5] border border-[#E8C98A]/25 overflow-hidden shrink-0">
+                            <div className="w-13 h-13 sm:w-15 sm:h-15 rounded-xl bg-[#FAF8F5] border border-[#E8C98A]/30 overflow-hidden shrink-0 shadow-2xs">
                               <img
                                 src={getOptimizedImageUrl(
                                   item.productImage,
@@ -498,67 +491,68 @@ export const OrdersPage: React.FC = () => {
                               <h4 className="font-serif font-bold text-xs sm:text-sm text-[#28040B] truncate">
                                 {item.productName}
                               </h4>
-                              <p className="text-[11px] text-gray-500 mt-0.5">
+                              <p className="text-xs text-neutral-500 font-sans mt-0.5">
                                 Qty: {item.quantity} × {formatCurrency(item.unitPrice)}
                               </p>
                             </div>
-                            <div className="text-right">
-                              <span className="text-xs text-gray-600 font-sans font-medium">
+                            <div className="text-right shrink-0">
+                              <span className="font-serif font-bold text-xs sm:text-sm text-[#28040B]">
                                 {formatCurrency(item.lineTotal)}
                               </span>
                             </div>
                           </div>
                         ))
                       ) : (
-                        <div className="py-2 text-xs text-gray-400">No item details available.</div>
+                        <div className="py-2 text-xs text-neutral-400">No item details available.</div>
                       )}
 
                       {order.items && order.items.length > 3 && (
-                        <div className="pt-2 text-[11px] text-[#8C6C38] font-medium">
-                          +{order.items.length - 3} more item
-                          {order.items.length - 3 > 1 ? 's' : ''} in this order
+                        <div className="pt-2.5 text-xs text-[#8C6C38] font-medium">
+                          +{order.items.length - 3} more {order.items.length - 3 === 1 ? 'item' : 'items'} in this order
                         </div>
                       )}
                     </div>
 
                     {/* Order Card Footer */}
-                    <div className="p-4 sm:p-5 bg-[#FAF8F5]/60 border-t border-[#E8C98A]/20 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs">
-                        <div className="flex items-center gap-1.5 text-gray-600 font-sans">
-                          <Truck size={14} className="text-[#8C6C38] shrink-0" />
-                          <span className="truncate">
-                            Ship to: {order.shippingAddress?.city}, {order.shippingAddress?.state} ({order.shippingAddress?.pincode})
+                    <div className="p-4 sm:p-5 bg-[#FAF8F5]/70 border-t border-[#E8C98A]/25 flex flex-col md:flex-row md:items-center justify-between gap-3.5 sm:gap-4">
+                      <div className="flex items-center gap-2 text-xs text-neutral-600 font-sans min-w-0">
+                        <Truck size={14} className="text-[#8C6C38] shrink-0" />
+                        <span className="truncate">
+                          <span className="text-neutral-400 font-medium">Ship to:</span> {order.shippingAddress?.city}, {order.shippingAddress?.state} ({order.shippingAddress?.pincode})
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap sm:flex-nowrap items-center justify-between md:justify-end gap-3.5 sm:gap-5 w-full md:w-auto shrink-0">
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-[11px] font-semibold uppercase tracking-wider text-neutral-500 font-sans">
+                            Final Amount:
                           </span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-gray-400 font-sans uppercase tracking-wider text-[11px]">Final Amount:</span>
-                          <span className="font-serif font-bold text-sm sm:text-base text-[#8C6C38]">
+                          <span className="font-serif font-bold text-base sm:text-lg text-[#28040B]">
                             {formatCurrency(order.grandTotal)}
                           </span>
                         </div>
-                      </div>
 
-                      <div className="flex flex-wrap items-center gap-2.5">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleOpenDetail(order)}
-                          className="gap-1.5 text-xs cursor-pointer flex-1 sm:flex-initial"
-                        >
-                          <Eye size={14} />
-                          <span>VIEW DETAILS</span>
-                        </Button>
-
-                        {isPendingPayment && (
+                        <div className="flex items-center gap-2.5 shrink-0">
                           <Button
                             type="button"
-                            variant="gold"
+                            variant="outline"
                             size="sm"
-                            onClick={() => handleQuickPay(order)}
-                            disabled={isPayingThisOrder}
-                            className="gap-1.5 text-xs cursor-pointer flex-1 sm:flex-initial"
+                            onClick={() => handleOpenDetail(order)}
+                            className="gap-1.5 text-xs font-semibold uppercase tracking-wider text-[#28040B] border-[#8C6C38]/40 hover:bg-[#FAF0DC] hover:border-[#8C6C38] active:scale-[0.98] transition-all cursor-pointer shadow-2xs"
                           >
+                            <Eye size={13} className="text-[#8C6C38]" />
+                            <span>VIEW DETAILS</span>
+                          </Button>
+
+                          {isPendingPayment && (
+                            <Button
+                              type="button"
+                              variant="gold"
+                              size="sm"
+                              onClick={() => handleQuickPay(order)}
+                              disabled={isPayingThisOrder}
+                              className="gap-1.5 text-xs font-semibold uppercase tracking-wider cursor-pointer shadow-2xs"
+                            >
                             {isPayingThisOrder ? (
                               <>
                                 <Refresh size={14} className="animate-spin" />
@@ -575,8 +569,9 @@ export const OrdersPage: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                );
-              })}
+                </div>
+              );
+            })}
 
               {/* Pagination Controls */}
               {pagination.totalPages > 1 && (

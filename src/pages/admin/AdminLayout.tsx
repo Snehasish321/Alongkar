@@ -42,10 +42,9 @@ export const AdminLayout: React.FC = () => {
     },
     {
       name: 'Customers',
-      path: '#',
+      path: '/admin/customers',
       icon: Users,
-      disabled: true,
-      badge: 'Coming Soon',
+      active: location.pathname.startsWith('/admin/customers'),
     },
     {
       name: 'Analytics',
