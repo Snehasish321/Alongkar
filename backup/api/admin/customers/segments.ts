@@ -1,5 +1,5 @@
-import prisma from '../../../src/lib/prisma.js';
-import { requireAdmin, respond } from '../../_utils/auth.js';
+import prisma from '../../../../src/lib/prisma.js';
+import { requireAdmin, respond } from '../../../../api/_utils/auth.js';
 import {
   getSafeErrorMessage,
   withTimeout,
@@ -9,8 +9,8 @@ import {
   logSecurityEvent,
   checkRateLimit,
   sanitizeSearchQuery,
-} from '../../_utils/security.js';
-import { QUALIFYING_ORDER_WHERE } from './analytics.js';
+} from '../../../../api/_utils/security.js';
+import { QUALIFYING_ORDER_WHERE } from '../../../../api/_utils/adminCustomerAnalytics.js';
 
 export const ALLOWED_SEGMENT_IDS = [
   'new_customers',
