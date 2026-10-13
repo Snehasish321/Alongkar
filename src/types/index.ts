@@ -465,3 +465,141 @@ export interface AdminCustomerDetail {
   shippingAddresses: AdminCustomerShippingAddress[];
   jewelleryRequests: AdminCustomerJewelleryRequest[];
 }
+
+// -------------------------------------------------------------
+// Admin Customer Analytics Types
+// -------------------------------------------------------------
+
+export type AnalyticsTimeRange = '30d' | '90d' | '1y' | 'all';
+
+export interface CustomerAcquisitionTrendPoint {
+  period: string;
+  label: string;
+  count: number;
+  date: string;
+}
+
+export interface OrderFrequencyBucket {
+  key: string;
+  label: string;
+  count: number;
+  percentage: number;
+}
+
+export interface PurchaseRecencyBucket {
+  key: string;
+  label: string;
+  count: number;
+  percentage: number;
+}
+
+export interface JewelleryRequestStatusCount {
+  status: string;
+  count: number;
+  label: string;
+}
+
+export interface AdminCustomerAnalyticsSummary {
+  // Lifetime Customer Metrics
+  totalRegisteredCustomers: number;
+  customersWithQualifyingPurchases: number;
+  firstTimeBuyers: number;
+  repeatBuyers: number;
+  repeatPurchaseRate: number;
+
+  // Selected Period Financial Metrics
+  periodQualifyingOrdersCount: number;
+  grossOrderValue: number;
+  grossAov: number | null;
+  realizedAov: number | null;
+  realizedSpend: number;
+  refundedValue: number;
+  newCustomersInPeriod: number;
+
+  // Jewellery Requests Activity
+  totalJewelleryRequests: number;
+  periodJewelleryRequests: number;
+}
+
+export interface AdminCustomerAnalyticsLimitations {
+  refundLimitation: string;
+  realizedAovLimitation: string;
+  requestAttributionLimitation: string;
+  qualifyingPurchaseRule: string;
+}
+
+export interface AdminCustomerAnalyticsResponse {
+  success: boolean;
+  timeRange: AnalyticsTimeRange;
+  generatedAt: string;
+  summary: AdminCustomerAnalyticsSummary;
+  acquisitionTrend: CustomerAcquisitionTrendPoint[];
+  orderFrequencyDistribution: OrderFrequencyBucket[];
+  purchaseRecencyDistribution: PurchaseRecencyBucket[];
+  jewelleryRequestBreakdown: JewelleryRequestStatusCount[];
+  limitations: AdminCustomerAnalyticsLimitations;
+}
+
+// -------------------------------------------------------------
+// Admin Customer Segmentation Types
+// -------------------------------------------------------------
+
+export type CustomerSegmentId =
+  | 'new_customers'
+  | 'first_time_buyers'
+  | 'repeat_buyers'
+  | 'high_value_customers'
+  | 'jewellery_request_customers'
+  | 'inactive_customers';
+
+export type CustomerSegmentSortOption =
+  | 'newest'
+  | 'oldest'
+  | 'most_purchases'
+  | 'highest_spend'
+  | 'last_purchased';
+
+export interface AdminCustomerSegmentMeta {
+  id: CustomerSegmentId;
+  label: string;
+  definition: string;
+  purpose: string;
+  customerCount: number;
+  thresholdBadge: string;
+}
+
+export interface AdminCustomerSegmentMember {
+  id: string;
+  registeredEmail: string | null;
+  displayName: string | null;
+  phone: string | null;
+  createdAt: string;
+  qualifyingPurchasesCount: number;
+  lifetimeGrossPurchaseValue: number;
+  lastQualifyingPurchaseDate: string | null;
+  hasJewelleryRequests: boolean;
+  jewelleryRequestsCount: number;
+  segmentTags: string[];
+}
+
+export interface AdminCustomerSegmentsRules {
+  qualifyingPurchaseRule: string;
+  highValueThresholdRule: string;
+  inactivityRule: string;
+  refundLimitation: string;
+}
+
+export interface AdminCustomerSegmentsResponse {
+  success: boolean;
+  generatedAt: string;
+  selectedSegment: CustomerSegmentId;
+  segments: AdminCustomerSegmentMeta[];
+  customers: AdminCustomerSegmentMember[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+  rules: AdminCustomerSegmentsRules;
+}

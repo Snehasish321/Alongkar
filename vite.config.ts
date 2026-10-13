@@ -51,6 +51,14 @@ function apiDevServerPlugin(): Plugin {
             const { default: handler } = await server.ssrLoadModule('/api/admin/orders.ts');
             return await handler(req, res);
           }
+          if (pathname.startsWith('/api/admin/customers/analytics')) {
+            const { default: handler } = await server.ssrLoadModule('/api/admin/customers/analytics.ts');
+            return await handler(req, res);
+          }
+          if (pathname.startsWith('/api/admin/customers/segments')) {
+            const { default: handler } = await server.ssrLoadModule('/api/admin/customers/segments.ts');
+            return await handler(req, res);
+          }
           if (pathname.startsWith('/api/admin/customers')) {
             const { default: handler } = await server.ssrLoadModule('/api/admin/customers.ts');
             return await handler(req, res);

@@ -1,5 +1,7 @@
 import prisma from '../../src/lib/prisma.js';
 import { requireAdmin, respond, isPayloadTooLarge, isMalformedJson } from '../_utils/auth.js';
+import analyticsHandler from './customers/analytics.js';
+import segmentsHandler from './customers/segments.js';
 import {
   isValidIdentifier,
   getSafeErrorMessage,
@@ -232,6 +234,22 @@ export default async function handler(req: any, res?: any, dbClient: any = prism
     }
 
     const queryParams = extractQueryParams(req);
+
+    // ─── DELEGATED ANALYTICS ROUTING (?view=analytics OR /analytics sub-path) ──
+    let reqUrlPath = '';
+    try {
+      if (req.url) {
+        reqUrlPath = new URL(req.url, 'http://localhost').pathname.replace(/\/+$/, '');
+      }
+    } catch {}
+
+    if (queryParams.view === 'analytics' || reqUrlPath.endsWith('/analytics')) {
+      return analyticsHandler(req, res, dbClient);
+    }
+
+    if (queryParams.view === 'segments' || reqUrlPath.endsWith('/segments')) {
+      return segmentsHandler(req, res, dbClient);
+    }
 
     // ─── SINGLE CUSTOMER DETAIL LOOKUP (?id=<userId>) ─────────────────────────
     const customerId = queryParams.id ? queryParams.id.trim() : null;

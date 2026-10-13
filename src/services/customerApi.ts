@@ -3,6 +3,11 @@ import type {
   AdminCustomerKPISummary,
   AdminCustomerPagination,
   AdminCustomerDetail,
+  AnalyticsTimeRange,
+  AdminCustomerAnalyticsResponse,
+  CustomerSegmentId,
+  CustomerSegmentSortOption,
+  AdminCustomerSegmentsResponse,
 } from '../types';
 
 export interface FetchAdminCustomersParams {
@@ -143,4 +148,118 @@ export async function fetchAdminCustomerDetail(
   }
 
   return data.customer;
+}
+
+export interface FetchAdminCustomerAnalyticsParams {
+  timeRange?: AnalyticsTimeRange;
+}
+
+/**
+ * Fetches aggregate customer analytics for authenticated admins from GET /api/admin/customers/analytics.
+ */
+export async function fetchAdminCustomerAnalytics(
+  token: string | null,
+  params: FetchAdminCustomerAnalyticsParams = {}
+): Promise<AdminCustomerAnalyticsResponse> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const queryParams = new URLSearchParams();
+  if (params.timeRange) {
+    queryParams.set('timeRange', params.timeRange);
+  }
+
+  const url = queryParams.toString()
+    ? `/api/admin/customers/analytics?${queryParams.toString()}`
+    : '/api/admin/customers/analytics';
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers,
+  });
+
+  if (response.status === 401) {
+    throw new Error('Unauthorized. Please sign in as an admin.');
+  }
+
+  if (response.status === 403) {
+    throw new Error('Access denied. Administrator privileges required.');
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `Failed to fetch customer analytics (HTTP ${response.status})`);
+  }
+
+  return await response.json();
+}
+
+export interface FetchAdminCustomerSegmentsParams {
+  segment?: CustomerSegmentId;
+  page?: number;
+  limit?: number;
+  sortBy?: CustomerSegmentSortOption;
+  search?: string;
+}
+
+/**
+ * Fetches segmented customer lists and cohort metrics for authenticated admins from GET /api/admin/customers/segments.
+ */
+export async function fetchAdminCustomerSegments(
+  token: string | null,
+  params: FetchAdminCustomerSegmentsParams = {}
+): Promise<AdminCustomerSegmentsResponse> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const queryParams = new URLSearchParams();
+  if (params.segment) {
+    queryParams.set('segment', params.segment);
+  }
+  if (params.page && params.page > 1) {
+    queryParams.set('page', String(params.page));
+  }
+  if (params.limit) {
+    queryParams.set('limit', String(params.limit));
+  }
+  if (params.sortBy && params.sortBy !== 'newest') {
+    queryParams.set('sortBy', params.sortBy);
+  }
+  if (params.search && params.search.trim()) {
+    queryParams.set('search', params.search.trim());
+  }
+
+  const url = queryParams.toString()
+    ? `/api/admin/customers/segments?${queryParams.toString()}`
+    : '/api/admin/customers/segments';
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers,
+  });
+
+  if (response.status === 401) {
+    throw new Error('Unauthorized. Please sign in as an admin.');
+  }
+
+  if (response.status === 403) {
+    throw new Error('Access denied. Administrator privileges required.');
+  }
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `Failed to fetch customer segments (HTTP ${response.status})`);
+  }
+
+  return await response.json();
 }

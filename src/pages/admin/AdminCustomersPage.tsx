@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '@clerk/react';
 import {
   Users,
@@ -15,6 +16,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Alert,
+  Chart3,
 } from 'reicon-react';
 import type {
   AdminCustomerSummary,
@@ -23,9 +25,19 @@ import type {
 } from '../../types';
 import { fetchAdminCustomers } from '../../services/customerApi';
 import { AdminCustomerDetailModal } from '../../components/admin/AdminCustomerDetailModal';
+import { AdminCustomerAnalyticsView } from '../../components/admin/AdminCustomerAnalyticsView';
+import { AdminCustomerSegmentsView } from '../../components/admin/AdminCustomerSegmentsView';
 
 export const AdminCustomersPage: React.FC = () => {
   const { getToken } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const viewParam = searchParams.get('view');
+  const currentView: 'directory' | 'analytics' | 'segments' =
+    viewParam === 'segments'
+      ? 'segments'
+      : viewParam === 'analytics'
+      ? 'analytics'
+      : 'directory';
   const activeRequestIdRef = useRef(0);
 
   const [customers, setCustomers] = useState<AdminCustomerSummary[]>([]);
@@ -121,13 +133,15 @@ export const AdminCustomersPage: React.FC = () => {
 
   // Reload when filters, search, or page size changes (resets to page 1)
   useEffect(() => {
-    loadCustomers(1);
-  }, [loadCustomers]);
+    if (currentView === 'directory') {
+      loadCustomers(1);
+    }
+  }, [loadCustomers, currentView]);
 
   // Auto-refresh when window tab becomes visible again
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible' && currentView === 'directory') {
         loadCustomers(pagination.page);
       }
     };
@@ -135,7 +149,7 @@ export const AdminCustomersPage: React.FC = () => {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [loadCustomers, pagination.page]);
+  }, [loadCustomers, pagination.page, currentView]);
 
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= pagination.totalPages && newPage !== pagination.page) {
@@ -182,26 +196,96 @@ export const AdminCustomersPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="font-serif text-2xl sm:text-3xl font-bold text-[#F8F4EC] tracking-wide flex items-center gap-2.5">
-            <Users className="w-7 h-7 text-[#D6B878]" />
-            Customers Directory
+            {currentView === 'segments' ? (
+              <>
+                <Filter className="w-7 h-7 text-[#D6B878]" />
+                Customer Segmentation
+              </>
+            ) : currentView === 'analytics' ? (
+              <>
+                <Chart3 className="w-7 h-7 text-[#D6B878]" />
+                Customer Analytics & Insights
+              </>
+            ) : (
+              <>
+                <Users className="w-7 h-7 text-[#D6B878]" />
+                Customers Directory
+              </>
+            )}
           </h1>
           <p className="text-xs sm:text-sm text-white/50 mt-1">
-            Read-only registry of all customer accounts, transaction histories, and bespoke requests.
+            {currentView === 'segments'
+              ? 'Targeted customer cohorts across acquisition recency, purchase counts, high-value spend, and custom requests.'
+              : currentView === 'analytics'
+              ? 'Aggregated retention metrics, repeat buyer rates, and acquisition trends.'
+              : 'Read-only registry of all customer accounts, transaction histories, and bespoke requests.'}
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => loadCustomers(pagination.page)}
-            disabled={isLoading}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#140B1A] border border-[#D6B878]/30 hover:border-[#D6B878]/60 text-xs font-semibold text-[#EDE4D5] hover:text-white transition-all disabled:opacity-50"
-            title="Refresh customer records"
-          >
-            <Refresh className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-[#D6B878]' : ''}`} />
-            <span>Refresh</span>
-          </button>
+        <div className="flex items-center gap-3">
+          {/* View Switcher Tabs */}
+          <div className="inline-flex p-1 bg-[#140B1A] border border-[#D6B878]/20 rounded-xl">
+            <button
+              type="button"
+              onClick={() => setSearchParams({})}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                currentView === 'directory'
+                  ? 'bg-[#B08D57] text-[#140B1A] shadow-sm font-bold'
+                  : 'text-white/60 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>Directory</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSearchParams({ view: 'analytics' })}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                currentView === 'analytics'
+                  ? 'bg-[#B08D57] text-[#140B1A] shadow-sm font-bold'
+                  : 'text-white/60 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Chart3 className="w-3.5 h-3.5" />
+              <span>Analytics</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSearchParams({ view: 'segments' })}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                currentView === 'segments'
+                  ? 'bg-[#B08D57] text-[#140B1A] shadow-sm font-bold'
+                  : 'text-white/60 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Filter className="w-3.5 h-3.5" />
+              <span>Segments</span>
+            </button>
+          </div>
+
+          {currentView === 'directory' && (
+            <button
+              onClick={() => loadCustomers(pagination.page)}
+              disabled={isLoading}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#140B1A] border border-[#D6B878]/30 hover:border-[#D6B878]/60 text-xs font-semibold text-[#EDE4D5] hover:text-white transition-all disabled:opacity-50"
+              title="Refresh customer records"
+            >
+              <Refresh className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin text-[#D6B878]' : ''}`} />
+              <span>Refresh</span>
+            </button>
+          )}
         </div>
       </div>
+
+      {currentView === 'segments' ? (
+        <AdminCustomerSegmentsView
+          onOpenCustomerDetail={handleOpenDetail}
+          onNavigateToDirectory={() => setSearchParams({})}
+        />
+      ) : currentView === 'analytics' ? (
+        <AdminCustomerAnalyticsView onNavigateToDirectory={() => setSearchParams({})} />
+      ) : (
+        <>
 
       {/* Summary KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
@@ -581,6 +665,8 @@ export const AdminCustomersPage: React.FC = () => {
           </div>
         )}
       </div>
+        </>
+      )}
 
       {/* Detail Modal */}
       <AdminCustomerDetailModal
