@@ -37,6 +37,9 @@ const PlaceholderPage = lazy(() =>
 const OrdersPage = lazy(() =>
   import('./pages/OrdersPage').then((m) => ({ default: m.OrdersPage }))
 );
+const AddressesPage = lazy(() =>
+  import('./pages/AddressesPage').then((m) => ({ default: m.AddressesPage }))
+);
 const ReturnPolicyPage = lazy(() =>
   import('./pages/ReturnPolicyPage').then((m) => ({ default: m.ReturnPolicyPage }))
 );
@@ -127,6 +130,7 @@ export const AppContent: React.FC = () => {
             }
           />
           <Route path="/orders" element={<OrdersPage />} />
+          <Route path="/addresses" element={<AddressesPage />} />
           <Route
             path="/jewellery-requests"
             element={<JewelleryRequestsPage />}

@@ -603,3 +603,30 @@ export interface AdminCustomerSegmentsResponse {
   };
   rules: AdminCustomerSegmentsRules;
 }
+
+export interface SavedAddress {
+  id: string;
+  recipientName: string;
+  phone: string;
+  line1: string;
+  line2?: string | null;
+  city: string;
+  state: string;
+  pincode: string;
+  country: string;
+  isDefault: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SavedAddressInput {
+  recipientName: string;
+  phone: string;
+  line1: string;
+  line2?: string | null;
+  city: string;
+  state: string;
+  pincode: string;
+  country?: string;
+  isDefault?: boolean;
+}

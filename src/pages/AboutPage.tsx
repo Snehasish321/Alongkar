@@ -28,7 +28,7 @@ export const AboutPage: React.FC = () => {
               OUR BRAND HERITAGE
             </span>
             <h1 className="font-serif text-3xl sm:text-5xl font-bold tracking-tight text-ivory-pearl">
-              Crafting Indian Elegance Since 1994
+              Crafting Indian Elegance & Contemporary Poise
             </h1>
             <p className="text-xs sm:text-sm text-gray-300 font-light leading-relaxed">
               ALONGKAR was born out of a passion to democratize luxury jewellery in India. We believe every woman deserves to experience the radiance of pure gold aesthetics without compromising on daily comfort or budget.

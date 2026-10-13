@@ -71,7 +71,7 @@ export const ShippingPolicyPage: React.FC = () => {
                 A standard shipping charge of ₹40 applies to eligible orders unless the order qualifies for free shipping.
               </p>
               <p>
-                Orders above ₹399 currently qualify for free shipping, subject to the applicable conditions displayed by Alongkar.
+                Orders with a qualifying merchandise subtotal of ₹399 or more currently qualify for free shipping, subject to the applicable conditions displayed by Alongkar. Orders below ₹399 incur a standard shipping charge of ₹40.
               </p>
               <p>
                 Shipping charges and free-shipping eligibility may be changed by Alongkar from time to time.

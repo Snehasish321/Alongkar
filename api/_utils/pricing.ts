@@ -9,15 +9,16 @@ export interface CouponDefinition {
   minOrder?: number;
 }
 
-export const FREE_SHIPPING_THRESHOLD = 499;
-export const STANDARD_SHIPPING_FEE = 60;
+export const FREE_SHIPPING_THRESHOLD = 399;
+export const STANDARD_SHIPPING_FEE = 40;
 
 export const PREPAID_INCENTIVE_CODE = 'PREPAID5';
 export const PREPAID_INCENTIVE_PERCENT = 5;
+export const PREPAID_INCENTIVE_MAX_DISCOUNT = 80;
 
 export const PREPAID_INCENTIVE_DEFINITION: CouponDefinition = {
   code: PREPAID_INCENTIVE_CODE,
-  label: '5% Extra Off on Prepaid',
+  label: '5% Extra Off on Prepaid (Max ₹80)',
   type: 'percentage',
   discountPercent: PREPAID_INCENTIVE_PERCENT,
 };
@@ -124,11 +125,12 @@ export function validateAndCalculateCoupon(
         discountAmount: 0,
       };
     }
-    const discount = Math.round((subtotal * PREPAID_INCENTIVE_PERCENT) / 100);
+    const rawDiscount = Math.round((subtotal * PREPAID_INCENTIVE_PERCENT) / 100);
+    const cappedDiscount = Math.min(rawDiscount, PREPAID_INCENTIVE_MAX_DISCOUNT);
     return {
       isValid: true,
       coupon,
-      discountAmount: Math.max(0, Math.min(subtotal, discount)),
+      discountAmount: Math.max(0, Math.min(subtotal, cappedDiscount)),
     };
   }
 
@@ -170,8 +172,9 @@ export function calculatePrepaidIncentive(
   if (paymentMethod !== 'RAZORPAY' || eligibleAmount <= 0) {
     return 0;
   }
-  const discount = Math.round((eligibleAmount * PREPAID_INCENTIVE_PERCENT) / 100);
-  return Math.max(0, Math.min(eligibleAmount, discount));
+  const rawDiscount = Math.round((eligibleAmount * PREPAID_INCENTIVE_PERCENT) / 100);
+  const cappedDiscount = Math.min(rawDiscount, PREPAID_INCENTIVE_MAX_DISCOUNT);
+  return Math.max(0, Math.min(eligibleAmount, cappedDiscount));
 }
 
 export interface CalculatedOrderPricing {

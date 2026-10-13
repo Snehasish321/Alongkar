@@ -205,7 +205,7 @@ export function validateCreateOrderPayload(body: any): {
       errors.push({ field: 'shippingAddress.state', message: 'Shipping state is required (max 100 characters)' });
     }
     const pinStr = typeof ship.pincode === 'string' || typeof ship.pincode === 'number' ? String(ship.pincode).trim() : '';
-    if (!/^\d{6}$/.test(pinStr)) {
+    if (!/^[1-9]\d{5}$/.test(pinStr)) {
       errors.push({ field: 'shippingAddress.pincode', message: 'Shipping pincode must be exactly 6 digits' });
     }
   }
@@ -220,7 +220,7 @@ export function validateCreateOrderPayload(body: any): {
     if (bill.line2 && typeof bill.line2 === 'string' && bill.line2.length > 200) {
       errors.push({ field: 'billingAddress.line2', message: 'Billing address line 2 must not exceed 200 characters' });
     }
-    if (bill.pincode && !/^\d{6}$/.test(String(bill.pincode).trim())) {
+    if (bill.pincode && !/^[1-9]\d{5}$/.test(String(bill.pincode).trim())) {
       errors.push({ field: 'billingAddress.pincode', message: 'Billing pincode must be exactly 6 digits' });
     }
     parsedBilling = {
@@ -229,7 +229,7 @@ export function validateCreateOrderPayload(body: any): {
       city: typeof bill.city === 'string' ? bill.city.trim().slice(0, 100) : '',
       state: typeof bill.state === 'string' ? bill.state.trim().slice(0, 100) : '',
       pincode: typeof bill.pincode === 'string' || typeof bill.pincode === 'number' ? String(bill.pincode).trim().slice(0, 10) : '',
-      country: typeof bill.country === 'string' ? bill.country.trim().slice(0, 50) : 'India',
+      country: 'India',
     };
   }
 
@@ -327,7 +327,7 @@ export function validateCreateOrderPayload(body: any): {
     errors: [],
     data: {
       customerName: body.customerName.trim().slice(0, 100),
-      customerPhone: body.customerPhone.trim(),
+      customerPhone: body.customerPhone.replace(/[\s\-()]/g, '').replace(/^(?:\+?91|0)/, '').slice(-10),
       customerEmail,
       shippingAddress: {
         line1: ship.line1.trim().slice(0, 200),
@@ -335,7 +335,7 @@ export function validateCreateOrderPayload(body: any): {
         city: ship.city.trim().slice(0, 100),
         state: ship.state.trim().slice(0, 100),
         pincode: String(ship.pincode).trim().slice(0, 6),
-        country: ship.country ? ship.country.trim().slice(0, 50) : 'India',
+        country: 'India',
       },
       billingAddress: parsedBilling,
       customerNotes,

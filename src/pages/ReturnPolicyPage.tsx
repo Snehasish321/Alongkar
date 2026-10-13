@@ -22,9 +22,14 @@ interface FaqItem {
 
 const FAQ_ITEMS: FaqItem[] = [
   {
+    question: 'How do I initiate a return for a delivered order?',
+    answer:
+      'To request a return for a delivered order, contact our support team at alongkar.official@gmail.com within 7 days of delivery with your order number, reason for return, and photographs of the piece. Our team will verify eligibility and coordinate reverse pickup. (Note: If your order has not yet been dispatched, you can request cancellation directly from your order details in My Orders).',
+  },
+  {
     question: 'How many days do I have to return my order?',
     answer:
-      'You can raise a return request within 7 days from the date your order is delivered.',
+      'You can contact support to raise a return request within 7 days from the date your order is delivered.',
   },
   {
     question: 'Can I return a discounted or sale product?',
@@ -33,17 +38,17 @@ const FAQ_ITEMS: FaqItem[] = [
   },
   {
     question: 'Do I have to pay for return shipping?',
-    answer: 'No. Alongkar covers the applicable return shipping cost.',
+    answer: 'No. Alongkar covers the applicable return shipping cost for verified returns.',
   },
   {
     question: 'Will my return be picked up from my home?',
     answer:
-      'Alongkar will arrange a doorstep reverse pickup where courier service is available at your address. If pickup is unavailable for your location, we will provide an alternative return method.',
+      'Alongkar will arrange a doorstep reverse pickup where courier service is available at your address. If pickup is unavailable for your location, we will coordinate an alternative return method with you.',
   },
   {
     question: 'When will my refund be initiated?',
     answer:
-      'Alongkar will initiate the refund within 2–3 days after successful pickup. The time for the amount to reflect in your account may vary depending on your payment method and bank or payment provider.',
+      'Alongkar will initiate the refund within 2–3 days after successful pickup and verification. The time for the amount to reflect in your account may vary depending on your payment method and bank or payment provider.',
   },
   {
     question: 'Is there a minimum order value for returns?',
@@ -56,12 +61,12 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: 'What if I receive a damaged or incorrect product?',
     answer:
-      "Damaged and incorrect products are also covered by Alongkar's return policy. Raise your return request within 7 days of delivery.",
+      "Damaged and incorrect products are covered by Alongkar's return policy. Please email our support team with clear photos within 7 days of delivery.",
   },
   {
     question: 'Can I exchange my jewellery for another product?',
     answer:
-      'No. Alongkar currently supports returns only and does not offer product exchanges.',
+      'No. Alongkar currently supports returns and refunds only and does not offer product exchanges.',
   },
 ];
 
@@ -95,25 +100,25 @@ const POLICY_SNAPSHOT_ITEMS = [
 const PROCESS_STEPS = [
   {
     number: '01',
-    title: 'Raise your return request',
-    description: 'Submit your return request within 7 days of receiving your order.',
+    title: 'Contact support with order details',
+    description: 'Email alongkar.official@gmail.com within 7 days of receiving your order with your order number and photos.',
   },
   {
     number: '02',
-    title: 'We arrange the return',
+    title: 'Reverse pickup coordinated',
     description:
-      'Alongkar will arrange a reverse pickup through its logistics partner where pickup service is available.',
+      'Once verified, Alongkar coordinates reverse pickup through its courier partner where pickup service is available.',
   },
   {
     number: '03',
-    title: 'Your refund is initiated',
+    title: 'Refund initiated after inspection',
     description:
-      'After successful pickup, Alongkar will initiate your refund within 2–3 days.',
+      'After receipt and quality inspection, Alongkar initiates your refund to the original payment method within 2–3 business days.',
   },
 ];
 
 const REFUND_FLOW_STAGES = [
-  { step: '1', title: 'Return request submitted' },
+  { step: '1', title: 'Return request emailed to support' },
   { step: '2', title: 'Return pickup completed' },
   { step: '3', title: 'Refund initiated within 2–3 days' },
   { step: '4', title: 'Amount reaches your original payment method' },
@@ -510,32 +515,32 @@ export const ReturnPolicyPage: React.FC = () => {
           <section aria-labelledby="cta-title" className="p-8 sm:p-12 rounded-2xl bg-gradient-to-b from-[#211A17] to-[#2E2420] text-[#FAF7F2] border border-[#E8C98A]/30 shadow-elevated text-center space-y-5">
             <div className="max-w-xl mx-auto space-y-2.5">
               <h2 id="cta-title" className="font-serif text-2xl sm:text-3xl font-normal text-[#FAF7F2]">
-                Need to return something?
+                Need to return an order?
               </h2>
               <p className="text-xs sm:text-sm text-[#E8C98A]/85 font-light leading-relaxed">
-                Start your return request and we'll guide you through the process.
+                Contact our concierge support team to initiate your return request within 7 days of delivery.
               </p>
             </div>
 
             <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
               <Link
-                to="/orders"
+                to="/contact"
                 className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full bg-[#E8C98A] text-[#211A17] text-xs font-semibold uppercase tracking-wider hover:bg-[#F0D9A8] transition-all shadow-md cursor-pointer"
               >
-                <span>Start a Return</span>
+                <span>Contact Support</span>
                 <ArrowRight size={14} />
               </Link>
 
               <Link
-                to="/contact"
+                to="/orders"
                 className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-full border border-[#E8C98A]/40 text-[#FAF7F2] text-xs font-semibold uppercase tracking-wider hover:bg-white/10 transition-all cursor-pointer"
               >
-                <span>Contact Alongkar</span>
+                <span>View My Orders</span>
               </Link>
             </div>
 
             <p className="text-[11px] text-[#E8C98A]/60 font-light pt-1">
-              Keep your order number handy so we can help you faster.
+              Keep your order number handy when contacting our support team.
             </p>
           </section>
 

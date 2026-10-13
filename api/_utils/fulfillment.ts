@@ -193,7 +193,7 @@ export function checkOrderFulfillmentEligibility(order: FulfillmentOrderInput | 
   const state = order.shippingState?.trim();
   const pincode = order.shippingPincode?.trim();
 
-  if (!line1 || !city || !state || !pincode || !/^\d{6}$/.test(pincode)) {
+  if (!line1 || !city || !state || !pincode || !/^[1-9]\d{5}$/.test(pincode)) {
     reasons.push('MISSING_SHIPPING_ADDRESS');
   }
 

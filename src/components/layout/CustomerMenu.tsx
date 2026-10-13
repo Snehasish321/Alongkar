@@ -9,6 +9,7 @@ import {
   ChevronRight,
   User as UserIcon,
 } from 'reicon-react';
+import { MapPin } from 'lucide-react';
 
 interface CustomerMenuProps {
   className?: string;
@@ -63,6 +64,7 @@ export const CustomerMenu: React.FC<CustomerMenuProps> = ({ className = '' }) =>
   const avatarUrl = user.imageUrl;
 
   const isOrdersActive = location.pathname === '/orders';
+  const isAddressesActive = location.pathname === '/addresses';
   const isRequestsActive = location.pathname === '/jewellery-requests';
 
   const handleOpenAccountSettings = () => {
@@ -72,6 +74,10 @@ export const CustomerMenu: React.FC<CustomerMenuProps> = ({ className = '' }) =>
 
   const handleSignOut = async () => {
     setIsOpen(false);
+    try {
+      sessionStorage.removeItem('alongkar_checkout_address');
+      localStorage.removeItem('alongkar_shipping_address');
+    } catch {}
     await clerk.signOut();
     navigate('/');
   };
@@ -167,7 +173,37 @@ export const CustomerMenu: React.FC<CustomerMenuProps> = ({ className = '' }) =>
               />
             </Link>
 
-            {/* 2. Jewellery Requests */}
+            {/* 2. Saved Addresses */}
+            <Link
+              to="/addresses"
+              role="menuitem"
+              onClick={() => setIsOpen(false)}
+              className={`flex items-center justify-between p-2.5 rounded-lg transition-all duration-150 group cursor-pointer ${
+                isAddressesActive
+                  ? 'bg-[#E8C98A]/20 border border-[#E8C98A]/40 text-[#FFE3C7]'
+                  : 'hover:bg-white/10 hover:border-white/10 border border-transparent text-[#F8F1E3]'
+              }`}
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-8 h-8 rounded-lg bg-[#E8C98A]/15 border border-[#E8C98A]/30 flex items-center justify-center text-[#E8C98A] shrink-0 group-hover:scale-105 transition-transform">
+                  <MapPin size={16} />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold tracking-wide text-[#FFE3C7]">
+                    Saved Addresses
+                  </p>
+                  <p className="text-[10.5px] text-[#F8F1E3]/65 truncate">
+                    Manage delivery destinations
+                  </p>
+                </div>
+              </div>
+              <ChevronRight
+                size={14}
+                className="text-[#E8C98A]/70 group-hover:text-[#E8C98A] group-hover:translate-x-0.5 transition-all shrink-0 ml-2"
+              />
+            </Link>
+
+            {/* 3. Jewellery Requests */}
             <Link
               to="/jewellery-requests"
               role="menuitem"
