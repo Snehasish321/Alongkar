@@ -21,6 +21,7 @@ model User {
   wishlist          Wishlist?
   jewelleryRequests JewelleryRequest[]
   orders            Order[]
+  savedAddresses    SavedAddress[]
 }
 
 model Cart {
@@ -305,4 +306,22 @@ model InventoryMovement {
   @@index([createdAt])
 }
 
+model SavedAddress {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipientName String
+  phone         String
+  line1         String
+  line2         String?
+  city          String
+  state         String
+  pincode       String
+  country       String   @default("India")
+  isDefault     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
+  @@index([userId])
+  @@index([userId, isDefault])
+}

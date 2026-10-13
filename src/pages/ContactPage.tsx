@@ -10,11 +10,16 @@ export const ContactPage: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const subject = encodeURIComponent(`Customer Inquiry from ${formData.name}`);
+    const body = encodeURIComponent(
+      `Name: ${formData.name}\nEmail: ${formData.email}\nPhone: ${formData.phone || 'N/A'}\n\nMessage:\n${formData.message}`
+    );
+    window.location.href = `mailto:alongkar.official@gmail.com?subject=${subject}&body=${body}`;
     setSubmitted(true);
     setTimeout(() => {
       setSubmitted(false);
       setFormData({ name: '', email: '', phone: '', message: '' });
-    }, 4000);
+    }, 6000);
   };
 
   return (
@@ -35,21 +40,13 @@ export const ContactPage: React.FC = () => {
                 <div className="space-y-3 pt-2 text-xs text-espresso">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-gold/15 flex items-center justify-center text-gold">
-                      <Phone size={16} />
-                    </div>
-                    <div>
-                      <span className="block font-semibold">Phone / WhatsApp</span>
-                      <span className="text-gray-500">+91 98765 43210</span>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-gold/15 flex items-center justify-center text-gold">
                       <Sms size={16} />
                     </div>
                     <div>
                       <span className="block font-semibold">Email Concierge</span>
-                      <span className="text-gray-500">care@alongkar.com</span>
+                      <a href="mailto:alongkar.official@gmail.com" className="text-gold-dark hover:underline font-medium">
+                        alongkar.official@gmail.com
+                      </a>
                     </div>
                   </div>
 
@@ -63,13 +60,27 @@ export const ContactPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-gold/15 flex items-center justify-center text-gold">
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-full bg-gold/15 flex items-center justify-center text-gold shrink-0 mt-0.5">
                       <Map size={16} />
                     </div>
                     <div>
-                      <span className="block font-semibold">Flagship Experience Studio</span>
-                      <span className="text-gray-500">Park Street, Kolkata, WB - 700016</span>
+                      <span className="block font-semibold">Operating Address</span>
+                      <span className="text-gray-500 leading-relaxed">
+                        Saradapally, Rampurhat, Birbhum, West Bengal – 731224, India
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3 pt-1 border-t border-gold/10">
+                    <div className="w-8 h-8 rounded-full bg-gold/10 flex items-center justify-center text-gold shrink-0 mt-0.5">
+                      <Phone size={16} />
+                    </div>
+                    <div>
+                      <span className="block font-semibold text-gray-700">Telephone / WhatsApp Support</span>
+                      <span className="text-[11px] text-gray-500 italic">
+                        Direct phone support is undergoing verification. Please reach out via our official email for all order and customer care requests.
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -78,15 +89,23 @@ export const ContactPage: React.FC = () => {
 
             {/* Contact Form Column */}
             <div className="lg:col-span-2 p-6 sm:p-8 bg-ivory-pearl rounded-brand border border-gold/20 shadow-soft">
-              <h3 className="font-serif text-xl font-bold text-espresso mb-2">Send Us A Message</h3>
-              <p className="text-xs text-gray-500 mb-6">Fill out the form below and we will get back to you within 24 hours.</p>
+              <h3 className="font-serif text-xl font-bold text-espresso mb-2">Send Us An Inquiry</h3>
+              <p className="text-xs text-gray-500 mb-6">
+                Fill out the form below to compose a direct inquiry to our customer concierge at{' '}
+                <a href="mailto:alongkar.official@gmail.com" className="text-gold-dark hover:underline font-medium">
+                  alongkar.official@gmail.com
+                </a>.
+              </p>
 
               {submitted ? (
                 <div className="py-12 text-center space-y-3 bg-ivory rounded-brand border border-gold/20 p-6">
                   <TickCircle size={40} className="mx-auto text-gold" />
-                  <h4 className="font-serif text-lg font-bold text-espresso">Message Received!</h4>
-                  <p className="text-xs text-gray-500">
-                    Thank you for reaching out to ALONGKAR. Our customer care specialist will respond shortly.
+                  <h4 className="font-serif text-lg font-bold text-espresso">Email Client Opened</h4>
+                  <p className="text-xs text-gray-500 max-w-md mx-auto">
+                    Your inquiry has been prepared in your email app. If your email application did not launch automatically, please email us directly at{' '}
+                    <a href="mailto:alongkar.official@gmail.com" className="text-gold-dark font-medium underline">
+                      alongkar.official@gmail.com
+                    </a>.
                   </p>
                 </div>
               ) : (

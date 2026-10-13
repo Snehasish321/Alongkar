@@ -117,7 +117,7 @@ export const Footer: React.FC = () => {
                 <a href="#" className="p-2.5 rounded-full bg-black/25 backdrop-blur-sm hover:text-[#3D1E4E] hover:bg-[#FFE3C7] transition-all border border-[#FFE3C7]/30 shadow-sm" aria-label="Facebook">
                   <FacebookIcon size={15} />
                 </a>
-                <a href="mailto:care@alongkar.com" className="p-2.5 rounded-full bg-black/25 backdrop-blur-sm hover:text-[#3D1E4E] hover:bg-[#FFE3C7] transition-all border border-[#FFE3C7]/30 shadow-sm" aria-label="Email Concierge">
+                <a href="mailto:alongkar.official@gmail.com" className="p-2.5 rounded-full bg-black/25 backdrop-blur-sm hover:text-[#3D1E4E] hover:bg-[#FFE3C7] transition-all border border-[#FFE3C7]/30 shadow-sm" aria-label="Email Concierge">
                   <Sms size={15} />
                 </a>
               </div>

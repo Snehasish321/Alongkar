@@ -94,7 +94,7 @@ assert(p4.prepaid5Discount === 0, 'COD order receives ₹0 PREPAID5 discount');
 assert(p4.discountTotal === 100, 'Total discount is ₹100');
 assert(p4.grandTotal === 1299, 'Grand total is ₹1,299');
 
-// 1.5 Subtotal below free-shipping threshold (₹399 < ₹499) with PREPAID5 on Razorpay
+// 1.5 Subtotal qualifying for free-shipping threshold (₹399 >= ₹399) with PREPAID5 on Razorpay
 const res399Prepaid = calculateAuthoritativePricing(
   [{ unitPrice: 399, quantity: 1 }],
   undefined,
@@ -102,21 +102,40 @@ const res399Prepaid = calculateAuthoritativePricing(
 );
 const p5 = res399Prepaid.pricing!;
 assert(p5.subtotal === 399, 'Subtotal is ₹399');
-assert(p5.shippingFee === 60, `Standard shipping fee ₹60 charged for order < ₹499, got ₹${p5.shippingFee}`);
+assert(p5.shippingFee === 0, `Free shipping fee ₹0 for order >= ₹399, got ₹${p5.shippingFee}`);
 assert(
   p5.prepaid5Discount === 20,
   `5% discount on ₹399 is ₹20 (19.95 rounded to 20), got ₹${p5.prepaid5Discount}`
 );
-assert(p5.grandTotal === 439, `Grand total is ₹439 (399 - 20 + 60 = 439), got ₹${p5.grandTotal}`);
+assert(p5.grandTotal === 379, `Grand total is ₹379 (399 - 20 + 0 = 379), got ₹${p5.grandTotal}`);
 
-// 1.6 Invariant: Discount cannot exceed eligible amount
+// 1.5b Subtotal below threshold (₹350 < ₹399) with standard ₹40 shipping fee
+const res350Prepaid = calculateAuthoritativePricing(
+  [{ unitPrice: 350, quantity: 1 }],
+  undefined,
+  'RAZORPAY'
+);
+const p350 = res350Prepaid.pricing!;
+assert(p350.subtotal === 350, 'Subtotal is ₹350');
+assert(p350.shippingFee === 40, `Standard shipping fee ₹40 charged for order < ₹399, got ₹${p350.shippingFee}`);
+assert(p350.prepaid5Discount === 18, `5% discount on ₹350 is ₹18 (17.5 rounded to 18), got ₹${p350.prepaid5Discount}`);
+assert(p350.grandTotal === 372, `Grand total is ₹372 (350 - 18 + 40 = 372), got ₹${p350.grandTotal}`);
+
+// 1.6 Invariant: Discount cannot exceed eligible amount & capped at ₹80
 const cappedDiscount = calculatePrepaidIncentive(10, 'RAZORPAY');
 assert(cappedDiscount <= 10 && cappedDiscount >= 0, 'Discount does not exceed eligible amount');
 
+// 1.6b ₹80 Cap Boundary Tests
+assert(calculatePrepaidIncentive(1000, 'RAZORPAY') === 50, '₹1,000 base gives ₹50 discount (below ₹80 cap)');
+assert(calculatePrepaidIncentive(1600, 'RAZORPAY') === 80, '₹1,600 base gives exactly ₹80 discount (exact cap)');
+assert(calculatePrepaidIncentive(2000, 'RAZORPAY') === 80, '₹2,000 base capped at ₹80 (raw 5% is ₹100)');
+assert(calculatePrepaidIncentive(5000, 'RAZORPAY') === 80, '₹5,000 base capped at ₹80 (raw 5% is ₹250)');
+
 // 1.7 Free shipping calculation directly
 assert(calculateShippingFee(1399) === 0, 'calculateShippingFee(1399) is 0');
-assert(calculateShippingFee(499) === 0, 'calculateShippingFee(499) is 0');
-assert(calculateShippingFee(498) === 60, 'calculateShippingFee(498) is 60');
+assert(calculateShippingFee(399) === 0, 'calculateShippingFee(399) is 0');
+assert(calculateShippingFee(398.99) === 40, 'calculateShippingFee(398.99) is 40');
+assert(calculateShippingFee(0) === 0, 'calculateShippingFee(0) is 0 (empty cart free)');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 2. Order Breakdown Parsing & Reconciliation Tests (parseOrderDiscounts)

@@ -26,6 +26,15 @@ export interface PaymentMethodModalProps {
     flatDiscount?: number;
     minOrder?: number;
   } | null;
+  deliveryAddress?: {
+    recipientName: string;
+    phone: string;
+    line1: string;
+    line2?: string | null;
+    city: string;
+    state: string;
+    pincode: string;
+  } | null;
   onConfirm: (paymentMethod: PaymentMethod) => Promise<void>;
   isProcessing: boolean;
 }
@@ -37,6 +46,7 @@ export const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({
   shippingFee,
   isFreeShipping,
   appliedCoupon,
+  deliveryAddress,
   onConfirm,
   isProcessing,
 }) => {
@@ -88,9 +98,11 @@ export const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({
   }
 
   // Base amount eligible for PREPAID5 is (subtotal - regularCouponDiscount)
+  // Enforce approved 5% discount capped at ₹80
   const eligiblePrepaidBase = Math.max(0, subtotal - regularCouponDiscount);
+  const rawPrepaid5Discount = Math.round((eligiblePrepaidBase * 5) / 100);
   const prepaid5Discount =
-    selectedMethod === 'RAZORPAY' ? Math.round((eligiblePrepaidBase * 5) / 100) : 0;
+    selectedMethod === 'RAZORPAY' ? Math.min(rawPrepaid5Discount, 80) : 0;
 
   const totalDiscount = regularCouponDiscount + prepaid5Discount;
   const finalAmount = Math.max(0, subtotal - totalDiscount + shippingFee);
@@ -220,7 +232,7 @@ export const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({
                 </p>
                 <div className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-[#63481A] bg-[#FAF0DC] border border-[#E8C98A]/60 px-2.5 py-0.5 rounded-md font-medium">
                   <Sparkles size={11} className="text-[#8C6C38]" />
-                  <span>Get 5% extra off with PREPAID5</span>
+                  <span>Get 5% extra off (up to ₹80) with PREPAID5</span>
                 </div>
               </div>
             </label>
@@ -286,6 +298,23 @@ export const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({
             </label>
           </fieldset>
 
+          {/* Delivery Address Snapshot */}
+          {deliveryAddress && (
+            <div className="p-3.5 rounded-xl bg-white border border-[#E8C98A]/35 text-xs text-[#5C4A2A] space-y-1">
+              <div className="flex items-center gap-1.5 font-semibold text-[#28040B]">
+                <Truck size={14} className="text-[#8C6C38]" />
+                <span>Shipping Address</span>
+              </div>
+              <p className="font-medium text-[#28040B]">
+                {deliveryAddress.recipientName} • <span className="font-mono">{deliveryAddress.phone}</span>
+              </p>
+              <p className="text-[11px] text-gray-600 leading-snug">
+                {deliveryAddress.line1}
+                {deliveryAddress.line2 ? `, ${deliveryAddress.line2}` : ''}, {deliveryAddress.city}, {deliveryAddress.state} – {deliveryAddress.pincode}
+              </p>
+            </div>
+          )}
+
           {/* Dynamic Order Total Breakdown */}
           <div className="p-4 rounded-xl bg-white border border-[#E8C98A]/30 space-y-2 text-xs transition-all duration-200">
             <div className="flex justify-between text-gray-600">
@@ -309,7 +338,7 @@ export const PaymentMethodModal: React.FC<PaymentMethodModalProps> = ({
               <div className="flex justify-between items-center text-emerald-700 animate-in fade-in duration-150">
                 <span className="flex items-center gap-1 font-medium">
                   <Sparkles size={12} className="text-emerald-600" />
-                  <span>PREPAID5 / Online Payment Offer</span>
+                  <span>PREPAID5 (5% off, max ₹80)</span>
                 </span>
                 <span className="font-semibold font-mono">
                   −{formatPrice(prepaid5Discount)}

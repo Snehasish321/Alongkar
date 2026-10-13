@@ -16,7 +16,7 @@ import {
   Logout,
 } from 'reicon-react';
 import { SignInButton, Show, useUser, useClerk } from '@clerk/react';
-import { Heart } from 'lucide-react';
+import { Heart, MapPin } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { useWishlist } from '../../context/WishlistContext';
 
@@ -276,21 +276,29 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2 pt-1 border-t border-white/10">
+                  <div className="grid grid-cols-3 gap-1.5 pt-1 border-t border-white/10">
                     <Link
                       to="/orders"
                       onClick={onClose}
-                      className="flex items-center gap-2 p-2 rounded-lg bg-white/5 hover:bg-[#E8C98A]/15 border border-[#E8C98A]/20 text-[11px] font-medium text-[#FFE3C7] transition-colors"
+                      className="flex flex-col items-center justify-center p-2 rounded-lg bg-white/5 hover:bg-[#E8C98A]/15 border border-[#E8C98A]/20 text-[10.5px] font-medium text-[#FFE3C7] transition-colors text-center"
                     >
-                      <Package size={14} className="text-[#E8C98A]" />
-                      <span>My Orders</span>
+                      <Package size={14} className="text-[#E8C98A] mb-1" />
+                      <span>Orders</span>
+                    </Link>
+                    <Link
+                      to="/addresses"
+                      onClick={onClose}
+                      className="flex flex-col items-center justify-center p-2 rounded-lg bg-white/5 hover:bg-[#E8C98A]/15 border border-[#E8C98A]/20 text-[10.5px] font-medium text-[#FFE3C7] transition-colors text-center"
+                    >
+                      <MapPin size={14} className="text-[#E8C98A] mb-1" />
+                      <span>Addresses</span>
                     </Link>
                     <Link
                       to="/jewellery-requests"
                       onClick={onClose}
-                      className="flex items-center gap-2 p-2 rounded-lg bg-white/5 hover:bg-[#E8C98A]/15 border border-[#E8C98A]/20 text-[11px] font-medium text-[#FFE3C7] transition-colors"
+                      className="flex flex-col items-center justify-center p-2 rounded-lg bg-white/5 hover:bg-[#E8C98A]/15 border border-[#E8C98A]/20 text-[10.5px] font-medium text-[#FFE3C7] transition-colors text-center"
                     >
-                      <Sparkles size={14} className="text-[#E8C98A]" />
+                      <Sparkles size={14} className="text-[#E8C98A] mb-1" />
                       <span>Requests</span>
                     </Link>
                   </div>
@@ -305,12 +313,16 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
                       className="hover:text-[#E8C98A] transition-colors cursor-pointer flex items-center gap-1"
                     >
                       <Settings size={13} />
-                      <span>Account Settings</span>
+                      <span>Settings</span>
                     </button>
                     <button
                       type="button"
                       onClick={async () => {
                         onClose();
+                        try {
+                          sessionStorage.removeItem('alongkar_checkout_address');
+                          localStorage.removeItem('alongkar_shipping_address');
+                        } catch {}
                         await clerk.signOut();
                       }}
                       className="text-red-300 hover:text-red-200 transition-colors cursor-pointer flex items-center gap-1"

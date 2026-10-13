@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ShoppingBag,
@@ -18,6 +18,7 @@ import {
   Loader2,
   AlertCircle,
   CheckCircle,
+  MapPin,
 } from 'lucide-react';
 import { useAuth, useUser, useClerk } from '@clerk/react';
 import { StorefrontLayout } from '../components/layout/StorefrontLayout';
@@ -27,12 +28,14 @@ import { productsData } from '../data/products';
 import { ProductCard } from '../components/products/ProductCard';
 import { loadRazorpayScript, openRazorpayCheckout } from '../lib/razorpay';
 import { verifyRazorpayPayment, reconcileRazorpayPayment } from '../services/orderApi';
+import { fetchSavedAddresses, createSavedAddress } from '../services/addressApi';
 import { PaymentMethodModal } from '../components/checkout/PaymentMethodModal';
 import type {
   PaymentMethod,
   RazorpayPaymentOrderResponse,
   RazorpayCheckoutOptions,
   RazorpayPaymentSuccessResponse,
+  SavedAddress,
 } from '../types';
 
 interface CouponInfo {
@@ -108,6 +111,226 @@ export const CartPage: React.FC = () => {
   // Payment Selection Modal State
   const [isPaymentMethodModalOpen, setIsPaymentMethodModalOpen] = useState(false);
 
+  // Delivery Address Form State
+  const [deliveryAddress, setDeliveryAddress] = useState<{
+    recipientName: string;
+    phone: string;
+    addressLine1: string;
+    addressLine2: string;
+    city: string;
+    state: string;
+    pincode: string;
+  }>(() => {
+    try {
+      // Purge legacy persistent localStorage draft if found to prevent PII retention
+      localStorage.removeItem('alongkar_shipping_address');
+
+      const saved = sessionStorage.getItem('alongkar_checkout_address');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return {
+          recipientName: typeof parsed.recipientName === 'string' ? parsed.recipientName : '',
+          phone: typeof parsed.phone === 'string' ? parsed.phone : '',
+          addressLine1: typeof parsed.addressLine1 === 'string' ? parsed.addressLine1 : '',
+          addressLine2: typeof parsed.addressLine2 === 'string' ? parsed.addressLine2 : '',
+          city: typeof parsed.city === 'string' ? parsed.city : '',
+          state: typeof parsed.state === 'string' ? parsed.state : '',
+          pincode: typeof parsed.pincode === 'string' ? parsed.pincode : '',
+        };
+      }
+    } catch {}
+    return {
+      recipientName: '',
+      phone: '',
+      addressLine1: '',
+      addressLine2: '',
+      city: '',
+      state: '',
+      pincode: '',
+    };
+  });
+  const [addressErrors, setAddressErrors] = useState<Record<string, string>>({});
+  const addressFormRef = useRef<HTMLDivElement>(null);
+
+  // Saved Addresses State (Phase 1B)
+  const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
+  const [isLoadingSavedAddresses, setIsLoadingSavedAddresses] = useState(false);
+  const [selectedSavedAddressId, setSelectedSavedAddressId] = useState<string | 'new'>('new');
+  const [saveAddressOptIn, setSaveAddressOptIn] = useState(false);
+
+  // Account Isolation & Session Cleanup (Task 6)
+  useEffect(() => {
+    try {
+      localStorage.removeItem('alongkar_shipping_address');
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (!isSignedIn) {
+      setSavedAddresses([]);
+      setSelectedSavedAddressId('new');
+      setDeliveryAddress({
+        recipientName: '',
+        phone: '',
+        addressLine1: '',
+        addressLine2: '',
+        city: '',
+        state: '',
+        pincode: '',
+      });
+      try {
+        sessionStorage.removeItem('alongkar_checkout_address');
+      } catch {}
+      return;
+    }
+
+    let isCancelled = false;
+    const loadCustomerAddresses = async () => {
+      setIsLoadingSavedAddresses(true);
+      try {
+        const token = await getToken();
+        if (isCancelled) return;
+        const addrs = await fetchSavedAddresses(token);
+        if (isCancelled) return;
+        setSavedAddresses(addrs);
+
+        if (addrs.length > 0) {
+          const defaultAddr = addrs.find((a) => a.isDefault) || addrs[0];
+          setSelectedSavedAddressId(defaultAddr.id);
+          const chosen = {
+            recipientName: defaultAddr.recipientName,
+            phone: defaultAddr.phone,
+            addressLine1: defaultAddr.line1,
+            addressLine2: defaultAddr.line2 || '',
+            city: defaultAddr.city,
+            state: defaultAddr.state,
+            pincode: defaultAddr.pincode,
+          };
+          setDeliveryAddress(chosen);
+          try {
+            sessionStorage.setItem('alongkar_checkout_address', JSON.stringify(chosen));
+          } catch {}
+        } else {
+          setSelectedSavedAddressId('new');
+        }
+      } catch (err) {
+        console.error('Failed to load saved addresses for checkout:', err);
+      } finally {
+        if (!isCancelled) {
+          setIsLoadingSavedAddresses(false);
+        }
+      }
+    };
+
+    loadCustomerAddresses();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [isSignedIn, user?.id, getToken]);
+
+  const handleSelectSavedAddress = (addr: SavedAddress) => {
+    setSelectedSavedAddressId(addr.id);
+    const chosen = {
+      recipientName: addr.recipientName,
+      phone: addr.phone,
+      addressLine1: addr.line1,
+      addressLine2: addr.line2 || '',
+      city: addr.city,
+      state: addr.state,
+      pincode: addr.pincode,
+    };
+    setDeliveryAddress(chosen);
+    setAddressErrors({});
+    try {
+      sessionStorage.setItem('alongkar_checkout_address', JSON.stringify(chosen));
+    } catch {}
+  };
+
+  const handleSelectNewAddress = () => {
+    setSelectedSavedAddressId('new');
+    setDeliveryAddress({
+      recipientName: user?.fullName || user?.firstName || '',
+      phone: user?.primaryPhoneNumber?.phoneNumber?.replace(/[^0-9]/g, '').slice(-10) || '',
+      addressLine1: '',
+      addressLine2: '',
+      city: '',
+      state: '',
+      pincode: '',
+    });
+    setAddressErrors({});
+  };
+
+  const handleAddressChange = (field: string, val: string) => {
+    setDeliveryAddress((prev) => {
+      const next = { ...prev, [field]: val };
+      try {
+        sessionStorage.setItem('alongkar_checkout_address', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+    if (addressErrors[field]) {
+      setAddressErrors((prev) => {
+        const next = { ...prev };
+        delete next[field];
+        return next;
+      });
+    }
+  };
+
+  const validateDeliveryAddress = (): boolean => {
+    const errs: Record<string, string> = {};
+    const name = deliveryAddress.recipientName.trim();
+    if (!name) {
+      errs.recipientName = 'Recipient name is required.';
+    } else if (name.length < 2 || name.length > 100) {
+      errs.recipientName = 'Recipient name must be between 2 and 100 characters.';
+    }
+
+    const cleanPhone = deliveryAddress.phone.replace(/[^0-9]/g, '');
+    if (!cleanPhone) {
+      errs.phone = 'Mobile phone number is required.';
+    } else if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
+      errs.phone = 'Enter a valid 10-digit Indian mobile number (starts with 6, 7, 8, or 9).';
+    }
+
+    const line1 = deliveryAddress.addressLine1.trim();
+    if (!line1) {
+      errs.addressLine1 = 'Flat/House no., building and street address are required.';
+    } else if (line1.length < 3 || line1.length > 200) {
+      errs.addressLine1 = 'Address line 1 must be between 3 and 200 characters.';
+    }
+
+    const line2 = deliveryAddress.addressLine2.trim();
+    if (line2 && line2.length > 200) {
+      errs.addressLine2 = 'Address line 2 must not exceed 200 characters.';
+    }
+
+    const city = deliveryAddress.city.trim();
+    if (!city) {
+      errs.city = 'City / Town is required.';
+    } else if (city.length < 2 || city.length > 100) {
+      errs.city = 'City must be between 2 and 100 characters.';
+    }
+
+    const state = deliveryAddress.state.trim();
+    if (!state) {
+      errs.state = 'State is required.';
+    } else if (state.length < 2 || state.length > 100) {
+      errs.state = 'State must be between 2 and 100 characters.';
+    }
+
+    const pin = deliveryAddress.pincode.trim();
+    if (!pin) {
+      errs.pincode = 'Six-digit PIN code is required.';
+    } else if (!/^[1-9]\d{5}$/.test(pin)) {
+      errs.pincode = 'PIN code must be exactly 6 numeric digits.';
+    }
+
+    setAddressErrors(errs);
+    return Object.keys(errs).length === 0;
+  };
+
   // Checkout states
   const [isProcessingCheckout, setIsProcessingCheckout] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
@@ -147,11 +370,11 @@ export const CartPage: React.FC = () => {
     alongkarOrderId: string;
   } | null>(null);
 
-  // Free shipping calculations (Threshold: ₹499)
-  const freeShippingThreshold = 499;
+  // Free shipping calculations (Threshold: ₹399, Standard Fee: ₹40)
+  const freeShippingThreshold = 399;
   const subtotal = totalAmount;
   const isFreeShipping = subtotal >= freeShippingThreshold;
-  const shippingFee = cart.length === 0 ? 0 : isFreeShipping ? 0 : 60;
+  const shippingFee = cart.length === 0 ? 0 : isFreeShipping ? 0 : 40;
   const remainingForFreeShipping = Math.max(0, freeShippingThreshold - subtotal);
   const freeShippingProgress = Math.min(100, (subtotal / freeShippingThreshold) * 100);
 
@@ -175,7 +398,7 @@ export const CartPage: React.FC = () => {
   }
 
   const finalPayable = Math.max(0, subtotal - couponDiscount + shippingFee);
-  const totalSavings = mrpSavings + couponDiscount + (isFreeShipping && subtotal > 0 ? 60 : 0);
+  const totalSavings = mrpSavings + couponDiscount + (isFreeShipping && subtotal > 0 ? 40 : 0);
 
   const handleRemoveItem = (productId: string) => {
     setActiveOrderId(null);
@@ -257,6 +480,13 @@ export const CartPage: React.FC = () => {
       return;
     }
 
+    const isValid = validateDeliveryAddress();
+    if (!isValid) {
+      setCheckoutError('Please provide a complete and valid delivery address before proceeding.');
+      addressFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
+
     setCheckoutError(null);
     setCheckoutNotice(null);
     setIsPaymentMethodModalOpen(true);
@@ -275,11 +505,42 @@ export const CartPage: React.FC = () => {
         throw new Error('Authentication session expired. Please sign in again.');
       }
 
+      if (!validateDeliveryAddress()) {
+        throw new Error('Please review your delivery address details.');
+      }
+
       const idempotencyKey = `chk_${user?.id || 'usr'}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-      const customerName = user?.fullName || user?.firstName || 'Alongkar Client';
-      const rawPhone = user?.primaryPhoneNumber?.phoneNumber || '9876543210';
-      const customerPhone = rawPhone.replace(/[^0-9]/g, '').slice(-10) || '9876543210';
+      const customerName = deliveryAddress.recipientName.trim();
+      const customerPhone = deliveryAddress.phone.replace(/[^0-9]/g, '').slice(-10);
       const customerEmail = user?.primaryEmailAddress?.emailAddress || undefined;
+      const validatedShippingAddress = {
+        line1: deliveryAddress.addressLine1.trim(),
+        line2: deliveryAddress.addressLine2.trim() || undefined,
+        city: deliveryAddress.city.trim(),
+        state: deliveryAddress.state.trim(),
+        pincode: deliveryAddress.pincode.trim(),
+        country: 'India',
+      };
+
+      // Save address to authenticated customer's account if opt-in was explicitly checked
+      if (isSignedIn && saveAddressOptIn && selectedSavedAddressId === 'new') {
+        try {
+          const newlySaved = await createSavedAddress(token, {
+            recipientName: customerName,
+            phone: customerPhone,
+            line1: validatedShippingAddress.line1,
+            line2: validatedShippingAddress.line2 || null,
+            city: validatedShippingAddress.city,
+            state: validatedShippingAddress.state,
+            pincode: validatedShippingAddress.pincode,
+            country: 'India',
+            isDefault: savedAddresses.length === 0,
+          });
+          setSavedAddresses((prev) => [newlySaved, ...prev]);
+        } catch (saveErr) {
+          console.warn('Address could not be saved to account during checkout:', saveErr);
+        }
+      }
 
       // Case A: Cash on Delivery
       if (selectedMethod === 'COD') {
@@ -293,13 +554,7 @@ export const CartPage: React.FC = () => {
             customerName,
             customerPhone,
             customerEmail,
-            shippingAddress: {
-              line1: 'Alongkar Registered Client Address',
-              city: 'Kolkata',
-              state: 'West Bengal',
-              pincode: '700001',
-              country: 'India',
-            },
+            shippingAddress: validatedShippingAddress,
             idempotencyKey,
             couponCode: appliedCoupon?.code || undefined,
             paymentMethod: 'COD',
@@ -318,6 +573,10 @@ export const CartPage: React.FC = () => {
         setIsPaymentMethodModalOpen(false);
         setActiveOrderId(null);
         clearCart();
+        try {
+          sessionStorage.removeItem('alongkar_checkout_address');
+          localStorage.removeItem('alongkar_shipping_address');
+        } catch {}
         setConfirmedOrderNumber(confirmedNum);
         setIsProcessingCheckout(false);
         navigate(`/cart?confirmedOrder=${encodeURIComponent(confirmedNum)}`, { replace: true });
@@ -338,13 +597,7 @@ export const CartPage: React.FC = () => {
             customerName,
             customerPhone,
             customerEmail,
-            shippingAddress: {
-              line1: 'Alongkar Registered Client Address',
-              city: 'Kolkata',
-              state: 'West Bengal',
-              pincode: '700001',
-              country: 'India',
-            },
+            shippingAddress: validatedShippingAddress,
             idempotencyKey,
             couponCode: appliedCoupon?.code || undefined,
             paymentMethod: 'RAZORPAY',
@@ -405,11 +658,9 @@ export const CartPage: React.FC = () => {
         throw new Error('Unable to load payment gateway script. Please check your network connection.');
       }
 
-      const prefillName = user?.fullName || user?.firstName || undefined;
+      const prefillName = deliveryAddress.recipientName.trim() || user?.fullName || user?.firstName || undefined;
       const prefillEmail = user?.primaryEmailAddress?.emailAddress || undefined;
-      const prefillPhone = user?.primaryPhoneNumber?.phoneNumber
-        ? user.primaryPhoneNumber.phoneNumber.replace(/[^0-9]/g, '').slice(-10)
-        : undefined;
+      const prefillPhone = deliveryAddress.phone.replace(/[^0-9]/g, '').slice(-10) || undefined;
 
       const checkoutOptions: RazorpayCheckoutOptions = {
         key: paymentData.razorpayKeyId,
@@ -457,6 +708,10 @@ export const CartPage: React.FC = () => {
               setIsPaymentMethodModalOpen(false);
               setActiveOrderId(null);
               clearCart();
+              try {
+                sessionStorage.removeItem('alongkar_checkout_address');
+                localStorage.removeItem('alongkar_shipping_address');
+              } catch {}
               setConfirmedOrderNumber(confirmedNum);
               navigate(`/cart?confirmedOrder=${encodeURIComponent(confirmedNum)}`, { replace: true });
             }
@@ -470,6 +725,10 @@ export const CartPage: React.FC = () => {
                   setIsPaymentMethodModalOpen(false);
                   setActiveOrderId(null);
                   clearCart();
+                  try {
+                    sessionStorage.removeItem('alongkar_checkout_address');
+                    localStorage.removeItem('alongkar_shipping_address');
+                  } catch {}
                   setConfirmedOrderNumber(confirmedNum);
                   navigate(`/cart?confirmedOrder=${encodeURIComponent(confirmedNum)}`, { replace: true });
                   return;
@@ -855,6 +1114,340 @@ export const CartPage: React.FC = () => {
                   </div>
                 </div>
 
+                {/* ── Shipping & Delivery Address Card ── */}
+                <div
+                  ref={addressFormRef}
+                  className="bg-white border border-[#E8C98A]/35 rounded-2xl p-5 sm:p-6 shadow-xs space-y-5"
+                >
+                  <div className="flex items-center justify-between pb-3.5 border-b border-[#E8C98A]/20">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-full bg-[#FAF0DC] flex items-center justify-center text-[#8C6C38]">
+                        <MapPin size={16} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <h3 className="font-serif text-base sm:text-lg font-medium text-[#211A17]">
+                            Delivery & Shipping Address
+                          </h3>
+                          {isLoadingSavedAddresses && (
+                            <Loader2 size={13} className="text-[#8C6C38] animate-spin" />
+                          )}
+                        </div>
+                        <p className="text-[11px] text-[#8C6C38] font-light">
+                          Insured doorstep delivery across India • Verified dispatch address
+                        </p>
+                      </div>
+                    </div>
+                    {isSignedIn && savedAddresses.length > 0 && (
+                      <Link
+                        to="/addresses"
+                        className="text-[11px] font-serif uppercase tracking-wider text-[#8C6C38] hover:text-[#211A17] hover:underline"
+                      >
+                        Manage Address Book
+                      </Link>
+                    )}
+                  </div>
+
+                  {/* Authenticated Saved Address Selector Tabs */}
+                  {isSignedIn && savedAddresses.length > 0 && (
+                    <div className="space-y-3 pb-3 border-b border-[#FAF7F2]">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <span className="text-xs font-semibold text-[#211A17]">
+                          Saved Addresses ({savedAddresses.length})
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={handleSelectNewAddress}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
+                              selectedSavedAddressId === 'new'
+                                ? 'bg-[#211A17] text-[#FFE3C7]'
+                                : 'bg-[#FAF7F2] text-[#8C6C38] hover:bg-[#FAF0DC]'
+                            }`}
+                          >
+                            + Enter New Address
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Saved Address Cards Grid */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                        {savedAddresses.map((addr) => {
+                          const isSelected = selectedSavedAddressId === addr.id;
+                          return (
+                            <div
+                              key={addr.id}
+                              onClick={() => handleSelectSavedAddress(addr)}
+                              className={`p-3.5 rounded-xl border text-xs cursor-pointer transition-all duration-150 flex flex-col justify-between ${
+                                isSelected
+                                  ? 'border-[#8C6C38] bg-[#FAF7F2] shadow-2xs ring-1 ring-[#8C6C38]/40'
+                                  : 'border-[#E8C98A]/30 bg-white hover:border-[#8C6C38]/40 hover:bg-[#FAF7F2]/40'
+                              }`}
+                            >
+                              <div>
+                                <div className="flex items-center justify-between gap-2 mb-1.5">
+                                  <span className="font-bold text-[#211A17] truncate">
+                                    {addr.recipientName}
+                                  </span>
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    {addr.isDefault && (
+                                      <span className="px-1.5 py-0.5 rounded text-[9.5px] font-semibold bg-[#28040B] text-[#FFE3C7]">
+                                        Default
+                                      </span>
+                                    )}
+                                    <div
+                                      className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                                        isSelected
+                                          ? 'border-[#8C6C38] bg-[#8C6C38] text-white'
+                                          : 'border-neutral-300 bg-white'
+                                      }`}
+                                    >
+                                      {isSelected && <Check size={10} />}
+                                    </div>
+                                  </div>
+                                </div>
+                                <p className="text-[11px] text-neutral-500 font-mono mb-1">
+                                  +91 {addr.phone}
+                                </p>
+                                <p className="text-neutral-600 line-clamp-2 leading-relaxed">
+                                  {addr.line1}
+                                  {addr.line2 ? `, ${addr.line2}` : ''}, {addr.city}, {addr.state} — {addr.pincode}
+                                </p>
+                              </div>
+
+                              <div className="pt-2.5 mt-2 border-t border-[#E8C98A]/15 flex items-center justify-between">
+                                <span className={`text-[10.5px] font-semibold ${isSelected ? 'text-[#8C6C38]' : 'text-neutral-500'}`}>
+                                  {isSelected ? '✓ Deliver to this address' : 'Select address'}
+                                </span>
+                                <Link
+                                  to="/addresses"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="text-[10px] text-neutral-400 hover:text-[#8C6C38] hover:underline"
+                                >
+                                  Edit in book
+                                </Link>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Address Form Fields (shown when 'new' is selected or user has no saved addresses) */}
+                  {(selectedSavedAddressId === 'new' || savedAddresses.length === 0) && (
+                    <>
+                      {isSignedIn && savedAddresses.length > 0 && (
+                        <div className="flex items-center justify-between pt-1 pb-1">
+                          <p className="text-xs font-semibold text-[#211A17]">
+                            Enter Delivery Address Details
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const first = savedAddresses.find((a) => a.isDefault) || savedAddresses[0];
+                              if (first) handleSelectSavedAddress(first);
+                            }}
+                            className="text-xs text-[#8C6C38] hover:underline font-medium cursor-pointer"
+                          >
+                            ← Use a saved address instead
+                          </button>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                        {/* Recipient Full Name */}
+                        <div className="space-y-1 sm:col-span-1">
+                          <label htmlFor="recipient-name" className="block font-semibold text-[#211A17]">
+                            Recipient Full Name <span className="text-red-600">*</span>
+                          </label>
+                          <input
+                            id="recipient-name"
+                            type="text"
+                            value={deliveryAddress.recipientName}
+                            onChange={(e) => handleAddressChange('recipientName', e.target.value)}
+                            placeholder="e.g. Priya Sharma"
+                            className={`w-full bg-[#FAF7F2] border rounded-xl px-3.5 py-2.5 text-xs text-[#211A17] focus:outline-none focus:border-[#211A17] transition-colors ${
+                              addressErrors.recipientName ? 'border-red-500 bg-red-50/20' : 'border-[#E8C98A]/40'
+                            }`}
+                          />
+                          {addressErrors.recipientName && (
+                            <p className="text-[11px] text-red-600 flex items-center gap-1 mt-0.5">
+                              <AlertCircle size={11} className="shrink-0" />
+                              <span>{addressErrors.recipientName}</span>
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Mobile Phone Number */}
+                        <div className="space-y-1 sm:col-span-1">
+                          <label htmlFor="delivery-phone" className="block font-semibold text-[#211A17]">
+                            Mobile Phone Number (10 Digits) <span className="text-red-600">*</span>
+                          </label>
+                          <div className="relative">
+                            <span className="absolute left-3.5 top-2.5 text-xs text-neutral-400 font-mono select-none">
+                              +91
+                            </span>
+                            <input
+                              id="delivery-phone"
+                              type="tel"
+                              maxLength={10}
+                              value={deliveryAddress.phone}
+                              onChange={(e) => handleAddressChange('phone', e.target.value.replace(/[^0-9]/g, ''))}
+                              placeholder="9876543210"
+                              className={`w-full bg-[#FAF7F2] border rounded-xl pl-11 pr-3.5 py-2.5 text-xs font-mono text-[#211A17] focus:outline-none focus:border-[#211A17] transition-colors ${
+                                addressErrors.phone ? 'border-red-500 bg-red-50/20' : 'border-[#E8C98A]/40'
+                              }`}
+                            />
+                          </div>
+                          {addressErrors.phone && (
+                            <p className="text-[11px] text-red-600 flex items-center gap-1 mt-0.5">
+                              <AlertCircle size={11} className="shrink-0" />
+                              <span>{addressErrors.phone}</span>
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Address Line 1 */}
+                        <div className="space-y-1 sm:col-span-2">
+                          <label htmlFor="delivery-line1" className="block font-semibold text-[#211A17]">
+                            House/Flat No., Building & Street Address <span className="text-red-600">*</span>
+                          </label>
+                          <input
+                            id="delivery-line1"
+                            type="text"
+                            value={deliveryAddress.addressLine1}
+                            onChange={(e) => handleAddressChange('addressLine1', e.target.value)}
+                            placeholder="e.g. Flat 4B, Royale Residency, 14 Park Street"
+                            className={`w-full bg-[#FAF7F2] border rounded-xl px-3.5 py-2.5 text-xs text-[#211A17] focus:outline-none focus:border-[#211A17] transition-colors ${
+                              addressErrors.addressLine1 ? 'border-red-500 bg-red-50/20' : 'border-[#E8C98A]/40'
+                            }`}
+                          />
+                          {addressErrors.addressLine1 && (
+                            <p className="text-[11px] text-red-600 flex items-center gap-1 mt-0.5">
+                              <AlertCircle size={11} className="shrink-0" />
+                              <span>{addressErrors.addressLine1}</span>
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Address Line 2 */}
+                        <div className="space-y-1 sm:col-span-2">
+                          <label htmlFor="delivery-line2" className="block font-semibold text-[#211A17]">
+                            Apartment, Landmark, Area <span className="text-neutral-400 font-normal">(Optional)</span>
+                          </label>
+                          <input
+                            id="delivery-line2"
+                            type="text"
+                            value={deliveryAddress.addressLine2}
+                            onChange={(e) => handleAddressChange('addressLine2', e.target.value)}
+                            placeholder="e.g. Near City Center, South Wing"
+                            className={`w-full bg-[#FAF7F2] border rounded-xl px-3.5 py-2.5 text-xs text-[#211A17] focus:outline-none focus:border-[#211A17] transition-colors ${
+                              addressErrors.addressLine2 ? 'border-red-500 bg-red-50/20' : 'border-[#E8C98A]/40'
+                            }`}
+                          />
+                          {addressErrors.addressLine2 && (
+                            <p className="text-[11px] text-red-600 flex items-center gap-1 mt-0.5">
+                              <AlertCircle size={11} className="shrink-0" />
+                              <span>{addressErrors.addressLine2}</span>
+                            </p>
+                          )}
+                        </div>
+
+                        {/* City, State & PIN Code */}
+                        <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                          {/* City */}
+                          <div className="space-y-1">
+                            <label htmlFor="delivery-city" className="block font-semibold text-[#211A17]">
+                              City / Town <span className="text-red-600">*</span>
+                            </label>
+                            <input
+                              id="delivery-city"
+                              type="text"
+                              value={deliveryAddress.city}
+                              onChange={(e) => handleAddressChange('city', e.target.value)}
+                              placeholder="e.g. Kolkata"
+                              className={`w-full bg-[#FAF7F2] border rounded-xl px-3.5 py-2.5 text-xs text-[#211A17] focus:outline-none focus:border-[#211A17] transition-colors ${
+                                addressErrors.city ? 'border-red-500 bg-red-50/20' : 'border-[#E8C98A]/40'
+                              }`}
+                            />
+                            {addressErrors.city && (
+                              <p className="text-[11px] text-red-600 flex items-center gap-1 mt-0.5">
+                                <AlertCircle size={11} className="shrink-0" />
+                                <span>{addressErrors.city}</span>
+                              </p>
+                            )}
+                          </div>
+
+                          {/* State */}
+                          <div className="space-y-1">
+                            <label htmlFor="delivery-state" className="block font-semibold text-[#211A17]">
+                              State <span className="text-red-600">*</span>
+                            </label>
+                            <input
+                              id="delivery-state"
+                              type="text"
+                              value={deliveryAddress.state}
+                              onChange={(e) => handleAddressChange('state', e.target.value)}
+                              placeholder="e.g. West Bengal"
+                              className={`w-full bg-[#FAF7F2] border rounded-xl px-3.5 py-2.5 text-xs text-[#211A17] focus:outline-none focus:border-[#211A17] transition-colors ${
+                                addressErrors.state ? 'border-red-500 bg-red-50/20' : 'border-[#E8C98A]/40'
+                              }`}
+                            />
+                            {addressErrors.state && (
+                              <p className="text-[11px] text-red-600 flex items-center gap-1 mt-0.5">
+                                <AlertCircle size={11} className="shrink-0" />
+                                <span>{addressErrors.state}</span>
+                              </p>
+                            )}
+                          </div>
+
+                          {/* PIN Code */}
+                          <div className="space-y-1">
+                            <label htmlFor="delivery-pincode" className="block font-semibold text-[#211A17]">
+                              PIN Code (6 Digits) <span className="text-red-600">*</span>
+                            </label>
+                            <input
+                              id="delivery-pincode"
+                              type="text"
+                              maxLength={6}
+                              value={deliveryAddress.pincode}
+                              onChange={(e) => handleAddressChange('pincode', e.target.value.replace(/[^0-9]/g, ''))}
+                              placeholder="700001"
+                              className={`w-full bg-[#FAF7F2] border rounded-xl px-3.5 py-2.5 text-xs font-mono text-[#211A17] focus:outline-none focus:border-[#211A17] transition-colors ${
+                                addressErrors.pincode ? 'border-red-500 bg-red-50/20' : 'border-[#E8C98A]/40'
+                              }`}
+                            />
+                            {addressErrors.pincode && (
+                              <p className="text-[11px] text-red-600 flex items-center gap-1 mt-0.5">
+                                <AlertCircle size={11} className="shrink-0" />
+                                <span>{addressErrors.pincode}</span>
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Explicit Opt-In to Save Address to Account */}
+                        {isSignedIn && (
+                          <div className="pt-2 sm:col-span-2">
+                            <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={saveAddressOptIn}
+                                onChange={(e) => setSaveAddressOptIn(e.target.checked)}
+                                className="mt-0.5 w-4 h-4 rounded text-[#8C6C38] focus:ring-[#8C6C38] border-gray-300 cursor-pointer"
+                              />
+                              <span className="text-xs text-[#211A17] font-medium leading-tight">
+                                Save this address to my Alongkar account for future orders
+                              </span>
+                            </label>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+
                 {/* Assurance & Quality Pillars */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
                   {[
@@ -1209,6 +1802,15 @@ export const CartPage: React.FC = () => {
           shippingFee={shippingFee}
           isFreeShipping={isFreeShipping}
           appliedCoupon={appliedCoupon}
+          deliveryAddress={{
+            recipientName: deliveryAddress.recipientName,
+            phone: deliveryAddress.phone,
+            line1: deliveryAddress.addressLine1,
+            line2: deliveryAddress.addressLine2,
+            city: deliveryAddress.city,
+            state: deliveryAddress.state,
+            pincode: deliveryAddress.pincode,
+          }}
           onConfirm={handleConfirmPaymentMethod}
           isProcessing={isProcessingCheckout}
         />

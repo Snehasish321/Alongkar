@@ -55,6 +55,10 @@ function apiDevServerPlugin(): Plugin {
             const { default: handler } = await server.ssrLoadModule('/api/orders.ts');
             return await handler(req, res);
           }
+          if (pathname.startsWith('/api/addresses')) {
+            const { default: handler } = await server.ssrLoadModule('/api/addresses.ts');
+            return await handler(req, res);
+          }
           if (pathname === '/api/health' || pathname === '/api/health/') {
             const { default: handler } = await server.ssrLoadModule('/api/health.ts');
             return await handler(req, res);

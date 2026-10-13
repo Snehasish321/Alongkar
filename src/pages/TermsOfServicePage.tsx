@@ -180,7 +180,7 @@ export const TermsOfServicePage: React.FC = () => {
                 9. Shipping and Delivery
               </h2>
               <p>
-                Free shipping currently applies to eligible orders above ₹399, subject to the shipping conditions displayed by Alongkar.
+                Free shipping currently applies to eligible orders with a qualifying merchandise subtotal of ₹399 or more, subject to the shipping conditions displayed by Alongkar.
               </p>
               <p>
                 Estimated delivery timelines are provided for convenience and are not guaranteed delivery dates.
