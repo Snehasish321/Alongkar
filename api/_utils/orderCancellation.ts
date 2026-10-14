@@ -1806,3 +1806,216 @@ export async function resolveAdminCancellationWorkflow(
     message: `Cancellation request for Order #${existingOrder.orderNumber} was rejected. Fulfilment advancement is now permitted.`,
   };
 }
+
+export interface HandleCapturedPaymentStockConflictOptions {
+  prismaClient: any;
+  orderId: string;
+  razorpayPaymentId: string;
+  conflictReason: string;
+  customRazorpayClient?: any;
+  requestId?: string;
+}
+
+export interface HandleCapturedPaymentStockConflictResult {
+  success: boolean;
+  refundStatus: 'REFUNDED' | 'ALREADY_REFUNDED' | 'ALREADY_PAID' | 'IN_PROGRESS' | 'UNRESOLVED' | 'REFUND_FAILED';
+  refundId?: string;
+  order?: any;
+  error?: string;
+}
+
+/**
+ * Durably records a captured Razorpay payment when stock deduction fails,
+ * prevents the order from being marked fulfillment-ready, and dispatches
+ * an idempotent automated refund using the existing refund workflow.
+ */
+export async function handleCapturedPaymentStockConflict(
+  options: HandleCapturedPaymentStockConflictOptions
+): Promise<HandleCapturedPaymentStockConflictResult> {
+  const { prismaClient, orderId, razorpayPaymentId, conflictReason, customRazorpayClient, requestId } = options;
+  const db = prismaClient || prisma;
+
+  if (!orderId || !isValidIdentifier(orderId)) {
+    return {
+      success: false,
+      refundStatus: 'REFUND_FAILED',
+      error: 'Invalid orderId provided for stock conflict handling.',
+    };
+  }
+
+  if (!razorpayPaymentId) {
+    return {
+      success: false,
+      refundStatus: 'REFUND_FAILED',
+      error: 'Missing razorpayPaymentId for stock conflict handling.',
+    };
+  }
+
+  // 1. Fetch fresh order
+  let freshOrder: any;
+  try {
+    freshOrder = await withTimeout(
+      db.order.findUnique({
+        where: { id: orderId },
+        include: { items: true, user: true },
+      }),
+      DEFAULT_DB_TIMEOUT_MS,
+      'StockConflict.fetchFreshOrder'
+    );
+  } catch (dbErr: any) {
+    logServerError('Failed to fetch fresh order during stock conflict reconciliation', dbErr, {
+      requestId,
+      extra: { orderId, razorpayPaymentId },
+    });
+    return {
+      success: false,
+      refundStatus: 'REFUND_FAILED',
+      error: 'Database error reading order for stock conflict.',
+    };
+  }
+
+  if (!freshOrder) {
+    return {
+      success: false,
+      refundStatus: 'REFUND_FAILED',
+      error: `Order with ID "${orderId}" was not found.`,
+    };
+  }
+
+  // 2. Idempotency Check: if already refunded, acknowledge outcome safely
+  if (freshOrder.paymentStatus === 'REFUNDED') {
+    return {
+      success: true,
+      refundStatus: 'ALREADY_REFUNDED',
+      order: freshOrder,
+    };
+  }
+
+  // If order was already confirmed and marked fulfillment-ready by a winning concurrent process, do not overwrite
+  if (
+    freshOrder.paymentStatus === 'PAID' &&
+    freshOrder.status === 'CONFIRMED' &&
+    freshOrder.shippingStatus === 'READY'
+  ) {
+    return {
+      success: true,
+      refundStatus: 'ALREADY_PAID',
+      order: freshOrder,
+    };
+  }
+
+  const now = new Date();
+  const conflictAudit = `Stock conflict: Payment ${razorpayPaymentId} captured on gateway, but stock deduction failed (${conflictReason}). Automated refund initiated.`;
+  const existingNotes = freshOrder.adminNotes || '';
+  const updatedAdminNotes = existingNotes ? `${existingNotes} | ${conflictAudit}` : conflictAudit;
+
+  // 3. Durably record captured payment and conflict details in database:
+  // - paymentTransactionId is recorded so the captured payment is NEVER orphaned
+  // - shippingStatus remains NOT_READY (never fulfillment-ready)
+  // - status is set to CANCELLED
+  // - paymentStatus is set to PAID (eligible for refund processor)
+  // - cancelReason records the stock conflict details
+  let recordedOrder: any;
+  try {
+    recordedOrder = await withTimeout(
+      db.order.update({
+        where: { id: freshOrder.id },
+        data: {
+          paymentProvider: 'RAZORPAY',
+          paymentTransactionId: razorpayPaymentId,
+          paidAt: freshOrder.paidAt || now,
+          status: 'CANCELLED',
+          shippingStatus: 'NOT_READY',
+          cancelReason: `INSUFFICIENT_STOCK: ${conflictReason}`.slice(0, 500),
+          cancelledAt: freshOrder.cancelledAt || now,
+          paymentStatus: 'PAID',
+          adminNotes: updatedAdminNotes.slice(0, 2000),
+          paymentFailureReason: `INSUFFICIENT_STOCK: Payment ${razorpayPaymentId} captured; auto-refund initiated.`,
+        },
+        include: { items: true, user: true },
+      }),
+      DEFAULT_DB_TIMEOUT_MS,
+      'StockConflict.recordPaymentAndConflict'
+    );
+  } catch (updateErr: any) {
+    logServerError('Failed to durably record stock conflict payment on order', updateErr, {
+      requestId,
+      extra: { orderId: freshOrder.id, razorpayPaymentId },
+    });
+    return {
+      success: false,
+      refundStatus: 'REFUND_FAILED',
+      error: 'Failed to record captured payment on order in database.',
+    };
+  }
+
+  logEvent('WARN', {
+    endpoint: '/api/payments/razorpay',
+    operation: 'stock_conflict_payment_durably_recorded',
+    category: 'payment',
+    requestId,
+    extra: {
+      orderId: recordedOrder.id,
+      orderNumber: recordedOrder.orderNumber,
+      paymentTransactionId: razorpayPaymentId,
+      conflictReason,
+    },
+    message: `Payment ${razorpayPaymentId} for Order #${recordedOrder.orderNumber} was durably recorded. Processing automated refund.`,
+  });
+
+  // 4. Dispatch idempotent refund using existing refund workflow
+  const refundResult = await processIdempotentRazorpayRefund({
+    db,
+    order: recordedOrder,
+    cancelReason: `Stock conflict: ${conflictReason}`,
+    customRazorpayClient,
+  });
+
+  if (refundResult.success) {
+    logEvent('INFO', {
+      endpoint: '/api/payments/razorpay',
+      operation: 'stock_conflict_auto_refund_success',
+      category: 'refund',
+      requestId,
+      extra: {
+        orderId: recordedOrder.id,
+        orderNumber: recordedOrder.orderNumber,
+        refundId: refundResult.refundId,
+        paymentTransactionId: razorpayPaymentId,
+      },
+      message: `Stock conflict for Order #${recordedOrder.orderNumber} successfully refunded via Razorpay (Refund ID: ${refundResult.refundId}).`,
+    });
+
+    return {
+      success: true,
+      refundStatus: refundResult.isAlreadyRefunded ? 'ALREADY_REFUNDED' : 'REFUNDED',
+      refundId: refundResult.refundId,
+      order: refundResult.order || recordedOrder,
+    };
+  }
+
+  if (refundResult.isInProgress) {
+    return {
+      success: false,
+      refundStatus: 'IN_PROGRESS',
+      order: refundResult.order || recordedOrder,
+      error: refundResult.error,
+    };
+  }
+
+  if (refundResult.isUnresolved) {
+    return {
+      success: false,
+      refundStatus: 'UNRESOLVED',
+      order: refundResult.order || recordedOrder,
+      error: refundResult.error,
+    };
+  }
+
+  return {
+    success: false,
+    refundStatus: 'REFUND_FAILED',
+    order: refundResult.order || recordedOrder,
+    error: refundResult.error || 'Failed to dispatch refund to gateway.',
+  };
+}

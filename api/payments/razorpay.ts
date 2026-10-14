@@ -28,6 +28,7 @@ import {
   fetchAndReconcileGatewayOrder,
 } from '../_utils/razorpay.js';
 import { checkLiveStockAvailability } from '../_utils/inventory.js';
+import { handleCapturedPaymentStockConflict } from '../_utils/orderCancellation.js';
 import { logEvent } from '../_utils/logger.js';
 
 function isValidRazorpayPaymentId(id: unknown): id is string {
@@ -229,7 +230,37 @@ export async function handleCreatePaymentOrder(req: any, res: any, inRequestId?:
       );
 
       if (rzpCheck.status === 'paid') {
-        const updatedOrder = await transitionOrderToPaid(prisma, order.id, rzpCheck.paymentId || null);
+        let updatedOrder: any;
+        try {
+          updatedOrder = await transitionOrderToPaid(prisma, order.id, rzpCheck.paymentId || null);
+        } catch (txErr: any) {
+          if (typeof txErr?.message === 'string' && txErr.message.startsWith('INSUFFICIENT_STOCK')) {
+            const conflictResult = await handleCapturedPaymentStockConflict({
+              prismaClient: prisma,
+              orderId: order.id,
+              razorpayPaymentId: rzpCheck.paymentId!,
+              conflictReason: txErr.message,
+              customRazorpayClient: req._customRazorpayClient,
+              requestId,
+            });
+            return respond(
+              res,
+              409,
+              {
+                error: 'Order was paid on gateway, but one or more items are no longer available in stock. The payment has been recorded and an automated refund has been initiated.',
+                details: {
+                  paymentRecorded: true,
+                  paymentTransactionId: rzpCheck.paymentId,
+                  refundStatus: conflictResult.refundStatus,
+                  refundId: conflictResult.refundId,
+                },
+              },
+              { 'X-Request-ID': requestId }
+            );
+          }
+          throw txErr;
+        }
+
         logEvent('INFO', {
           endpoint: '/api/payments/razorpay/order',
           operation: 'order_already_paid_reconciled_on_init',
@@ -464,6 +495,7 @@ export async function handleCreatePaymentOrder(req: any, res: any, inRequestId?:
 export async function handleVerifyPayment(req: any, res: any, inRequestId?: string, inStartTime?: number) {
   const startTime = inStartTime || Date.now();
   const requestId = inRequestId || getOrCreateRequestId(req);
+  let bodyData: any = null;
   try {
     if (req.method !== 'POST') {
       return respond(
@@ -474,7 +506,7 @@ export async function handleVerifyPayment(req: any, res: any, inRequestId?: stri
       );
     }
 
-    const bodyData = await getRequestBody(req);
+    bodyData = await getRequestBody(req);
 
     if (isPayloadTooLarge(bodyData)) {
       logSecurityEvent('payload_too_large', { endpoint: '/api/payments/razorpay/verify', requestId });
@@ -805,17 +837,46 @@ export async function handleVerifyPayment(req: any, res: any, inRequestId?: stri
   } catch (error: any) {
     const durationMs = Date.now() - startTime;
     if (typeof error?.message === 'string' && error.message.startsWith('INSUFFICIENT_STOCK')) {
-      logServerError('Payment verified on gateway but stock deduction failed', error, {
+      const orderId = (bodyData as any)?.orderId;
+      const razorpayPaymentId = (bodyData as any)?.razorpayPaymentId;
+      logServerError('Payment verified on gateway but stock deduction failed - executing stock conflict reconciliation', error, {
         endpoint: '/api/payments/razorpay/verify',
         requestId,
-        extra: {
-          orderId: (req.body as any)?.orderId,
-        },
+        extra: { orderId, razorpayPaymentId },
       });
+
+      let conflictResult: any = null;
+      if (orderId && razorpayPaymentId) {
+        try {
+          conflictResult = await handleCapturedPaymentStockConflict({
+            prismaClient: prisma,
+            orderId,
+            razorpayPaymentId,
+            conflictReason: error.message,
+            customRazorpayClient: req._customRazorpayClient,
+            requestId,
+          });
+        } catch (conflictErr: any) {
+          logServerError('Failed to execute stock conflict handler in verify', conflictErr, {
+            endpoint: '/api/payments/razorpay/verify',
+            requestId,
+            extra: { orderId, razorpayPaymentId },
+          });
+        }
+      }
+
       return respond(
         res,
         409,
-        { error: 'Payment received on gateway, but one or more items in your order are no longer available in stock. Our support team will process a resolution or refund.' },
+        {
+          error: 'Payment received on gateway, but one or more items in your order are no longer available in stock. The payment has been recorded and an automated refund has been initiated.',
+          details: {
+            paymentRecorded: Boolean(conflictResult),
+            paymentTransactionId: razorpayPaymentId,
+            refundStatus: conflictResult?.refundStatus || 'PENDING_RETRY',
+            refundId: conflictResult?.refundId,
+          },
+        },
         { 'X-Request-ID': requestId }
       );
     }
@@ -842,6 +903,8 @@ export async function handleVerifyPayment(req: any, res: any, inRequestId?: stri
 export async function handleReconcilePayment(req: any, res: any, inRequestId?: string, inStartTime?: number) {
   const startTime = inStartTime || Date.now();
   const requestId = inRequestId || getOrCreateRequestId(req);
+  let bodyData: any = null;
+  let order: any = null;
   try {
     if (req.method !== 'POST') {
       return respond(
@@ -852,7 +915,7 @@ export async function handleReconcilePayment(req: any, res: any, inRequestId?: s
       );
     }
 
-    const bodyData = await getRequestBody(req);
+    bodyData = await getRequestBody(req);
 
     if (isPayloadTooLarge(bodyData)) {
       logSecurityEvent('payload_too_large', { endpoint: '/api/payments/razorpay/reconcile', requestId });
@@ -888,7 +951,7 @@ export async function handleReconcilePayment(req: any, res: any, inRequestId?: s
       );
     }
 
-    const order = await withTimeout(
+    order = await withTimeout(
       prisma.order.findUnique({
         where: { id: orderId },
       }),
@@ -1057,17 +1120,46 @@ export async function handleReconcilePayment(req: any, res: any, inRequestId?: s
   } catch (error: any) {
     const durationMs = Date.now() - startTime;
     if (typeof error?.message === 'string' && error.message.startsWith('INSUFFICIENT_STOCK')) {
-      logServerError('Payment reconciled on gateway but stock deduction failed', error, {
+      const orderId = (bodyData as any)?.orderId;
+      const paymentId = (bodyData as any)?.razorpayPaymentId || (order as any)?.paymentTransactionId;
+      logServerError('Payment reconciled on gateway but stock deduction failed - executing stock conflict reconciliation', error, {
         endpoint: '/api/payments/razorpay/reconcile',
         requestId,
-        extra: {
-          orderId: (req.body as any)?.orderId,
-        },
+        extra: { orderId, paymentId },
       });
+
+      let conflictResult: any = null;
+      if (orderId && paymentId) {
+        try {
+          conflictResult = await handleCapturedPaymentStockConflict({
+            prismaClient: prisma,
+            orderId,
+            razorpayPaymentId: paymentId,
+            conflictReason: error.message,
+            customRazorpayClient: req._customRazorpayClient,
+            requestId,
+          });
+        } catch (conflictErr: any) {
+          logServerError('Failed to execute stock conflict handler in reconcile', conflictErr, {
+            endpoint: '/api/payments/razorpay/reconcile',
+            requestId,
+            extra: { orderId, paymentId },
+          });
+        }
+      }
+
       return respond(
         res,
         409,
-        { error: 'Payment found on gateway, but one or more items in your order are no longer available in stock. Our support team will process a resolution or refund.' },
+        {
+          error: 'Payment found on gateway, but one or more items in your order are no longer available in stock. The payment has been recorded and an automated refund has been initiated.',
+          details: {
+            paymentRecorded: Boolean(conflictResult),
+            paymentTransactionId: paymentId,
+            refundStatus: conflictResult?.refundStatus || 'PENDING_RETRY',
+            refundId: conflictResult?.refundId,
+          },
+        },
         { 'X-Request-ID': requestId }
       );
     }
@@ -1303,6 +1395,45 @@ export async function handleWebhook(req: any, res: any, inRequestId?: string, in
       }
 
       if (order.status === 'CANCELLED' || order.paymentStatus === 'CANCELLED') {
+        if (order.paymentStatus === 'REFUNDED') {
+          return respond(res, 200, { received: true, status: 'already_processed', idempotentReplay: true }, { 'X-Request-ID': requestId });
+        }
+        if (order.cancelReason?.includes('INSUFFICIENT_STOCK') || order.paymentStatus === 'PAID') {
+          const conflictResult = await handleCapturedPaymentStockConflict({
+            prismaClient: prisma,
+            orderId: order.id,
+            razorpayPaymentId,
+            conflictReason: order.cancelReason || 'INSUFFICIENT_STOCK',
+            customRazorpayClient: req._customRazorpayClient,
+            requestId,
+          });
+          if (conflictResult.success) {
+            return respond(
+              res,
+              200,
+              {
+                received: true,
+                status: 'stock_conflict_refunded',
+                orderId: order.id,
+                refundId: conflictResult.refundId,
+                paymentId: razorpayPaymentId,
+              },
+              { 'X-Request-ID': requestId }
+            );
+          } else {
+            return respond(
+              res,
+              502,
+              {
+                error: 'Payment recorded on order, but refund confirmation pending gateway reconciliation.',
+                orderId: order.id,
+                refundStatus: conflictResult.refundStatus,
+                paymentId: razorpayPaymentId,
+              },
+              { 'X-Request-ID': requestId }
+            );
+          }
+        }
         logEvent('WARN', {
           endpoint: '/api/payments/razorpay/webhook',
           operation: 'payment_captured_on_cancelled_order',
@@ -1350,14 +1481,50 @@ export async function handleWebhook(req: any, res: any, inRequestId?: string, in
         await transitionOrderToPaid(prisma, order.id, razorpayPaymentId);
       } catch (txErr: any) {
         if (typeof txErr?.message === 'string' && txErr.message.startsWith('INSUFFICIENT_STOCK')) {
-          logServerError('Webhook payment captured but inventory deduction failed', txErr, {
+          logServerError('Webhook payment captured but inventory deduction failed - executing stock conflict reconciliation', txErr, {
             endpoint: '/api/payments/razorpay/webhook',
             requestId,
             extra: {
               orderId: order.id,
+              razorpayPaymentId,
             },
           });
-          return respond(res, 200, { received: true, status: 'inventory_conflict', orderId: order.id }, { 'X-Request-ID': requestId });
+
+          const conflictResult = await handleCapturedPaymentStockConflict({
+            prismaClient: prisma,
+            orderId: order.id,
+            razorpayPaymentId,
+            conflictReason: txErr.message,
+            customRazorpayClient: req._customRazorpayClient,
+            requestId,
+          });
+
+          if (conflictResult.success) {
+            return respond(
+              res,
+              200,
+              {
+                received: true,
+                status: 'stock_conflict_refunded',
+                orderId: order.id,
+                refundId: conflictResult.refundId,
+                paymentId: razorpayPaymentId,
+              },
+              { 'X-Request-ID': requestId }
+            );
+          } else {
+            return respond(
+              res,
+              502,
+              {
+                error: 'Payment recorded on order, but refund confirmation pending gateway reconciliation.',
+                orderId: order.id,
+                refundStatus: conflictResult.refundStatus,
+                paymentId: razorpayPaymentId,
+              },
+              { 'X-Request-ID': requestId }
+            );
+          }
         }
         throw txErr;
       }
@@ -1393,6 +1560,34 @@ export async function handleWebhook(req: any, res: any, inRequestId?: string, in
       }
 
       if (order.status === 'CANCELLED' || order.paymentStatus === 'CANCELLED') {
+        if (order.paymentStatus === 'REFUNDED') {
+          return respond(res, 200, { received: true, status: 'already_processed', idempotentReplay: true }, { 'X-Request-ID': requestId });
+        }
+        const effectivePaymentId = razorpayPaymentId || order.paymentTransactionId;
+        if (effectivePaymentId && (order.cancelReason?.includes('INSUFFICIENT_STOCK') || order.paymentStatus === 'PAID')) {
+          const conflictResult = await handleCapturedPaymentStockConflict({
+            prismaClient: prisma,
+            orderId: order.id,
+            razorpayPaymentId: effectivePaymentId,
+            conflictReason: order.cancelReason || 'INSUFFICIENT_STOCK',
+            customRazorpayClient: req._customRazorpayClient,
+            requestId,
+          });
+          if (conflictResult.success) {
+            return respond(res, 200, {
+              received: true,
+              status: 'stock_conflict_refunded',
+              orderId: order.id,
+              refundId: conflictResult.refundId,
+            }, { 'X-Request-ID': requestId });
+          } else {
+            return respond(res, 502, {
+              error: 'Order paid recorded but refund confirmation pending gateway reconciliation.',
+              orderId: order.id,
+              refundStatus: conflictResult.refundStatus,
+            }, { 'X-Request-ID': requestId });
+          }
+        }
         return respond(res, 200, { received: true, status: 'ignored_cancelled_order' }, { 'X-Request-ID': requestId });
       }
 
@@ -1422,14 +1617,42 @@ export async function handleWebhook(req: any, res: any, inRequestId?: string, in
         await transitionOrderToPaid(prisma, order.id, razorpayPaymentId || order.paymentTransactionId || null);
       } catch (txErr: any) {
         if (typeof txErr?.message === 'string' && txErr.message.startsWith('INSUFFICIENT_STOCK')) {
-          logServerError('Webhook order paid but inventory deduction failed', txErr, {
+          logServerError('Webhook order paid but inventory deduction failed - executing stock conflict reconciliation', txErr, {
             endpoint: '/api/payments/razorpay/webhook',
             requestId,
             extra: {
               orderId: order.id,
             },
           });
-          return respond(res, 200, { received: true, status: 'inventory_conflict', orderId: order.id }, { 'X-Request-ID': requestId });
+
+          const effectivePaymentId = razorpayPaymentId || order.paymentTransactionId;
+          if (effectivePaymentId) {
+            const conflictResult = await handleCapturedPaymentStockConflict({
+              prismaClient: prisma,
+              orderId: order.id,
+              razorpayPaymentId: effectivePaymentId,
+              conflictReason: txErr.message,
+              customRazorpayClient: req._customRazorpayClient,
+              requestId,
+            });
+            if (conflictResult.success) {
+              return respond(res, 200, {
+                received: true,
+                status: 'stock_conflict_refunded',
+                orderId: order.id,
+                refundId: conflictResult.refundId,
+                paymentId: effectivePaymentId,
+              }, { 'X-Request-ID': requestId });
+            } else {
+              return respond(res, 502, {
+                error: 'Order paid recorded but refund confirmation pending gateway reconciliation.',
+                orderId: order.id,
+                refundStatus: conflictResult.refundStatus,
+                paymentId: effectivePaymentId,
+              }, { 'X-Request-ID': requestId });
+            }
+          }
+          throw txErr;
         }
         throw txErr;
       }
