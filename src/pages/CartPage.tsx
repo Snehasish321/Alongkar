@@ -339,14 +339,21 @@ export const CartPage: React.FC = () => {
   const [confirmedOrderNumber, setConfirmedOrderNumber] = useState<string | null>(
     () => confirmedOrderQuery || null
   );
+  const [addressSaveWarning, setAddressSaveWarning] = useState<boolean>(
+    () => searchParams.get('addrSaveFailed') === '1'
+  );
+  const addressSaveFailedRef = useRef(false);
 
   // Clean URL parameter so the visible URL seamlessly normalizes to /cart without losing state
   useEffect(() => {
     if (confirmedOrderQuery) {
       setConfirmedOrderNumber(confirmedOrderQuery);
+      if (searchParams.get('addrSaveFailed') === '1') {
+        setAddressSaveWarning(true);
+      }
       window.history.replaceState(null, '', '/cart');
     }
-  }, [confirmedOrderQuery]);
+  }, [confirmedOrderQuery, searchParams]);
 
   // Explicitly reset scroll position to top when confirmed order state is active
   useEffect(() => {
@@ -498,6 +505,7 @@ export const CartPage: React.FC = () => {
     setIsProcessingCheckout(true);
     setCheckoutError(null);
     setCheckoutNotice(null);
+    addressSaveFailedRef.current = false;
 
     try {
       const token = await getToken();
@@ -537,8 +545,9 @@ export const CartPage: React.FC = () => {
             isDefault: savedAddresses.length === 0,
           });
           setSavedAddresses((prev) => [newlySaved, ...prev]);
-        } catch (saveErr) {
-          console.warn('Address could not be saved to account during checkout:', saveErr);
+        } catch {
+          addressSaveFailedRef.current = true;
+          console.warn('Address could not be saved to account during checkout');
         }
       }
 
@@ -578,8 +587,14 @@ export const CartPage: React.FC = () => {
           localStorage.removeItem('alongkar_shipping_address');
         } catch {}
         setConfirmedOrderNumber(confirmedNum);
+        if (addressSaveFailedRef.current) {
+          setAddressSaveWarning(true);
+        }
         setIsProcessingCheckout(false);
-        navigate(`/cart?confirmedOrder=${encodeURIComponent(confirmedNum)}`, { replace: true });
+        const queryParams = addressSaveFailedRef.current
+          ? `confirmedOrder=${encodeURIComponent(confirmedNum)}&addrSaveFailed=1`
+          : `confirmedOrder=${encodeURIComponent(confirmedNum)}`;
+        navigate(`/cart?${queryParams}`, { replace: true });
         return;
       }
 
@@ -643,9 +658,15 @@ export const CartPage: React.FC = () => {
         setIsPaymentMethodModalOpen(false);
         setActiveOrderId(null);
         clearCart();
+        if (addressSaveFailedRef.current) {
+          setAddressSaveWarning(true);
+        }
         setConfirmedOrderNumber(confirmedNum);
         setIsProcessingCheckout(false);
-        navigate(`/cart?confirmedOrder=${encodeURIComponent(confirmedNum)}`, { replace: true });
+        const queryParams = addressSaveFailedRef.current
+          ? `confirmedOrder=${encodeURIComponent(confirmedNum)}&addrSaveFailed=1`
+          : `confirmedOrder=${encodeURIComponent(confirmedNum)}`;
+        navigate(`/cart?${queryParams}`, { replace: true });
         return;
       }
 
@@ -712,8 +733,14 @@ export const CartPage: React.FC = () => {
                 sessionStorage.removeItem('alongkar_checkout_address');
                 localStorage.removeItem('alongkar_shipping_address');
               } catch {}
+              if (addressSaveFailedRef.current) {
+                setAddressSaveWarning(true);
+              }
               setConfirmedOrderNumber(confirmedNum);
-              navigate(`/cart?confirmedOrder=${encodeURIComponent(confirmedNum)}`, { replace: true });
+              const queryParams = addressSaveFailedRef.current
+                ? `confirmedOrder=${encodeURIComponent(confirmedNum)}&addrSaveFailed=1`
+                : `confirmedOrder=${encodeURIComponent(confirmedNum)}`;
+              navigate(`/cart?${queryParams}`, { replace: true });
             }
           } catch (verifyErr: any) {
             try {
@@ -729,8 +756,14 @@ export const CartPage: React.FC = () => {
                     sessionStorage.removeItem('alongkar_checkout_address');
                     localStorage.removeItem('alongkar_shipping_address');
                   } catch {}
+                  if (addressSaveFailedRef.current) {
+                    setAddressSaveWarning(true);
+                  }
                   setConfirmedOrderNumber(confirmedNum);
-                  navigate(`/cart?confirmedOrder=${encodeURIComponent(confirmedNum)}`, { replace: true });
+                  const queryParams = addressSaveFailedRef.current
+                    ? `confirmedOrder=${encodeURIComponent(confirmedNum)}&addrSaveFailed=1`
+                    : `confirmedOrder=${encodeURIComponent(confirmedNum)}`;
+                  navigate(`/cart?${queryParams}`, { replace: true });
                   return;
                 }
               }
@@ -829,6 +862,14 @@ export const CartPage: React.FC = () => {
                       <p className="text-xs text-[#8C6C38] mt-1 font-light leading-relaxed">
                         Thank you for your atelier order <span className="font-semibold text-[#211A17]">#{confirmedOrderNumber}</span>. Your pieces are being carefully prepared.
                       </p>
+                      {addressSaveWarning && (
+                        <div className="mt-3.5 p-3 rounded-xl bg-amber-50/90 border border-amber-200 text-amber-900 flex items-start gap-2.5 text-xs animate-in fade-in duration-200">
+                          <AlertCircle size={15} className="mt-0.5 shrink-0 text-amber-600" />
+                          <div className="leading-relaxed">
+                            <span className="font-medium">Note:</span> Your order was confirmed successfully, but the delivery address could not be saved to your account. You can save it manually anytime from your account settings.
+                          </div>
+                        </div>
+                      )}
                       <div className="mt-4 flex flex-wrap items-center gap-3">
                         <Link
                           to="/orders"

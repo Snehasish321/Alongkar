@@ -495,8 +495,25 @@ export default async function handler(req: any, res: any) {
         });
       }
 
-      await prisma.savedAddress.delete({
-        where: { id: targetId },
+      // Transactionally delete address and reassign default if the deleted address was default
+      await prisma.$transaction(async (tx) => {
+        await tx.savedAddress.delete({
+          where: { id: targetId },
+        });
+
+        if (existing.isDefault) {
+          const newestRemaining = await tx.savedAddress.findFirst({
+            where: { userId: user.id },
+            orderBy: { createdAt: 'desc' },
+          });
+
+          if (newestRemaining) {
+            await tx.savedAddress.update({
+              where: { id: newestRemaining.id },
+              data: { isDefault: true },
+            });
+          }
+        }
       });
 
       return respond(res, 200, {
@@ -512,6 +529,28 @@ export default async function handler(req: any, res: any) {
       requestId,
       elapsedMs: elapsed,
     });
+    if ((error as any)?.code === 'P2002') {
+      const target = (error as any)?.meta?.target;
+      const targetStr = Array.isArray(target) ? target.join(',') : String(target || '');
+      const constraint = String((error as any)?.meta?.constraint || '');
+      const isDefaultConflict =
+        targetStr.includes('userId') ||
+        targetStr.includes('SavedAddress_userId_default_key') ||
+        constraint.includes('SavedAddress_userId_default_key');
+
+      if (isDefaultConflict) {
+        return respond(res, 409, {
+          success: false,
+          error: 'Address default conflict: another operation updated the default address concurrently. Please refresh.',
+        });
+      }
+
+      return respond(res, 409, {
+        success: false,
+        error: getSafeErrorMessage(error, 'A record with this value already exists.'),
+      });
+    }
+
     return respond(res, 500, {
       success: false,
       error: getSafeErrorMessage(error, 'An unexpected error occurred while processing address request'),

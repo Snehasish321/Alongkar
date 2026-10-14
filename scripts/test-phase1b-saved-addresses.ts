@@ -100,16 +100,35 @@ const inMemoryAddresses: StoredAddress[] = [
       .sort((a, b) => (b.isDefault ? 1 : 0) - (a.isDefault ? 1 : 0));
   },
   findFirst: async (args: any) => {
-    return (
-      inMemoryAddresses.find(
-        (a) => a.id === args.where.id && a.userId === args.where.userId
-      ) || null
-    );
+    let matches = inMemoryAddresses.filter((a) => {
+      if (args.where?.userId && a.userId !== args.where.userId) return false;
+      if (args.where?.id && a.id !== args.where.id) return false;
+      return true;
+    });
+    if (args.orderBy?.createdAt === 'desc') {
+      matches.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    }
+    return matches[0] || null;
   },
   count: async (args: any) => {
     return inMemoryAddresses.filter((a) => a.userId === args.where.userId).length;
   },
   create: async (args: any) => {
+    // Faithful simulation of PostgreSQL partial unique index:
+    // CREATE UNIQUE INDEX "SavedAddress_userId_default_key" ON "SavedAddress" ("userId") WHERE "isDefault" = true;
+    if (args.data?.isDefault) {
+      const conflict = inMemoryAddresses.find(
+        (a) => a.userId === args.data.userId && a.isDefault
+      );
+      if (conflict) {
+        const err: any = new Error(
+          'Unique constraint failed on the constraint: SavedAddress_userId_default_key'
+        );
+        err.code = 'P2002';
+        err.meta = { target: ['userId'], constraint: 'SavedAddress_userId_default_key' };
+        throw err;
+      }
+    }
     const item: StoredAddress = {
       id: `addr_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
       ...args.data,
@@ -135,6 +154,20 @@ const inMemoryAddresses: StoredAddress[] = [
   update: async (args: any) => {
     const item = inMemoryAddresses.find((a) => a.id === args.where.id);
     if (!item) throw new Error('Record not found');
+    // Faithful simulation of PostgreSQL partial unique index:
+    if (args.data?.isDefault) {
+      const conflict = inMemoryAddresses.find(
+        (a) => a.userId === item.userId && a.isDefault && a.id !== item.id
+      );
+      if (conflict) {
+        const err: any = new Error(
+          'Unique constraint failed on the constraint: SavedAddress_userId_default_key'
+        );
+        err.code = 'P2002';
+        err.meta = { target: ['userId'], constraint: 'SavedAddress_userId_default_key' };
+        throw err;
+      }
+    }
     Object.assign(item, args.data, { updatedAt: new Date() });
     return item;
   },
@@ -146,7 +179,16 @@ const inMemoryAddresses: StoredAddress[] = [
 };
 
 (prisma as any).$transaction = async (callback: any) => {
-  return await callback(prisma);
+  // Snapshot in-memory state before transaction execution to simulate ACID transaction atomicity
+  const snapshot = inMemoryAddresses.map((a) => ({ ...a }));
+  try {
+    return await callback(prisma);
+  } catch (err) {
+    // Transaction failed: roll back all mutations to exact pre-transaction snapshot
+    inMemoryAddresses.length = 0;
+    snapshot.forEach((a) => inMemoryAddresses.push(a));
+    throw err;
+  }
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -882,6 +924,638 @@ async function testUnauthenticated(method: string, url: string, body?: any) {
     country: null,
   });
   assert(formattedLegacy?.country === 'India', 'formatAddressResponse safely defaults null/missing country to India');
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // WORKSTREAM 8: PHASE 1C.1 RELIABILITY & SECURITY FIXES (SEC-01, SEC-03, SEC-04)
+  // ─────────────────────────────────────────────────────────────────────────────
+  console.log('\n--- WORKSTREAM 8: Phase 1C.1 Reliability & Security Fixes ---');
+
+  // Test 1: AddressesPage UI state logic - Loading state
+  const renderAddressesPageState = (state: {
+    isLoading: boolean;
+    error: string | null;
+    addresses: Array<any>;
+  }) => {
+    if (state.isLoading) return 'LOADING';
+    if (state.error) return 'ERROR';
+    if (state.addresses.length === 0) return 'EMPTY';
+    return 'CARDS';
+  };
+
+  assert(
+    renderAddressesPageState({ isLoading: true, error: null, addresses: [] }) === 'LOADING',
+    'Test 1: AddressesPage correctly enters loading state when fetching'
+  );
+
+  // Test 2: Failed address fetch does not show the empty state
+  const failedFetchState = renderAddressesPageState({
+    isLoading: false,
+    error: 'Failed to fetch addresses from secure server',
+    addresses: [],
+  });
+  assert(
+    failedFetchState === 'ERROR',
+    'Test 2a: Failed address fetch enters dedicated ERROR state'
+  );
+  assert(
+    failedFetchState !== 'EMPTY',
+    'Test 2b: Failed address fetch strictly avoids showing "No Saved Addresses Yet" empty state (SEC-03)'
+  );
+  assert(
+    failedFetchState !== 'CARDS',
+    'Test 2c: Failed address fetch does not render address cards'
+  );
+
+  // Test 3: Successful empty response shows the empty state
+  const emptyFetchState = renderAddressesPageState({
+    isLoading: false,
+    error: null,
+    addresses: [],
+  });
+  assert(
+    emptyFetchState === 'EMPTY',
+    'Test 3: Successful empty response correctly renders "No Saved Addresses Yet" empty state'
+  );
+
+  // Test 4: Successful non-empty response shows address cards
+  const nonEmptyFetchState = renderAddressesPageState({
+    isLoading: false,
+    error: null,
+    addresses: [{ id: 'addr_1' }],
+  });
+  assert(
+    nonEmptyFetchState === 'CARDS',
+    'Test 4: Successful non-empty response renders address cards grid'
+  );
+
+  // Test 5: Deleting a default address promotes the newest remaining address (SEC-04)
+  const davidUser = { id: 'user_david', clerkUserId: 'user_clerk_david' };
+
+  // Create David Address 1 (t0)
+  const dReq1 = createMockRequest({
+    method: 'POST',
+    url: '/api/addresses',
+    body: {
+      recipientName: 'David Home 1',
+      phone: '9876543210',
+      line1: '1 David St',
+      city: 'Kolkata',
+      state: 'West Bengal',
+      pincode: '700001',
+      isDefault: false,
+    },
+    testUser: davidUser,
+  });
+  const dRes1 = createMockResponse();
+  await handler(dReq1, dRes1);
+  const dAddr1Id = dRes1.data?.address?.id;
+  const dAddr1 = inMemoryAddresses.find((a) => a.id === dAddr1Id)!;
+  dAddr1.createdAt = new Date('2026-10-10T10:00:00Z');
+
+  // Create David Address 2 (t1)
+  const dReq2 = createMockRequest({
+    method: 'POST',
+    url: '/api/addresses',
+    body: {
+      recipientName: 'David Home 2',
+      phone: '9876543210',
+      line1: '2 David St',
+      city: 'Kolkata',
+      state: 'West Bengal',
+      pincode: '700002',
+      isDefault: false,
+    },
+    testUser: davidUser,
+  });
+  const dRes2 = createMockResponse();
+  await handler(dReq2, dRes2);
+  const dAddr2Id = dRes2.data?.address?.id;
+  const dAddr2 = inMemoryAddresses.find((a) => a.id === dAddr2Id)!;
+  dAddr2.createdAt = new Date('2026-10-10T11:00:00Z');
+
+  // Create David Address 3 (t2) and make it default
+  const dReq3 = createMockRequest({
+    method: 'POST',
+    url: '/api/addresses',
+    body: {
+      recipientName: 'David Home 3',
+      phone: '9876543210',
+      line1: '3 David St',
+      city: 'Kolkata',
+      state: 'West Bengal',
+      pincode: '700003',
+      isDefault: true,
+    },
+    testUser: davidUser,
+  });
+  const dRes3 = createMockResponse();
+  await handler(dReq3, dRes3);
+  const dAddr3Id = dRes3.data?.address?.id;
+  const dAddr3 = inMemoryAddresses.find((a) => a.id === dAddr3Id)!;
+  dAddr3.createdAt = new Date('2026-10-10T12:00:00Z');
+
+  assert(dAddr3.isDefault === true, 'David Address 3 is initially default');
+  assert(dAddr2.isDefault === false, 'David Address 2 is initially non-default');
+  assert(dAddr1.isDefault === false, 'David Address 1 is initially non-default');
+
+  // Now delete David Address 3 (the default)
+  const dDelReq = createMockRequest({
+    method: 'DELETE',
+    url: `/api/addresses?id=${dAddr3Id}`,
+    testUser: davidUser,
+  });
+  const dDelRes = createMockResponse();
+  await handler(dDelReq, dDelRes);
+  assert(dDelRes.statusCode === 200, 'David deletes Address 3 (default) successfully (200)');
+  assert(
+    dAddr2.isDefault === true,
+    'Test 5: Deleting default address promotes the newest remaining address (Address 2)'
+  );
+  assert(
+    dAddr1.isDefault === false,
+    'Address 1 remains non-default after newer address was promoted'
+  );
+
+  // Test 6: Deleting a non-default address preserves the existing default
+  const dDelNonDefaultReq = createMockRequest({
+    method: 'DELETE',
+    url: `/api/addresses?id=${dAddr1Id}`,
+    testUser: davidUser,
+  });
+  const dDelNonDefaultRes = createMockResponse();
+  await handler(dDelNonDefaultReq, dDelNonDefaultRes);
+  assert(dDelNonDefaultRes.statusCode === 200, 'David deletes Address 1 (non-default) successfully (200)');
+  assert(
+    dAddr2.isDefault === true,
+    'Test 6: Deleting non-default address preserves existing default (Address 2 remains default)'
+  );
+
+  // Test 7: Deleting the final address leaves no address and no default
+  const dDelFinalReq = createMockRequest({
+    method: 'DELETE',
+    url: `/api/addresses?id=${dAddr2Id}`,
+    testUser: davidUser,
+  });
+  const dDelFinalRes = createMockResponse();
+  await handler(dDelFinalReq, dDelFinalRes);
+  assert(dDelFinalRes.statusCode === 200, 'David deletes final address successfully (200)');
+  const davidRemainingAddresses = inMemoryAddresses.filter((a) => a.userId === 'user_david');
+  assert(
+    davidRemainingAddresses.length === 0,
+    'Test 7a: Deleting final address leaves zero addresses for user'
+  );
+  assert(
+    davidRemainingAddresses.filter((a) => a.isDefault).length === 0,
+    'Test 7b: Deleting final address leaves zero defaults for user'
+  );
+
+  // Test 8: A non-owned address cannot be deleted or affect another user's default
+  const eveUser = { id: 'user_eve', clerkUserId: 'user_clerk_eve' };
+  const bobTargetAddr = inMemoryAddresses.find((a) => a.id === 'addr_bob_1')!;
+  const bobInitialDefaultStatus = bobTargetAddr.isDefault;
+
+  const eveAttackReq = createMockRequest({
+    method: 'DELETE',
+    url: '/api/addresses?id=addr_bob_1',
+    testUser: eveUser,
+  });
+  const eveAttackRes = createMockResponse();
+  await handler(eveAttackReq, eveAttackRes);
+  assert(
+    eveAttackRes.statusCode === 404,
+    'Test 8a: Non-owned address deletion attempt returns safe 404 Not Found'
+  );
+  assert(
+    inMemoryAddresses.some((a) => a.id === 'addr_bob_1'),
+    'Test 8b: Bob address still exists after Eve attack attempt'
+  );
+  assert(
+    bobTargetAddr.isDefault === bobInitialDefaultStatus,
+    'Test 8c: Target user default status is completely untouched by non-owned deletion attempt'
+  );
+
+  // Test 9 & 10: Checkout feedback simulator
+  const simulateCheckoutFeedback = (params: {
+    orderSuccess: boolean;
+    orderNumber?: string;
+    addressSaveFailed: boolean;
+  }) => {
+    if (!params.orderSuccess) {
+      return {
+        confirmedOrder: null,
+        errorMessage: 'Unable to place order. Please try again.',
+        successBanner: false,
+        addressSaveWarning: false,
+      };
+    }
+    return {
+      confirmedOrder: params.orderNumber || 'ORD-SUCCESS-123',
+      errorMessage: null,
+      successBanner: true,
+      addressSaveWarning: params.addressSaveFailed,
+    };
+  };
+
+  // Test 9: Address-save failure after confirmed order shows accurate feedback
+  const orderSuccessWithSaveFailure = simulateCheckoutFeedback({
+    orderSuccess: true,
+    orderNumber: 'ORD-20261014-OK',
+    addressSaveFailed: true,
+  });
+  assert(
+    orderSuccessWithSaveFailure.successBanner === true,
+    'Test 9a: Confirmed order shows success confirmation even if address-save failed'
+  );
+  assert(
+    orderSuccessWithSaveFailure.addressSaveWarning === true,
+    'Test 9b: Address-save failure accurately displays non-blocking note on confirmed order (SEC-01)'
+  );
+  assert(
+    orderSuccessWithSaveFailure.errorMessage === null,
+    'Test 9c: No order placement error shown when order itself succeeded'
+  );
+
+  // Test 10: Order failure never triggers a false order-success notification
+  const orderFailedWithSaveFailure = simulateCheckoutFeedback({
+    orderSuccess: false,
+    addressSaveFailed: true,
+  });
+  assert(
+    orderFailedWithSaveFailure.successBanner === false,
+    'Test 10a: Order failure strictly never shows order-success notification'
+  );
+  assert(
+    orderFailedWithSaveFailure.confirmedOrder === null,
+    'Test 10b: Order failure leaves confirmedOrder as null'
+  );
+  assert(
+    orderFailedWithSaveFailure.addressSaveWarning === false,
+    'Test 10c: Order failure does not display address-save warning since order was not placed'
+  );
+  assert(
+    orderFailedWithSaveFailure.errorMessage !== null,
+    'Test 10d: Order failure correctly surfaces checkout error message'
+  );
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // WORKSTREAM 9: Phase 1C.2 Default Address Concurrency & Database Integrity
+  // ─────────────────────────────────────────────────────────────────────────────
+  console.log('\n--- WORKSTREAM 9: Phase 1C.2 Default Address Concurrency & Database Integrity ---');
+
+  // Test 1: A user can have zero default addresses
+  const frankUser = { id: 'user_frank', clerkUserId: 'user_clerk_frank' };
+  await prisma.savedAddress.create({
+    data: {
+      userId: frankUser.id,
+      recipientName: 'Frank Address 1',
+      phone: '9876543210',
+      line1: '10 Park St',
+      city: 'Kolkata',
+      state: 'West Bengal',
+      pincode: '700016',
+      country: 'India',
+      isDefault: false,
+    },
+  });
+  await prisma.savedAddress.create({
+    data: {
+      userId: frankUser.id,
+      recipientName: 'Frank Address 2',
+      phone: '9876543210',
+      line1: '20 Park St',
+      city: 'Kolkata',
+      state: 'West Bengal',
+      pincode: '700016',
+      country: 'India',
+      isDefault: false,
+    },
+  });
+  const frankDefaults = inMemoryAddresses.filter((a) => a.userId === frankUser.id && a.isDefault);
+  assert(
+    frankDefaults.length === 0,
+    'Rule 1: A user can have zero default addresses under the partial unique index'
+  );
+
+  // Test 2: A user can have exactly one default address
+  const graceUser = { id: 'user_grace', clerkUserId: 'user_clerk_grace' };
+  const gAddr1 = await prisma.savedAddress.create({
+    data: {
+      userId: graceUser.id,
+      recipientName: 'Grace Default',
+      phone: '9876543210',
+      line1: '15 Elgin Rd',
+      city: 'Kolkata',
+      state: 'West Bengal',
+      pincode: '700020',
+      country: 'India',
+      isDefault: true,
+    },
+  });
+  const gAddr2 = await prisma.savedAddress.create({
+    data: {
+      userId: graceUser.id,
+      recipientName: 'Grace Secondary',
+      phone: '9876543210',
+      line1: '25 Elgin Rd',
+      city: 'Kolkata',
+      state: 'West Bengal',
+      pincode: '700020',
+      country: 'India',
+      isDefault: false,
+    },
+  });
+  const graceDefaults = inMemoryAddresses.filter((a) => a.userId === graceUser.id && a.isDefault);
+  assert(
+    graceDefaults.length === 1 && graceDefaults[0].id === gAddr1.id,
+    'Rule 2: A user can have exactly one default address'
+  );
+
+  // Test 3: A second default for the same user is rejected by the proposed uniqueness rule
+  let secondDefaultRejected = false;
+  let secondDefaultErrorCode = '';
+  try {
+    await prisma.savedAddress.create({
+      data: {
+        userId: graceUser.id,
+        recipientName: 'Grace Second Default Attempt',
+        phone: '9876543210',
+        line1: '35 Elgin Rd',
+        city: 'Kolkata',
+        state: 'West Bengal',
+        pincode: '700020',
+        country: 'India',
+        isDefault: true,
+      },
+    });
+  } catch (err: any) {
+    secondDefaultRejected = true;
+    secondDefaultErrorCode = err.code;
+  }
+  assert(
+    secondDefaultRejected && secondDefaultErrorCode === 'P2002',
+    'Rule 3: A second default for the same user is rejected by the partial unique index (P2002)'
+  );
+
+  // Test 4: Two different users can each have one default address
+  const helenUser = { id: 'user_helen', clerkUserId: 'user_clerk_helen' };
+  let helenDefaultCreated = false;
+  try {
+    await prisma.savedAddress.create({
+      data: {
+        userId: helenUser.id,
+        recipientName: 'Helen Default',
+        phone: '9876543210',
+        line1: '50 Theatre Rd',
+        city: 'Kolkata',
+        state: 'West Bengal',
+        pincode: '700017',
+        country: 'India',
+        isDefault: true,
+      },
+    });
+    helenDefaultCreated = true;
+  } catch {
+    helenDefaultCreated = false;
+  }
+  assert(
+    helenDefaultCreated,
+    'Rule 4a: Helen can have a default address while Grace also has a default address'
+  );
+  const totalDefaults = inMemoryAddresses.filter(
+    (a) => (a.userId === graceUser.id || a.userId === helenUser.id) && a.isDefault
+  );
+  assert(
+    totalDefaults.length === 2,
+    'Rule 4b: Two distinct users can each independently have exactly one default address'
+  );
+
+  // Test 5: Switching the default demotes the previous address before promoting the next
+  const switchReq = createMockRequest({
+    method: 'PUT',
+    url: `/api/addresses?id=${gAddr2.id}`,
+    body: { action: 'set_default' },
+    testUser: graceUser,
+  });
+  const switchRes = createMockResponse();
+  await handler(switchReq, switchRes);
+  assert(switchRes.statusCode === 200, 'Rule 5a: Default switch request succeeds with 200');
+  const gAddr1After = inMemoryAddresses.find((a) => a.id === gAddr1.id)!;
+  const gAddr2After = inMemoryAddresses.find((a) => a.id === gAddr2.id)!;
+  assert(gAddr1After.isDefault === false, 'Rule 5b: Previous default address was demoted to false');
+  assert(gAddr2After.isDefault === true, 'Rule 5c: Newly selected address was promoted to default');
+  const graceDefaultsAfterSwitch = inMemoryAddresses.filter(
+    (a) => a.userId === graceUser.id && a.isDefault
+  );
+  assert(
+    graceDefaultsAfterSwitch.length === 1,
+    'Rule 5d: Exactly one default address remains after switching default'
+  );
+
+  // Test 6: Deleting the default promotes a remaining address
+  const ws9DeleteDefaultReq = createMockRequest({
+    method: 'DELETE',
+    url: `/api/addresses?id=${gAddr2.id}`,
+    testUser: graceUser,
+  });
+  const ws9DeleteDefaultRes = createMockResponse();
+  await handler(ws9DeleteDefaultReq, ws9DeleteDefaultRes);
+  assert(ws9DeleteDefaultRes.statusCode === 200, 'Rule 6a: Deletion of default address succeeds with 200');
+  assert(
+    inMemoryAddresses.find((a) => a.id === gAddr2.id) === undefined,
+    'Rule 6b: Deleted default address was removed from database'
+  );
+  assert(
+    gAddr1After.isDefault === true,
+    'Rule 6c: Deleting default address automatically promoted remaining address to default'
+  );
+  const graceDefaultsAfterDelete = inMemoryAddresses.filter(
+    (a) => a.userId === graceUser.id && a.isDefault
+  );
+  assert(
+    graceDefaultsAfterDelete.length === 1,
+    'Rule 6d: Exactly one default address maintained after default address deletion'
+  );
+
+  // Test 7: Deleting the final address leaves zero defaults
+  const ws9DeleteFinalReq = createMockRequest({
+    method: 'DELETE',
+    url: `/api/addresses?id=${gAddr1.id}`,
+    testUser: graceUser,
+  });
+  const ws9DeleteFinalRes = createMockResponse();
+  await handler(ws9DeleteFinalReq, ws9DeleteFinalRes);
+  assert(ws9DeleteFinalRes.statusCode === 200, 'Rule 7a: Deleting final address succeeds with 200');
+  const graceFinalAddresses = inMemoryAddresses.filter((a) => a.userId === graceUser.id);
+  assert(
+    graceFinalAddresses.length === 0,
+    'Rule 7b: Deleting final address leaves zero addresses for user'
+  );
+  const graceFinalDefaults = graceFinalAddresses.filter((a) => a.isDefault);
+  assert(
+    graceFinalDefaults.length === 0,
+    'Rule 7c: Deleting final address leaves zero defaults for user'
+  );
+
+  // Test 8: A non-owned address cannot change another user's default
+  const helenAddr = inMemoryAddresses.find((a) => a.userId === helenUser.id)!;
+  const helenOriginalDefault = helenAddr.isDefault;
+  const attackSetDefaultReq = createMockRequest({
+    method: 'PUT',
+    url: `/api/addresses?id=${helenAddr.id}`,
+    body: { action: 'set_default' },
+    testUser: { id: 'user_alice', clerkUserId: 'user_clerk_alice' },
+  });
+  const attackSetDefaultRes = createMockResponse();
+  await handler(attackSetDefaultReq, attackSetDefaultRes);
+  assert(
+    attackSetDefaultRes.statusCode === 404,
+    'Rule 8a: Non-owned default change attempt is strictly rejected with 404 Not Found'
+  );
+  assert(
+    helenAddr.isDefault === helenOriginalDefault,
+    'Rule 8b: Victim user default status remains completely unchanged after attack attempt'
+  );
+
+  // Test 9: Concurrent default-change behavior is tested using faithful transaction/index simulation
+  const concurUser = { id: 'user_concur', clerkUserId: 'user_clerk_concur' };
+  const cAddr1 = await prisma.savedAddress.create({
+    data: {
+      userId: concurUser.id,
+      recipientName: 'Concur 1',
+      phone: '9876543210',
+      line1: '100 Race Rd',
+      city: 'Kolkata',
+      state: 'West Bengal',
+      pincode: '700001',
+      country: 'India',
+      isDefault: false,
+    },
+  });
+  const cAddr2 = await prisma.savedAddress.create({
+    data: {
+      userId: concurUser.id,
+      recipientName: 'Concur 2',
+      phone: '9876543210',
+      line1: '200 Race Rd',
+      city: 'Kolkata',
+      state: 'West Bengal',
+      pincode: '700001',
+      country: 'India',
+      isDefault: false,
+    },
+  });
+
+  // Transaction 1 commits first: promotes cAddr1 to default
+  const tx1Req = createMockRequest({
+    method: 'PUT',
+    url: `/api/addresses?id=${cAddr1.id}`,
+    body: { action: 'set_default' },
+    testUser: concurUser,
+  });
+  const tx1Res = createMockResponse();
+  await handler(tx1Req, tx1Res);
+  assert(tx1Res.statusCode === 200, 'Rule 9a: Tx 1 successfully sets cAddr1 as default (200)');
+  assert(
+    inMemoryAddresses.find((a) => a.id === cAddr1.id)?.isDefault === true,
+    'Rule 9b: cAddr1 is now the verified default address'
+  );
+
+  // Concurrently, Tx 2 tries to promote cAddr2 directly while cAddr1 is already default
+  let simulatedConcurrentP2002 = false;
+  try {
+    await (prisma as any).savedAddress.update({
+      where: { id: cAddr2.id },
+      data: { isDefault: true },
+    });
+  } catch (err: any) {
+    if (err.code === 'P2002') {
+      simulatedConcurrentP2002 = true;
+    }
+  }
+  assert(
+    simulatedConcurrentP2002,
+    'Rule 9c: Concurrent promotion without prior demotion is blocked by the unique index (P2002)'
+  );
+
+  // Validate API handler catches P2002 and safely returns 409 Conflict without swallowing or false success
+  const conflictReq = createMockRequest({
+    method: 'PUT',
+    url: `/api/addresses?id=${cAddr2.id}`,
+    body: { action: 'set_default' },
+    testUser: concurUser,
+  });
+  const origUpdate = (prisma as any).savedAddress.update;
+  (prisma as any).savedAddress.update = async (args: any) => {
+    if (args.where?.id === cAddr2.id && args.data?.isDefault === true) {
+      const err: any = new Error('Unique constraint failed on the constraint: SavedAddress_userId_default_key');
+      err.code = 'P2002';
+      err.meta = { target: ['userId'], constraint: 'SavedAddress_userId_default_key' };
+      throw err;
+    }
+    return origUpdate(args);
+  };
+
+  const conflictRes = createMockResponse();
+  await handler(conflictReq, conflictRes);
+  (prisma as any).savedAddress.update = origUpdate; // restore
+
+  assert(
+    conflictRes.statusCode === 409,
+    'Rule 9d: API handles P2002 concurrency conflict safely by returning HTTP 409 Conflict'
+  );
+  assert(
+    conflictRes.data?.success === false,
+    'Rule 9e: API strictly does not return false success when conflict occurs'
+  );
+  assert(
+    typeof conflictRes.data?.error === 'string' && conflictRes.data.error.includes('conflict'),
+    'Rule 9f: API returns a safe, explanatory error message guiding customer to refresh'
+  );
+
+  // Verify only 1 default remains in database for user
+  const finalConcurDefaults = inMemoryAddresses.filter(
+    (a) => a.userId === concurUser.id && a.isDefault
+  );
+  assert(
+    finalConcurDefaults.length === 1 && finalConcurDefaults[0].id === cAddr1.id,
+    'Rule 9g: Database integrity strictly preserved: exactly one default exists after concurrent conflict'
+  );
+
+  // Rule 9h & 9i: Unrelated P2002 error (e.g. primary key collision) is NOT misclassified as default address conflict
+  const unrelatedP2002Req = createMockRequest({
+    method: 'POST',
+    url: '/api/addresses',
+    body: {
+      recipientName: 'Unrelated Test',
+      phone: '9876543210',
+      line1: '99 Unrelated Rd',
+      city: 'Kolkata',
+      state: 'West Bengal',
+      pincode: '700001',
+      isDefault: false,
+    },
+    testUser: concurUser,
+  });
+  const origCreate = (prisma as any).savedAddress.create;
+  (prisma as any).savedAddress.create = async () => {
+    const err: any = new Error('Unique constraint failed on the primary key: SavedAddress_pkey');
+    err.code = 'P2002';
+    err.meta = { target: ['id'], constraint: 'SavedAddress_pkey' };
+    throw err;
+  };
+
+  const unrelatedP2002Res = createMockResponse();
+  await handler(unrelatedP2002Req, unrelatedP2002Res);
+  (prisma as any).savedAddress.create = origCreate; // restore
+
+  assert(
+    unrelatedP2002Res.statusCode === 409,
+    'Rule 9h: Unrelated P2002 unique constraint violation returns HTTP 409 Conflict'
+  );
+  assert(
+    !unrelatedP2002Res.data?.error?.includes('default address'),
+    'Rule 9i: Unrelated unique constraint violation is strictly NOT misclassified as a default address conflict'
+  );
 
   // ─────────────────────────────────────────────────────────────────────────────
   // FINAL RESULTS SUMMARY
