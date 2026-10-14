@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ShoppingBag,
@@ -7,14 +7,12 @@ import {
   Minus,
   ArrowRight,
   ArrowLeft,
-  ShieldCheck,
   Tag,
   Check,
   Truck,
   Sparkles,
   Lock,
-  Gift,
-  HelpCircle,
+  ChevronDown,
   Loader2,
   AlertCircle,
   CheckCircle,
@@ -29,8 +27,10 @@ import { ProductCard } from '../components/products/ProductCard';
 import { loadRazorpayScript, openRazorpayCheckout } from '../lib/razorpay';
 import { verifyRazorpayPayment, reconcileRazorpayPayment } from '../services/orderApi';
 import { fetchSavedAddresses, createSavedAddress } from '../services/addressApi';
+import { fetchProducts } from '../services/productApi';
 import { PaymentMethodModal } from '../components/checkout/PaymentMethodModal';
 import type {
+  Product,
   PaymentMethod,
   RazorpayPaymentOrderResponse,
   RazorpayCheckoutOptions,
@@ -107,6 +107,9 @@ export const CartPage: React.FC = () => {
   const [appliedCoupon, setAppliedCoupon] = useState<CouponInfo | null>(null);
   const [couponError, setCouponError] = useState<string | null>(null);
   const [couponSuccess, setCouponSuccess] = useState<string | null>(null);
+
+  // Collapsible SAVE MORE Section State (collapsed by default)
+  const [isOffersExpanded, setIsOffersExpanded] = useState(false);
 
   // Payment Selection Modal State
   const [isPaymentMethodModalOpen, setIsPaymentMethodModalOpen] = useState(false);
@@ -789,8 +792,138 @@ export const CartPage: React.FC = () => {
     }
   };
 
-  // Curated recommended items if bag is empty or for cross-sell
-  const recommendedProducts = productsData.filter((p) => p.isBestSeller).slice(0, 4);
+  // Dynamic or fallback catalogue products
+  const [catalogueProducts, setCatalogueProducts] = useState<Product[]>(productsData);
+
+  useEffect(() => {
+    let isCancelled = false;
+    fetchProducts()
+      .then((prods) => {
+        if (!isCancelled && Array.isArray(prods) && prods.length > 0) {
+          setCatalogueProducts(prods);
+        }
+      })
+      .catch(() => {
+        // Fallback already pre-seeded with productsData
+      });
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
+
+  // Curated recommended items for order confirmation & empty cart states
+  const recommendedProducts = useMemo(() => {
+    return catalogueProducts.filter((p) => p.isBestSeller).slice(0, 4);
+  }, [catalogueProducts]);
+
+  // "Complete Your Look" recommendations for active cart
+  const completeLookProducts = useMemo(() => {
+    if (!catalogueProducts || catalogueProducts.length === 0) return [];
+
+    const isPurchasable = (p: Product) =>
+      p.availableStock !== undefined ? p.availableStock > 0 : p.inStock !== false;
+
+    // Filter down to active, purchasable products only
+    const purchasable = catalogueProducts.filter(isPurchasable);
+
+    // Exclude products already present in the user's cart
+    const cartProductIds = new Set(cart.map((item) => item.product.id));
+    const availablePool = purchasable.filter((p) => !cartProductIds.has(p.id));
+
+    if (availablePool.length === 0) return [];
+
+    // Collect categories and collection IDs currently in the cart
+    const cartCategories = new Set(
+      cart.map((item) => item.product.category?.toLowerCase()).filter(Boolean)
+    );
+    const cartCollections = new Set(
+      cart.map((item) => item.product.collectionId?.toLowerCase()).filter(Boolean)
+    );
+
+    // Complementary categories map for jewellery styling
+    const complementaryMap: Record<string, string[]> = {
+      necklaces: ['earrings', 'bracelets', 'rings', 'pendants'],
+      earrings: ['necklaces', 'bracelets', 'rings', 'chains'],
+      rings: ['bracelets', 'necklaces', 'earrings'],
+      bracelets: ['rings', 'necklaces', 'earrings'],
+      chains: ['pendants', 'bracelets', 'earrings', 'rings'],
+      pendants: ['chains', 'earrings', 'rings', 'bracelets'],
+    };
+
+    const targetComplementaryCategories = new Set<string>();
+    cartCategories.forEach((cat) => {
+      const complements = complementaryMap[cat as string];
+      if (complements) {
+        complements.forEach((c) => targetComplementaryCategories.add(c));
+      }
+    });
+
+    const exactCollectionComplements: Product[] = [];
+    const sameCollectionOtherItems: Product[] = [];
+    const otherComplementaryItems: Product[] = [];
+    const sameCategoryItems: Product[] = [];
+    const fallbackBestsellers: Product[] = [];
+    const remainingItems: Product[] = [];
+
+    const selectedIds = new Set<string>();
+
+    for (const p of availablePool) {
+      const pCat = p.category?.toLowerCase();
+      const pCol = p.collectionId?.toLowerCase();
+
+      const inSameCollection = pCol && cartCollections.has(pCol);
+      const isComplementaryCat = pCat && targetComplementaryCategories.has(pCat);
+      const isSameCat = pCat && cartCategories.has(pCat);
+
+      if (inSameCollection && isComplementaryCat) {
+        exactCollectionComplements.push(p);
+      } else if (inSameCollection) {
+        sameCollectionOtherItems.push(p);
+      } else if (isComplementaryCat) {
+        otherComplementaryItems.push(p);
+      } else if (isSameCat) {
+        sameCategoryItems.push(p);
+      } else if (p.isBestSeller) {
+        fallbackBestsellers.push(p);
+      } else {
+        remainingItems.push(p);
+      }
+    }
+
+    const result: Product[] = [];
+
+    const addProducts = (candidates: Product[]) => {
+      for (const p of candidates) {
+        if (result.length >= 4) break;
+        if (!selectedIds.has(p.id)) {
+          selectedIds.add(p.id);
+          result.push(p);
+        }
+      }
+    };
+
+    // Primary: related & complementary products
+    addProducts(exactCollectionComplements);
+    addProducts(sameCollectionOtherItems);
+    addProducts(otherComplementaryItems);
+    addProducts(sameCategoryItems);
+
+    // Fallback: Best-selling products from catalogue
+    if (result.length < 4) {
+      const bestsellersInPool = availablePool.filter(
+        (p) => p.isBestSeller && !selectedIds.has(p.id)
+      );
+      addProducts(bestsellersInPool);
+      addProducts(fallbackBestsellers);
+    }
+
+    // Final fallback if needed
+    if (result.length < 4) {
+      addProducts(remainingItems);
+    }
+
+    return result.slice(0, 4);
+  }, [cart, catalogueProducts]);
 
   return (
     <StorefrontLayout>
@@ -1135,7 +1268,7 @@ export const CartPage: React.FC = () => {
                   })}
 
                   {/* Bag Actions Footer */}
-                  <div className="px-6 py-4 bg-[#FAF7F2]/60 flex items-center justify-between flex-wrap gap-3">
+                  <div className="px-6 py-4 bg-[#FAF7F2]/60 flex items-center justify-between">
                     <button
                       type="button"
                       onClick={handleClearCart}
@@ -1144,14 +1277,6 @@ export const CartPage: React.FC = () => {
                       <Trash2 size={13} />
                       <span>Clear Entire Bag</span>
                     </button>
-
-                    <Link
-                      to="/shop"
-                      className="text-xs font-medium text-[#8C6C38] hover:text-[#211A17] transition-colors flex items-center gap-1"
-                    >
-                      <span>Add More Jewellery Pieces</span>
-                      <ArrowRight size={13} />
-                    </Link>
                   </div>
                 </div>
 
@@ -1489,26 +1614,33 @@ export const CartPage: React.FC = () => {
                   )}
                 </div>
 
-                {/* Assurance & Quality Pillars */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
-                  {[
-                    { title: '24K Micron Gold', subtitle: 'Long-lasting plating', icon: Sparkles },
-                    { title: '6-Month Guarantee', subtitle: 'Complimentary polish', icon: ShieldCheck },
-                    { title: 'Tamper-Proof Box', subtitle: 'Signature velvet vault', icon: Gift },
-                    { title: 'Pan-India Transit', subtitle: '100% Insured courier', icon: Truck },
-                  ].map(({ title, subtitle, icon: Icon }) => (
-                    <div
-                      key={title}
-                      className="p-3.5 rounded-xl bg-white border border-[#E8C98A]/25 flex items-start gap-3 shadow-2xs"
-                    >
-                      <Icon size={18} className="text-[#B08D57] flex-shrink-0 mt-0.5" />
+                {/* ── Complete Your Look Recommendations ── */}
+                {completeLookProducts.length > 0 && (
+                  <div className="pt-4 sm:pt-6 border-t border-[#E8C98A]/25">
+                    <div className="flex items-center justify-between mb-4 sm:mb-5">
                       <div>
-                        <h4 className="text-xs font-semibold text-[#211A17]">{title}</h4>
-                        <p className="text-[10px] text-[#8C6C38] font-light mt-0.5">{subtitle}</p>
+                        <span className="text-[10px] uppercase font-bold tracking-[0.2em] text-[#B08D57] block mb-0.5">
+                          Curated Pairings
+                        </span>
+                        <h3 className="font-serif text-xl sm:text-2xl text-[#211A17] font-medium">
+                          Complete Your Look
+                        </h3>
                       </div>
+                      <Link
+                        to="/shop"
+                        className="text-xs text-[#8C6C38] hover:text-[#211A17] font-medium transition-colors"
+                      >
+                        Explore More →
+                      </Link>
                     </div>
-                  ))}
-                </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3.5 sm:gap-4">
+                      {completeLookProducts.map((prod) => (
+                        <ProductCard key={prod.id} product={prod} />
+                      ))}
+                    </div>
+                  </div>
+                )}
 
               </div>
 
@@ -1572,17 +1704,6 @@ export const CartPage: React.FC = () => {
                           <span className="font-semibold font-mono">
                             {isFreeShipping ? 'FREE' : formatPrice(shippingFee)}
                           </span>
-                        </div>
-
-                        {/* Packaging */}
-                        <div className="flex justify-between text-[#211A17]">
-                          <span className="flex items-center gap-1">
-                            <span>Signature Velvet Unboxing Box</span>
-                            <span className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded-xs font-semibold">
-                              INCLUDED
-                            </span>
-                          </span>
-                          <span className="font-mono text-emerald-700 font-semibold">₹0</span>
                         </div>
                       </div>
 
@@ -1649,103 +1770,129 @@ export const CartPage: React.FC = () => {
 
                       {/* SAVE MORE Section */}
                       <div className="pt-1">
-                        <div className="flex items-center justify-between mb-2.5">
+                        <button
+                          type="button"
+                          onClick={() => setIsOffersExpanded((prev) => !prev)}
+                          aria-expanded={isOffersExpanded}
+                          aria-controls="cart-available-offers"
+                          className="w-full flex items-center justify-between py-2 px-2 -mx-2 rounded-xl text-left hover:bg-[#FAF7F2] active:bg-[#FAF0DC]/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#8C6C38]/60 transition-colors cursor-pointer group"
+                        >
                           <div className="flex items-center gap-1.5">
-                            <Sparkles size={13} className="text-[#8C6C38]" />
+                            <Sparkles size={13} className="text-[#8C6C38] group-hover:scale-110 transition-transform motion-reduce:transition-none" />
                             <span className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#211A17]">
                               SAVE MORE
                             </span>
                           </div>
-                          <span className="text-[10px] text-[#8C6C38]">Exclusive Atelier Offers</span>
-                        </div>
+                          <div className="flex items-center gap-1.5 text-[#8C6C38]">
+                            <span className="text-[10px] font-normal">Exclusive Atelier Offers</span>
+                            <ChevronDown
+                              size={14}
+                              className={`transition-transform duration-200 motion-reduce:transition-none ${
+                                isOffersExpanded ? 'rotate-180 text-[#211A17]' : 'text-[#8C6C38]'
+                              }`}
+                              aria-hidden="true"
+                            />
+                          </div>
+                        </button>
 
-                        {/* Offer Cards List */}
-                        <div className="space-y-2.5">
-                          {REGULAR_OFFERS.map((offer) => {
-                            const isApplied = appliedCoupon?.code === offer.code;
-                            const isLocked = offer.minOrder ? subtotal < offer.minOrder : false;
-                            const progress = offer.minOrder
-                              ? Math.min(100, Math.round((subtotal / offer.minOrder) * 100))
-                              : 100;
-                            const remaining = offer.minOrder ? Math.max(0, offer.minOrder - subtotal) : 0;
+                        {/* Collapsible Offers Container */}
+                        <div
+                          id="cart-available-offers"
+                          aria-hidden={!isOffersExpanded}
+                          className={`grid transition-[grid-template-rows] duration-200 ease-out motion-reduce:transition-none ${
+                            isOffersExpanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+                          }`}
+                        >
+                          <div className="overflow-hidden">
+                            {/* Offer Cards List */}
+                            <div className="space-y-2.5 pt-2.5 pb-0.5">
+                              {REGULAR_OFFERS.map((offer) => {
+                                const isApplied = appliedCoupon?.code === offer.code;
+                                const isLocked = offer.minOrder ? subtotal < offer.minOrder : false;
+                                const progress = offer.minOrder
+                                  ? Math.min(100, Math.round((subtotal / offer.minOrder) * 100))
+                                  : 100;
+                                const remaining = offer.minOrder ? Math.max(0, offer.minOrder - subtotal) : 0;
 
-                            return (
-                              <div
-                                key={offer.code}
-                                className={`rounded-xl p-3.5 transition-all duration-200 ${
-                                  isApplied
-                                    ? 'bg-[#FAF0DC]/80 border-2 border-[#8C6C38]/60 shadow-xs'
-                                    : isLocked
-                                    ? 'bg-[#FAF7F2]/70 border border-[#E8C98A]/30'
-                                    : 'bg-[#FAF7F2] border border-[#E8C98A]/50 hover:border-[#8C6C38]/60 hover:shadow-xs'
-                                }`}
-                              >
-                                <div className="flex items-start justify-between gap-3">
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <span className="font-mono text-xs font-bold text-[#211A17] tracking-wider">
-                                        {offer.code}
-                                      </span>
-                                      {isApplied && (
-                                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-md">
-                                          <Check size={11} />
-                                          Applied
-                                        </span>
-                                      )}
-                                    </div>
-                                    <p className="text-xs font-semibold text-[#211A17] mt-1">
-                                      {offer.title}
-                                    </p>
-
-                                    {/* Progress bar / threshold messaging for locked state */}
-                                    {isLocked && !isApplied && (
-                                      <div className="mt-2 space-y-1">
-                                        <p className="text-[11px] text-[#8C6C38] font-medium flex items-center gap-1">
-                                          <Lock size={11} className="shrink-0 text-[#8C6C38]" />
-                                          <span>Add {formatPrice(remaining)} more to unlock</span>
-                                        </p>
-                                        <div className="w-full bg-[#E8C98A]/20 h-1.5 rounded-full overflow-hidden">
-                                          <div
-                                            className="bg-[#8C6C38] h-full rounded-full transition-all duration-300"
-                                            style={{ width: `${progress}%` }}
-                                          />
+                                return (
+                                  <div
+                                    key={offer.code}
+                                    className={`rounded-xl p-3.5 transition-all duration-200 ${
+                                      isApplied
+                                        ? 'bg-[#FAF0DC]/80 border-2 border-[#8C6C38]/60 shadow-xs'
+                                        : isLocked
+                                        ? 'bg-[#FAF7F2]/70 border border-[#E8C98A]/30'
+                                        : 'bg-[#FAF7F2] border border-[#E8C98A]/50 hover:border-[#8C6C38]/60 hover:shadow-xs'
+                                    }`}
+                                  >
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <span className="font-mono text-xs font-bold text-[#211A17] tracking-wider">
+                                            {offer.code}
+                                          </span>
+                                          {isApplied && (
+                                            <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-md">
+                                              <Check size={11} />
+                                              Applied
+                                            </span>
+                                          )}
                                         </div>
-                                      </div>
-                                    )}
-                                  </div>
+                                        <p className="text-xs font-semibold text-[#211A17] mt-1">
+                                          {offer.title}
+                                        </p>
 
-                                  {/* Action Button */}
-                                  <div className="shrink-0 pt-0.5">
-                                    {isApplied ? (
-                                      <button
-                                        type="button"
-                                        onClick={handleRemoveCoupon}
-                                        className="text-xs font-semibold text-neutral-500 hover:text-red-700 transition-colors cursor-pointer px-2 py-1 rounded-md"
-                                      >
-                                        Remove
-                                      </button>
-                                    ) : isLocked ? (
-                                      <button
-                                        type="button"
-                                        onClick={() => handleApplyOffer(offer.code)}
-                                        className="text-[11px] font-medium text-[#8C6C38] hover:text-[#211A17] bg-[#FAF0DC]/50 hover:bg-[#FAF0DC] px-2.5 py-1.5 rounded-lg border border-[#E8C98A]/40 transition-colors cursor-pointer"
-                                      >
-                                        Details
-                                      </button>
-                                    ) : (
-                                      <button
-                                        type="button"
-                                        onClick={() => handleApplyOffer(offer.code)}
-                                        className="text-xs font-semibold text-[#FAF7F2] bg-[#211A17] hover:bg-[#3D0010] active:scale-[0.97] px-3 py-1.5 rounded-lg transition-all cursor-pointer shadow-xs"
-                                      >
-                                        Apply offer
-                                      </button>
-                                    )}
+                                        {/* Progress bar / threshold messaging for locked state */}
+                                        {isLocked && !isApplied && (
+                                          <div className="mt-2 space-y-1">
+                                            <p className="text-[11px] text-[#8C6C38] font-medium flex items-center gap-1">
+                                              <Lock size={11} className="shrink-0 text-[#8C6C38]" />
+                                              <span>Add {formatPrice(remaining)} more to unlock</span>
+                                            </p>
+                                            <div className="w-full bg-[#E8C98A]/20 h-1.5 rounded-full overflow-hidden">
+                                              <div
+                                                className="bg-[#8C6C38] h-full rounded-full transition-all duration-300"
+                                                style={{ width: `${progress}%` }}
+                                              />
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      {/* Action Button */}
+                                      <div className="shrink-0 pt-0.5">
+                                        {isApplied ? (
+                                          <button
+                                            type="button"
+                                            onClick={handleRemoveCoupon}
+                                            className="text-xs font-semibold text-neutral-500 hover:text-red-700 transition-colors cursor-pointer px-2 py-1 rounded-md"
+                                          >
+                                            Remove
+                                          </button>
+                                        ) : isLocked ? (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleApplyOffer(offer.code)}
+                                            className="text-[11px] font-medium text-[#8C6C38] hover:text-[#211A17] bg-[#FAF0DC]/50 hover:bg-[#FAF0DC] px-2.5 py-1.5 rounded-lg border border-[#E8C98A]/40 transition-colors cursor-pointer"
+                                          >
+                                            Details
+                                          </button>
+                                        ) : (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleApplyOffer(offer.code)}
+                                            className="text-xs font-semibold text-[#FAF7F2] bg-[#211A17] hover:bg-[#3D0010] active:scale-[0.97] px-3 py-1.5 rounded-lg transition-all cursor-pointer shadow-xs"
+                                          >
+                                            Apply offer
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
                                   </div>
-                                </div>
-                              </div>
-                            );
-                          })}
+                                );
+                              })}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1805,26 +1952,6 @@ export const CartPage: React.FC = () => {
                       )}
                     </button>
 
-                    {/* Trust Footnote */}
-                    <div className="mt-4 pt-4 border-t border-[#E8C98A]/20 flex items-center justify-center gap-2 text-[11px] text-[#8C6C38]">
-                      <ShieldCheck size={14} className="text-[#B08D57]" />
-                      <span>256-Bit SSL Encrypted Checkout • Pan-India COD</span>
-                    </div>
-
-                  </div>
-
-                  {/* Customer Concierge Note */}
-                  <div className="p-4 rounded-xl bg-[#FAF7F2] border border-[#E8C98A]/25 text-xs text-[#8C6C38] flex items-start gap-2.5">
-                    <HelpCircle size={16} className="text-[#B08D57] flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="font-semibold text-[#211A17]">Need assistance with your order?</p>
-                      <p className="text-[11px] mt-0.5">
-                        Our atelier jewellery concierge is available daily for size queries and styling guidance.
-                      </p>
-                      <Link to="/contact" className="text-[#B08D57] hover:underline font-medium text-[11px] inline-block mt-1">
-                        Contact Concierge →
-                      </Link>
-                    </div>
                   </div>
 
                 </div>
