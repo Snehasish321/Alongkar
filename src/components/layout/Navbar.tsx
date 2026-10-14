@@ -1,9 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Search, ShoppingBag, Menu, User, Heart, ChevronDown, ArrowRight } from 'reicon-react';
+import { Search, ShoppingBag, Menu, User, ChevronDown, ArrowRight } from 'reicon-react';
 import { useScrollPosition } from '../../hooks/useScrollPosition';
 import { useCart } from '../../context/CartContext';
-import { useWishlist } from '../../context/WishlistContext';
 import { SignInButton, Show } from '@clerk/react';
 import { CustomerMenu } from './CustomerMenu';
 
@@ -16,7 +15,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenMobileMenu }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { totalItems } = useCart();
-  const { wishlist } = useWishlist();
 
   const handleSearchClick = () => navigate('/search');
 
@@ -211,7 +209,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenMobileMenu }) => {
             </Link>
           </div>
 
-          {/* Desktop Right: Actions (Search, Wishlist, Account, Cart) */}
+          {/* Desktop Right: Actions (Search, Account, Cart) */}
           <div className="hidden lg:flex items-center justify-end gap-5 xl:gap-6 flex-1">
             {/* Search Trigger */}
             <button
@@ -221,20 +219,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenMobileMenu }) => {
             >
               <Search size={19} strokeWidth={1.8} />
             </button>
-
-            {/* Wishlist Link */}
-            <Link
-              to="/wishlist"
-              className="relative p-2 text-[#F8F1E3]/90 hover:text-[#E8C98A] transition-colors rounded-full hover:bg-white/10 cursor-pointer"
-              aria-label="View Wishlist"
-            >
-              <Heart size={19} strokeWidth={1.8} />
-              {wishlist.length > 0 && (
-                <span className="absolute top-0.5 right-0.5 bg-[#E8C98A] text-[#2A0008] text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-xs">
-                  {wishlist.length}
-                </span>
-              )}
-            </Link>
 
             {/* Clerk Authentication / Profile Button */}
             <div className="flex items-center">
@@ -268,20 +252,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenMobileMenu }) => {
             </Link>
           </div>
 
-          {/* Mobile Right: Wishlist & Cart */}
+          {/* Mobile Right: Cart */}
           <div className="flex items-center justify-end lg:hidden gap-1.5 flex-1">
-            <Link
-              to="/wishlist"
-              className="relative p-2 text-[#F8F1E3] hover:text-[#E8C98A] cursor-pointer"
-              aria-label="View Wishlist"
-            >
-              <Heart size={20} strokeWidth={1.8} />
-              {wishlist.length > 0 && (
-                <span className="absolute top-0.5 right-0.5 bg-[#E8C98A] text-[#2A0008] text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center shadow-xs">
-                  {wishlist.length}
-                </span>
-              )}
-            </Link>
             <Link
               to="/cart"
               className="relative p-2 text-[#F8F1E3] hover:text-[#E8C98A] cursor-pointer"
