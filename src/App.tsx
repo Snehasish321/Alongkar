@@ -9,9 +9,6 @@ const ShopPage = lazy(() => import('./pages/ShopPage').then((m) => ({ default: m
 const ProductDetailPage = lazy(() =>
   import('./pages/ProductDetailPage').then((m) => ({ default: m.ProductDetailPage }))
 );
-const CollectionsPage = lazy(() =>
-  import('./pages/CollectionsPage').then((m) => ({ default: m.CollectionsPage }))
-);
 const AboutPage = lazy(() => import('./pages/AboutPage').then((m) => ({ default: m.AboutPage })));
 const ContactPage = lazy(() =>
   import('./pages/ContactPage').then((m) => ({ default: m.ContactPage }))
@@ -109,8 +106,8 @@ export const AppContent: React.FC = () => {
           <Route path="/" element={<HomePage />} />
           <Route path="/shop" element={<ShopPage />} />
           <Route path="/product/:slug" element={<ProductDetailPage />} />
-          <Route path="/categories" element={<CollectionsPage />} />
-          <Route path="/collections" element={<CollectionsPage />} />
+          <Route path="/categories" element={<Navigate to="/shop" replace />} />
+          <Route path="/collections" element={<Navigate to="/shop" replace />} />
           <Route path="/search" element={<SearchPage />} />
           <Route path="/cart" element={<CartPage />} />
           <Route path="/wishlist" element={<WishlistPage />} />

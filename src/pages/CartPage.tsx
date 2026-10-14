@@ -832,12 +832,9 @@ export const CartPage: React.FC = () => {
 
     if (availablePool.length === 0) return [];
 
-    // Collect categories and collection IDs currently in the cart
+    // Collect categories currently in the cart
     const cartCategories = new Set(
       cart.map((item) => item.product.category?.toLowerCase()).filter(Boolean)
-    );
-    const cartCollections = new Set(
-      cart.map((item) => item.product.collectionId?.toLowerCase()).filter(Boolean)
     );
 
     // Complementary categories map for jewellery styling
@@ -858,9 +855,7 @@ export const CartPage: React.FC = () => {
       }
     });
 
-    const exactCollectionComplements: Product[] = [];
-    const sameCollectionOtherItems: Product[] = [];
-    const otherComplementaryItems: Product[] = [];
+    const complementaryItems: Product[] = [];
     const sameCategoryItems: Product[] = [];
     const fallbackBestsellers: Product[] = [];
     const remainingItems: Product[] = [];
@@ -869,18 +864,12 @@ export const CartPage: React.FC = () => {
 
     for (const p of availablePool) {
       const pCat = p.category?.toLowerCase();
-      const pCol = p.collectionId?.toLowerCase();
 
-      const inSameCollection = pCol && cartCollections.has(pCol);
       const isComplementaryCat = pCat && targetComplementaryCategories.has(pCat);
       const isSameCat = pCat && cartCategories.has(pCat);
 
-      if (inSameCollection && isComplementaryCat) {
-        exactCollectionComplements.push(p);
-      } else if (inSameCollection) {
-        sameCollectionOtherItems.push(p);
-      } else if (isComplementaryCat) {
-        otherComplementaryItems.push(p);
+      if (isComplementaryCat) {
+        complementaryItems.push(p);
       } else if (isSameCat) {
         sameCategoryItems.push(p);
       } else if (p.isBestSeller) {
@@ -903,9 +892,7 @@ export const CartPage: React.FC = () => {
     };
 
     // Primary: related & complementary products
-    addProducts(exactCollectionComplements);
-    addProducts(sameCollectionOtherItems);
-    addProducts(otherComplementaryItems);
+    addProducts(complementaryItems);
     addProducts(sameCategoryItems);
 
     // Fallback: Best-selling products from catalogue

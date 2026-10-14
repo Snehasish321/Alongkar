@@ -62,8 +62,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenMobileMenu }) => {
     { name: 'Medallion Pendants', path: '/shop?category=pendants' },
   ];
 
-  const isShopActive = location.pathname === '/shop' || location.pathname === '/categories';
-  const isCollectionsActive = location.pathname === '/collections';
+  const isShopActive = location.pathname === '/shop';
   const isBestSellersActive = location.pathname === '/best-sellers';
   const isRequestActive = location.pathname === '/request-jewellery';
 
@@ -152,30 +151,10 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenMobileMenu }) => {
                       ))}
                     </div>
 
-                    {/* Explore Collections Link */}
-                    <div className="border-t border-white/10 mt-2 pt-2">
-                      <Link
-                        to="/categories"
-                        onClick={() => setIsShopDropdownOpen(false)}
-                        className="block px-3 py-1.5 text-[11px] text-[#E8C98A] hover:underline font-medium"
-                      >
-                        Explore Category Showcase →
-                      </Link>
-                    </div>
                   </div>
                 </div>
               )}
             </div>
-
-            {/* Collections Link */}
-            <Link
-              to="/collections"
-              className={`text-[13px] xl:text-[13.5px] font-medium tracking-[0.03em] transition-colors py-1 ${
-                isCollectionsActive ? 'text-[#E8C98A] font-semibold' : 'text-[#F8F1E3]/90 hover:text-[#E8C98A]'
-              }`}
-            >
-              Collections
-            </Link>
 
             {/* Best Sellers Link */}
             <Link

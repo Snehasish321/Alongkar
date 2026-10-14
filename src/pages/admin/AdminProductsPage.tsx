@@ -366,7 +366,7 @@ export const AdminProductsPage: React.FC = () => {
             <thead className="bg-[#180F20] text-[11px] uppercase tracking-wider text-[#D6B878] font-bold border-b border-white/10">
               <tr>
                 <th className="py-3.5 px-4">Masterwork</th>
-                <th className="py-3.5 px-4">Category / Style</th>
+                <th className="py-3.5 px-4">Category</th>
                 <th className="py-3.5 px-4">Price</th>
                 <th className="py-3.5 px-4">Available Stock</th>
                 <th className="py-3.5 px-4">Highlights</th>
@@ -429,16 +429,11 @@ export const AdminProductsPage: React.FC = () => {
                       </div>
                     </td>
 
-                    {/* Category & Collection */}
+                    {/* Category */}
                     <td className="py-3.5 px-4">
                       <span className="inline-block px-2.5 py-0.5 rounded-md bg-white/5 border border-white/10 text-[11px] font-medium capitalize text-white">
                         {product.category}
                       </span>
-                      {product.collectionId && (
-                        <p className="text-[10px] text-[#D6B878]/80 font-serif italic mt-0.5">
-                          {product.collectionId.replace(/-/g, ' ')}
-                        </p>
-                      )}
                     </td>
 
                     {/* Pricing */}

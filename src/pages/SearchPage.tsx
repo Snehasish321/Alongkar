@@ -51,12 +51,11 @@ function scoreProduct(product: Product, query: string): number {
   const category = product.category.toLowerCase();
   const description = (product.description || '').toLowerCase();
   const slug = (product.slug || '').toLowerCase();
-  const collection = (product.collectionId || '').toLowerCase().replace(/-/g, ' ');
   const stone = (product.details?.stoneType || product.stoneType || '').toLowerCase();
   const finish = (product.details?.finish || product.finish || '').toLowerCase();
   const baseMaterial = (product.details?.baseMaterial || product.baseMaterial || '').toLowerCase();
 
-  const searchableText = `${name} ${category} ${description} ${slug} ${collection} ${stone} ${finish} ${baseMaterial}`;
+  const searchableText = `${name} ${category} ${description} ${slug} ${stone} ${finish} ${baseMaterial}`;
 
   let totalScore = 0;
   let tokensMatched = 0;
@@ -71,7 +70,6 @@ function scoreProduct(product: Product, query: string): number {
     if (category.includes(token)) tokenScore += 12;
     if (stone.includes(token)) tokenScore += 10;
     if (finish.includes(token)) tokenScore += 8;
-    if (collection.includes(token)) tokenScore += 6;
     if (slug.includes(token)) tokenScore += 6;
     if (description.includes(token)) tokenScore += 4;
     if (baseMaterial.includes(token)) tokenScore += 4;

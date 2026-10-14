@@ -33,15 +33,15 @@ async function runPhase1BCacheTests() {
   try {
     // ─── 1. Deterministic Cache Key Normalization Tests ─────────────────────────
     console.log('--- 1. Deterministic Cache Key Generation ---');
-    const key1 = CacheKey.productsList('Necklaces', 'Summer');
-    const key2 = CacheKey.productsList('necklaces  ', '  summer');
+    const key1 = CacheKey.productsList('Necklaces');
+    const key2 = CacheKey.productsList('necklaces  ');
     assert(key1 === key2, 'Listing key is casing and whitespace invariant');
-    assert(key1 === 'products:list:necklaces:summer', 'Listing key format matches canonical structure');
+    assert(key1 === 'products:list:necklaces', 'Listing key format matches canonical structure');
 
-    const keyEmptyCat = CacheKey.productsList(undefined, undefined);
-    const keyAllCat = CacheKey.productsList('all', 'all');
-    const keyEmptyStr = CacheKey.productsList('', '');
-    assert(keyEmptyCat === 'products:list:all:all', 'Default listing key resolves to "products:list:all:all"');
+    const keyEmptyCat = CacheKey.productsList(undefined);
+    const keyAllCat = CacheKey.productsList('all');
+    const keyEmptyStr = CacheKey.productsList('');
+    assert(keyEmptyCat === 'products:list:all', 'Default listing key resolves to "products:list:all"');
     assert(keyEmptyCat === keyAllCat, 'Undefined filter produces identical key to "all"');
     assert(keyEmptyCat === keyEmptyStr, 'Empty string filter produces identical key to "all"');
 
@@ -56,8 +56,8 @@ async function runPhase1BCacheTests() {
     assert(slugKey1 === slugKey2, 'Slug key is casing and whitespace invariant');
 
     // Different filters must produce distinct keys
-    const diffKey1 = CacheKey.productsList('necklaces', 'all');
-    const diffKey2 = CacheKey.productsList('earrings', 'all');
+    const diffKey1 = CacheKey.productsList('necklaces');
+    const diffKey2 = CacheKey.productsList('earrings');
     assert(diffKey1 !== diffKey2, 'Different categories produce distinct cache keys');
 
     // ─── 2. Cache Read, Write and TTL Behavior ─────────────────────────────────
@@ -126,7 +126,7 @@ async function runPhase1BCacheTests() {
 
     const prodIdKey = CacheKey.productId(createdProd.id);
     const prodSlugKey = CacheKey.productSlug(createdProd.slug);
-    const listKey = CacheKey.productsList('necklaces', 'all');
+    const listKey = CacheKey.productsList('necklaces');
 
     // Pre-populate cache
     await cacheSet(prodIdKey, createdProd, TTL.PRODUCT_ONE);

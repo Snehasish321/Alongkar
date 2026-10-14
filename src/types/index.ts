@@ -3,7 +3,6 @@ export interface Product {
   name: string;
   slug: string;
   category: 'earrings' | 'necklaces' | 'rings' | 'bracelets' | 'chains' | 'pendants' | string;
-  collectionId?: 'everyday-elegance' | 'festive-glow' | 'the-minimalist' | 'statement' | string | null;
   price: number;
   originalPrice: number;
   discountPercent: number;
@@ -38,16 +37,6 @@ export interface Category {
   image: string;
   itemCount: number;
   description: string;
-}
-
-export interface Collection {
-  id: string;
-  name: string;
-  slug: string;
-  tagline: string;
-  description: string;
-  image: string;
-  featuredProductsCount: number;
 }
 
 export interface Review {

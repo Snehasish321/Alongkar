@@ -48,7 +48,6 @@ function scoreProduct(p: Product, q: string): number {
   if (p.category.toLowerCase().includes(lq)) score += 6;
   if (p.description.toLowerCase().includes(lq)) score += 3;
   if (p.slug?.toLowerCase().includes(lq)) score += 4;
-  if (p.collectionId?.toLowerCase().replace(/-/g, ' ').includes(lq)) score += 3;
   if (p.details?.stoneType?.toLowerCase().includes(lq)) score += 4;
   if (p.details?.finish?.toLowerCase().includes(lq)) score += 2;
   if (p.details?.baseMaterial?.toLowerCase().includes(lq)) score += 2;
