@@ -334,13 +334,6 @@ export const AddressesPage: React.FC = () => {
             </div>
           )}
 
-          {error && (
-            <div className="mt-6 p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 flex items-center gap-3 animate-in fade-in duration-200">
-              <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
-              <span className="text-sm font-medium">{error}</span>
-            </div>
-          )}
-
           {/* Main Content Area */}
           <div className="mt-8">
             {isLoading ? (
@@ -349,6 +342,25 @@ export const AddressesPage: React.FC = () => {
                 <p className="text-xs font-serif uppercase tracking-widest text-[#666666]">
                   Fetching addresses from your secure account...
                 </p>
+              </div>
+            ) : error ? (
+              <div className="py-16 px-6 rounded-2xl bg-white border border-red-200/80 shadow-sm text-center max-w-lg mx-auto">
+                <div className="w-16 h-16 rounded-full bg-red-50 border border-red-200 flex items-center justify-center mx-auto mb-4 text-red-600">
+                  <AlertCircle className="w-8 h-8" />
+                </div>
+                <h2 className="font-serif text-xl font-bold text-[#1A1A1A] mb-2">
+                  Unable to Load Addresses
+                </h2>
+                <p className="text-sm text-[#666666] leading-relaxed mb-6">
+                  {error}
+                </p>
+                <Button
+                  variant="outline"
+                  onClick={loadAddresses}
+                  className="cursor-pointer border-[#8C6C38] text-[#8C6C38] hover:bg-[#FAF7F2]"
+                >
+                  Try Again
+                </Button>
               </div>
             ) : addresses.length === 0 ? (
               <div className="py-20 px-6 rounded-2xl bg-white border border-[#E8C98A]/20 shadow-sm text-center max-w-lg mx-auto">
