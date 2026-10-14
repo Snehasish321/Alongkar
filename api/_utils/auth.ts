@@ -208,21 +208,50 @@ export async function createWebRequest(req: any, bodyData?: any): Promise<Reques
   });
 }
 
-const DEFAULT_SECURITY_HEADERS: Record<string, string> = {
+export const DEFAULT_PRIVATE_NO_STORE_HEADERS: Record<string, string> = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+  Pragma: 'no-cache',
+  Expires: '0',
+  'Surrogate-Control': 'no-store',
+};
+
+export const DEFAULT_SECURITY_HEADERS: Record<string, string> = {
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'DENY',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
+  ...DEFAULT_PRIVATE_NO_STORE_HEADERS,
 };
 
 /**
  * Unified response sender supporting Vercel functions, Node HTTP (Vite dev server), and Web Response.
  * Automatically injects standard security headers to prevent MIME confusion, clickjacking, and referrer leakage,
- * as well as X-Request-ID correlation tracking headers.
+ * as well as X-Request-ID correlation tracking headers and default no-store cache controls for PII protection.
  */
 export function respond(res: any, status: number, data: any, headers?: Record<string, string>) {
+  const customHeaders = headers || {};
+
+  // Check if caller explicitly provided an intentional Cache-Control override (e.g. for public product catalog)
+  const explicitCacheControlKey = Object.keys(customHeaders).find(
+    (k) => k.toLowerCase() === 'cache-control'
+  );
+
+  let baseHeaders: Record<string, string>;
+  if (explicitCacheControlKey) {
+    // Narrowly-scoped explicit cache override: preserve standard security headers (nosniff, DENY, strict-origin)
+    // but avoid conflicting private no-store headers.
+    baseHeaders = {
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'DENY',
+      'Referrer-Policy': 'strict-origin-when-cross-origin',
+    };
+  } else {
+    // Centrally enforce no-store and private response headers for all authenticated / PII / API responses
+    baseHeaders = { ...DEFAULT_SECURITY_HEADERS };
+  }
+
   const mergedHeaders: Record<string, string> = {
-    ...DEFAULT_SECURITY_HEADERS,
-    ...(headers || {}),
+    ...baseHeaders,
+    ...customHeaders,
   };
 
   const reqId =
