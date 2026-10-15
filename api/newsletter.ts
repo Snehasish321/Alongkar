@@ -336,7 +336,11 @@ export default async function handler(req: any, res: any) {
             'update welcomeEmailStatus to SENDING'
           );
 
-          const sendResult = await sendWelcomeEmail(normalizedEmail);
+          const sendResult = await sendWelcomeEmail(
+            normalizedEmail,
+            undefined,
+            subscriberRecord.id
+          );
 
           if (sendResult.providerAccepted) {
             await withTimeout(

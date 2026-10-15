@@ -1,4 +1,6 @@
-import { logServerError, logSecurityEvent } from './security.js';
+import { logServerError } from './security.js';
+
+import { generateUnsubscribeUrls } from './unsubscribeToken.js';
 
 export interface BrevoEmailRecipient {
   email: string;
@@ -46,10 +48,13 @@ export function isBrevoEmailSendingEnabled(): boolean {
  * 2. Disabled by default via `isBrevoEmailSendingEnabled()`.
  * 3. Records provider acceptance (`messageId`), distinguishing it from delivery.
  * 4. Never throws unhandled errors that could break the subscription response.
+ * 5. Injects secure, tokenized unsubscribe link and List-Unsubscribe headers.
  */
 export async function sendWelcomeEmail(
   subscriberEmail: string,
-  subscriberName?: string
+  subscriberName?: string,
+  subscriberId?: string,
+  customUnsubscribeUrl?: string
 ): Promise<BrevoSendResult> {
   const apiKey = process.env.BREVO_API_KEY?.trim();
   const senderEmail = process.env.BREVO_SENDER_EMAIL?.trim() || 'concierge@alongkar.in';
@@ -61,6 +66,23 @@ export async function sendWelcomeEmail(
       providerAccepted: false,
       skippedReason: 'Brevo sending disabled or unconfigured in environment',
     };
+  }
+
+  let pageUnsubscribeUrl: string;
+  let apiUnsubscribeUrl: string;
+
+  if (customUnsubscribeUrl) {
+    pageUnsubscribeUrl = customUnsubscribeUrl;
+    apiUnsubscribeUrl = customUnsubscribeUrl.includes('/api/unsubscribe')
+      ? customUnsubscribeUrl
+      : customUnsubscribeUrl.replace('/unsubscribe?', '/api/unsubscribe?');
+  } else if (subscriberId) {
+    const urls = generateUnsubscribeUrls({ id: subscriberId, email: subscriberEmail });
+    pageUnsubscribeUrl = urls.pageUrl;
+    apiUnsubscribeUrl = urls.apiUrl;
+  } else {
+    pageUnsubscribeUrl = 'https://alongkar.in/unsubscribe';
+    apiUnsubscribeUrl = 'https://alongkar.in/api/unsubscribe';
   }
 
   const endpoint = 'https://api.brevo.com/v3/smtp/email';
@@ -76,6 +98,10 @@ export async function sendWelcomeEmail(
         ...(subscriberName ? { name: subscriberName } : {}),
       },
     ],
+    headers: {
+      'List-Unsubscribe': `<${apiUnsubscribeUrl}>`,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    },
     subject: 'Welcome to the Alongkar VIP Circle — Haute Joaillerie',
     htmlContent: `
       <!DOCTYPE html>
@@ -105,13 +131,16 @@ export async function sendWelcomeEmail(
             </div>
             <div class="footer">
               <p>You received this email because you subscribed at alongkar.in with explicit consent.</p>
+              <p style="margin: 8px 0;">
+                If you no longer wish to receive Alongkar Circle emails, you may <a href="${pageUnsubscribeUrl}" style="color: #9C7A28; text-decoration: underline;">unsubscribe here</a>.
+              </p>
               <p>Alongkar · Saradapally, Rampurhat, Birbhum, West Bengal 731224, India</p>
             </div>
           </div>
         </body>
       </html>
     `,
-    textContent: `Welcome to the VIP Alongkar Circle.\n\nYou are now part of our private clientele, granting you early access to preview our limited-edition 24K micron city-gold masterworks and atelier drops.\n\nExplore our creations at https://alongkar.in\n\nWarmest regards,\nThe Alongkar Atelier Concierge`,
+    textContent: `Welcome to the VIP Alongkar Circle.\n\nYou are now part of our private clientele, granting you early access to preview our limited-edition 24K micron city-gold masterworks and atelier drops.\n\nExplore our creations at https://alongkar.in\n\nTo unsubscribe from Alongkar Circle emails, visit: ${pageUnsubscribeUrl}\n\nWarmest regards,\nThe Alongkar Atelier Concierge`,
   };
 
   try {
