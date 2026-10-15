@@ -62,10 +62,10 @@ async function runTests() {
   try {
     // ─── 1. Cache Key Determinism with Filter Options ──────────────────────────
     console.log('--- 1. Cache Key Determinism with Filters & Pagination ---');
-    const key1 = CacheKey.productsList({ category: 'Earrings', collectionId: 'all' });
-    const key2 = CacheKey.productsList('Earrings', 'all');
+    const key1 = CacheKey.productsList({ category: 'Earrings' });
+    const key2 = CacheKey.productsList('Earrings');
     assert(key1 === key2, 'Object-based and argument-based productsList keys match for standard category');
-    assert(key1 === 'products:list:earrings:all', 'Canonical format is products:list:earrings:all');
+    assert(key1 === 'products:list:earrings', 'Canonical format is products:list:earrings');
 
     const keySearch1 = CacheKey.productsList({ category: 'Rings', search: 'gold', sortBy: 'price-asc', page: 1, limit: 10 });
     const keySearch2 = CacheKey.productsList({ category: 'rings ', search: ' GOLD ', sortBy: 'PRICE-ASC', page: '1', limit: '10' });

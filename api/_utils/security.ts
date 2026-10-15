@@ -4,7 +4,6 @@ import { getRedisClient } from './cache.js';
 export const MAX_JSON_BODY_BYTES = 1024 * 1024; // 1 MB
 export const MAX_SEARCH_LENGTH = 100;
 export const MAX_CATEGORY_LENGTH = 50;
-export const MAX_COLLECTION_LENGTH = 50;
 export const MAX_STRING_FIELD_LENGTH = 200;
 export const MAX_DESCRIPTION_LENGTH = 5000;
 export const MAX_IMAGE_URL_LENGTH = 1000;

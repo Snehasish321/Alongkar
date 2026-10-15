@@ -136,7 +136,6 @@ async function runPhase6Tests() {
       name: 'Swarna Mayura Royal Peacock Choker Set',
       slug: testSlug,
       category: 'necklaces',
-      collectionId: 'festive-glow',
       price: 3499,
       originalPrice: 5999,
       discountPercent: 42,

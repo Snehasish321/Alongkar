@@ -43,7 +43,7 @@ export const HomePage: React.FC = () => {
   const statementProducts = useMemo(() => {
     if (products.length === 0) return [];
     const filtered = products.filter(
-      (p) => p.collectionId === 'statement' || p.category?.toLowerCase() === 'necklaces'
+      (p) => p.category?.toLowerCase() === 'necklaces'
     );
     return (filtered.length >= 4 ? filtered : products.slice(4, 8)).slice(0, 4);
   }, [products]);

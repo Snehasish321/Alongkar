@@ -51,7 +51,6 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
     { name: 'Bangles & Bracelets', path: '/shop?category=bracelets' },
     { name: 'Artisan Chains', path: '/shop?category=chains' },
     { name: 'Medallion Pendants', path: '/shop?category=pendants' },
-    { name: 'Explore All Categories', path: '/categories' },
   ];
 
   const secondaryLinks = [
@@ -208,20 +207,6 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
                   }`}
                 >
                   <span>Best Sellers</span>
-                  <ChevronRight size={15} className="text-[#E8C98A]/60" />
-                </Link>
-
-                {/* 4. Collections */}
-                <Link
-                  to="/collections"
-                  onClick={onClose}
-                  className={`flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium tracking-wide transition-colors ${
-                    location.pathname === '/collections'
-                      ? 'bg-white/10 text-[#E8C98A] font-semibold'
-                      : 'text-[#F8F1E3]/90 hover:bg-white/5 hover:text-[#E8C98A]'
-                  }`}
-                >
-                  <span>Collections</span>
                   <ChevronRight size={15} className="text-[#E8C98A]/60" />
                 </Link>
 

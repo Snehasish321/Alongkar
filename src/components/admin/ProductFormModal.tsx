@@ -22,14 +22,6 @@ const CATEGORIES = [
   { value: 'pendants', label: 'Pendants' },
 ];
 
-const COLLECTIONS = [
-  { value: '', label: 'None (Standard)' },
-  { value: 'everyday-elegance', label: 'Everyday Elegance' },
-  { value: 'festive-glow', label: 'Festive Glow' },
-  { value: 'the-minimalist', label: 'The Minimalist' },
-  { value: 'statement', label: 'Statement Masterworks' },
-];
-
 function generateSlug(text: string): string {
   return text
     .toLowerCase()
@@ -52,7 +44,6 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
     name: '',
     slug: '',
     category: 'bracelets',
-    collectionId: '',
     price: 999,
     originalPrice: 1899,
     discountPercent: 47,
@@ -87,7 +78,6 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
         name: initialProduct.name || '',
         slug: initialProduct.slug || '',
         category: initialProduct.category || 'bracelets',
-        collectionId: initialProduct.collectionId || '',
         price: initialProduct.price ?? 999,
         originalPrice: initialProduct.originalPrice ?? 1899,
         discountPercent: initialProduct.discountPercent ?? 0,
@@ -112,7 +102,6 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
         name: '',
         slug: '',
         category: 'bracelets',
-        collectionId: '',
         price: 999,
         originalPrice: 1899,
         discountPercent: 47,
@@ -203,7 +192,6 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
       name: formData.name.trim(),
       slug: formData.slug.trim(),
       category: formData.category,
-      collectionId: formData.collectionId ? formData.collectionId : null,
       price: Number(formData.price),
       originalPrice: Number(formData.originalPrice),
       discountPercent: Number(formData.discountPercent),
@@ -329,40 +317,21 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[#EDE4D5]/90 font-medium mb-1.5">
-                  Category <span className="text-red-400">*</span>
-                </label>
-                <select
-                  value={formData.category}
-                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-black/40 border border-white/15 focus:outline-none focus:border-[#D6B878] text-white"
-                >
-                  {CATEGORIES.map((c) => (
-                    <option key={c.value} value={c.value} className="bg-[#180F20]">
-                      {c.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-[#EDE4D5]/90 font-medium mb-1.5">
-                  Collection (Optional)
-                </label>
-                <select
-                  value={formData.collectionId}
-                  onChange={(e) => setFormData({ ...formData, collectionId: e.target.value })}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-black/40 border border-white/15 focus:outline-none focus:border-[#D6B878] text-white"
-                >
-                  {COLLECTIONS.map((col) => (
-                    <option key={col.value} value={col.value} className="bg-[#180F20]">
-                      {col.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+            <div>
+              <label className="block text-[#EDE4D5]/90 font-medium mb-1.5">
+                Category <span className="text-red-400">*</span>
+              </label>
+              <select
+                value={formData.category}
+                onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-black/40 border border-white/15 focus:outline-none focus:border-[#D6B878] text-white"
+              >
+                {CATEGORIES.map((c) => (
+                  <option key={c.value} value={c.value} className="bg-[#180F20]">
+                    {c.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div>

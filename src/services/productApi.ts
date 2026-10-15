@@ -40,7 +40,6 @@ export function normalizeProduct(raw: any): Product {
     name: String(raw.name || ''),
     slug: String(raw.slug || ''),
     category: raw.category || 'necklaces',
-    collectionId: raw.collectionId || undefined,
     price,
     originalPrice,
     discountPercent,
@@ -71,7 +70,6 @@ export function normalizeProduct(raw: any): Product {
 
 export interface FetchProductsOptions {
   category?: string;
-  collectionId?: string;
   forceRefresh?: boolean;
 }
 
@@ -127,8 +125,7 @@ function seedItemCache(products: Product[]): void {
  */
 export async function fetchProducts(options?: FetchProductsOptions): Promise<Product[]> {
   const cat = options?.category && options.category !== 'all' ? options.category.trim().toLowerCase() : 'all';
-  const col = options?.collectionId && options.collectionId !== 'all' ? options.collectionId.trim().toLowerCase() : 'all';
-  const cacheKey = `catalog:${cat}:${col}`;
+  const cacheKey = `catalog:${cat}`;
 
   // 1. Check client memory cache unless forceRefresh requested
   if (!options?.forceRefresh) {
@@ -160,9 +157,6 @@ export async function fetchProducts(options?: FetchProductsOptions): Promise<Pro
     const params = new URLSearchParams();
     if (options?.category && options.category !== 'all') {
       params.set('category', options.category.trim());
-    }
-    if (options?.collectionId && options.collectionId !== 'all') {
-      params.set('collectionId', options.collectionId.trim());
     }
 
     const query = params.toString() ? `?${params.toString()}` : '';

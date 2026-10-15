@@ -200,7 +200,6 @@ async function runTests() {
       name: 'Phase 5 Test Imperial Kundan Solitaire Ring',
       slug: testProductSlug,
       category: 'rings',
-      collectionId: 'statement',
       price: 1499,
       originalPrice: 2999,
       discountPercent: 50,

@@ -73,7 +73,6 @@ model Product {
   name            String
   slug            String         @unique
   category        String
-  collectionId    String?
   price           Float
   originalPrice   Float
   discountPercent Int            @default(0)
@@ -99,7 +98,6 @@ model Product {
   inventoryMovements InventoryMovement[]
 
   @@index([category, createdAt])
-  @@index([collectionId, createdAt])
   @@index([createdAt])
   @@index([price])
   @@index([inStock])

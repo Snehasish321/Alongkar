@@ -61,7 +61,6 @@ export function formatProductResponse(product: any) {
     name: product.name,
     slug: product.slug,
     category: product.category,
-    ...(product.collectionId ? { collectionId: product.collectionId } : {}),
     price: product.price,
     originalPrice: product.originalPrice,
     discountPercent: product.discountPercent,
@@ -175,13 +174,6 @@ export function validateProductCreatePayload(body: any): { errors: ValidationErr
     }
   }
 
-  const collectionId = body.collectionId;
-  if (collectionId !== undefined && collectionId !== null) {
-    if (!isValidString(collectionId, 1, 50)) {
-      errors.push({ field: 'collectionId', message: 'Collection ID must be a string up to 50 characters or null' });
-    }
-  }
-
   if (body.rating !== undefined && !isValidNumber(body.rating, 0, 5)) {
     errors.push({ field: 'rating', message: 'Rating must be a finite number between 0 and 5' });
   }
@@ -229,7 +221,6 @@ export function validateProductCreatePayload(body: any): { errors: ValidationErr
     name: body.name.trim(),
     slug: body.slug.trim(),
     category: body.category.trim(),
-    collectionId: collectionId ? String(collectionId).trim() : null,
     price: Number(body.price),
     originalPrice: Number(body.originalPrice),
     discountPercent: typeof calculatedDiscount === 'number' ? Math.round(calculatedDiscount) : 0,
@@ -291,14 +282,6 @@ export function validateProductUpdatePayload(body: any): { errors: ValidationErr
       errors.push({ field: 'category', message: 'Category must be a non-empty string up to 50 characters' });
     } else {
       updateData.category = body.category.trim();
-    }
-  }
-
-  if (body.collectionId !== undefined) {
-    if (body.collectionId !== null && !isValidString(body.collectionId, 1, 50)) {
-      errors.push({ field: 'collectionId', message: 'Collection ID must be a string up to 50 characters or null' });
-    } else {
-      updateData.collectionId = body.collectionId ? String(body.collectionId).trim() : null;
     }
   }
 
@@ -626,7 +609,6 @@ export default async function handler(req: any, res?: any) {
 
       // Query parameters for filtering, searching, sorting & pagination
       let categoryFilter: string | undefined = undefined;
-      let collectionFilter: string | undefined = undefined;
       let searchQuery: string | undefined = undefined;
       let sortBy: string | undefined = undefined;
       let inStockFilter: string | undefined = undefined;
@@ -651,10 +633,6 @@ export default async function handler(req: any, res?: any) {
       if (rawParams.category) {
         const cat = rawParams.category.trim().slice(0, 50);
         if (cat.length > 0) categoryFilter = cat;
-      }
-      if (rawParams.collectionId) {
-        const col = rawParams.collectionId.trim().slice(0, 50);
-        if (col.length > 0) collectionFilter = col;
       }
       if (rawParams.search || rawParams.q) {
         searchQuery = sanitizeSearchQuery(rawParams.search || rawParams.q, 100);
@@ -713,7 +691,6 @@ export default async function handler(req: any, res?: any) {
 
       const filterOptions = {
         category: categoryFilter,
-        collectionId: collectionFilter,
         search: searchQuery,
         sortBy,
         inStock: inStockFilter,
@@ -745,9 +722,6 @@ export default async function handler(req: any, res?: any) {
       const whereClause: Prisma.ProductWhereInput = {};
       if (categoryFilter && categoryFilter.toLowerCase() !== 'all') {
         whereClause.category = categoryFilter;
-      }
-      if (collectionFilter && collectionFilter.toLowerCase() !== 'all') {
-        whereClause.collectionId = collectionFilter;
       }
       if (inStockFilter && inStockFilter.toLowerCase() !== 'all') {
         whereClause.inStock = inStockFilter.toLowerCase() === 'true';
