@@ -323,3 +323,33 @@ model SavedAddress {
   @@index([userId])
   @@index([userId, isDefault])
 }
+
+enum NewsletterStatus {
+  SUBSCRIBED
+  UNSUBSCRIBED
+}
+
+enum WelcomeEmailStatus {
+  PENDING
+  SENDING
+  SENT
+  FAILED
+}
+
+model NewsletterSubscriber {
+  id                     String             @id @default(cuid())
+  email                  String             @unique
+  status                 NewsletterStatus   @default(SUBSCRIBED)
+  consentAt              DateTime           @default(now())
+  subscribedAt           DateTime           @default(now())
+  source                 String             @default("homepage")
+  welcomeEmailStatus     WelcomeEmailStatus @default(PENDING)
+  welcomeEmailSentAt     DateTime?
+  welcomeEmailProviderId String?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([welcomeEmailStatus])
+}

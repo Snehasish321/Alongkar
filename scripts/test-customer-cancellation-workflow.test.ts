@@ -24,7 +24,7 @@ import {
 import {
   advanceOrderFulfilmentStageWorkflow,
 } from '../api/_utils/fulfillment.js';
-import { formatAdminOrder } from '../api/admin/orders.js';
+import { formatAdminOrder } from '../api/_admin/orders.js';
 import {
   hasPendingCancellationRequest,
   isOrderCancellationEligible,

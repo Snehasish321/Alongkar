@@ -10,7 +10,7 @@ import adminOrdersHandler, {
   ALLOWED_ORDER_STATUS_TRANSITIONS,
   ALLOWED_PAYMENT_STATUS_TRANSITIONS,
   ALLOWED_SHIPPING_STATUS_TRANSITIONS,
-} from '../api/admin/orders.js';
+} from '../api/_admin/orders.js';
 
 function createMockRes() {
   const res: any = {

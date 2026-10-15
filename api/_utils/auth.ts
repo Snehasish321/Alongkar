@@ -38,24 +38,30 @@ export function isMalformedJson(body: any): boolean {
 
 /**
  * Extracts both the exact raw request body (as string) and parsed JSON data,
- * strictly enforcing maximum payload sizes (1MB) and catching malformed JSON.
+ * strictly enforcing configurable maximum payload sizes (default 1MB) and catching malformed JSON.
  * Essential for cryptographic webhook signature verification where raw byte exactness is mandatory.
  */
-export async function getRawAndParsedBody(req: any): Promise<{
+export async function getRawAndParsedBody(
+  req: any,
+  maxBytes: number = MAX_JSON_BODY_BYTES
+): Promise<{
   rawBody: string;
   data: any;
   error?: 'PAYLOAD_TOO_LARGE' | 'MALFORMED_JSON';
 }> {
-  // Check Content-Length header if present
-  const contentLength = req.headers?.['content-length'] || req.headers?.['Content-Length'];
-  if (contentLength && parseInt(String(contentLength), 10) > MAX_JSON_BODY_BYTES) {
+  // Check Content-Length header if present before reading stream
+  const contentLength =
+    req.headers?.['content-length'] ||
+    req.headers?.['Content-Length'] ||
+    (typeof req.headers?.get === 'function' ? req.headers.get('content-length') : undefined);
+  if (contentLength && parseInt(String(contentLength), 10) > maxBytes) {
     return { rawBody: '', data: { _error: 'PAYLOAD_TOO_LARGE' }, error: 'PAYLOAD_TOO_LARGE' };
   }
 
   // 1. Explicit rawBody attached on request (e.g. tests or custom parser middleware)
   if (req.rawBody !== undefined && req.rawBody !== null) {
     const rawStr = Buffer.isBuffer(req.rawBody) ? req.rawBody.toString('utf8') : String(req.rawBody);
-    if (Buffer.byteLength(rawStr, 'utf8') > MAX_JSON_BODY_BYTES) {
+    if (Buffer.byteLength(rawStr, 'utf8') > maxBytes) {
       return { rawBody: '', data: { _error: 'PAYLOAD_TOO_LARGE' }, error: 'PAYLOAD_TOO_LARGE' };
     }
     try {
@@ -69,7 +75,7 @@ export async function getRawAndParsedBody(req: any): Promise<{
   if (req.body !== undefined && req.body !== null) {
     if (Buffer.isBuffer(req.body)) {
       const rawStr = req.body.toString('utf8');
-      if (Buffer.byteLength(rawStr, 'utf8') > MAX_JSON_BODY_BYTES) {
+      if (Buffer.byteLength(rawStr, 'utf8') > maxBytes) {
         return { rawBody: '', data: { _error: 'PAYLOAD_TOO_LARGE' }, error: 'PAYLOAD_TOO_LARGE' };
       }
       try {
@@ -79,7 +85,7 @@ export async function getRawAndParsedBody(req: any): Promise<{
       }
     }
     if (typeof req.body === 'string') {
-      if (Buffer.byteLength(req.body, 'utf8') > MAX_JSON_BODY_BYTES) {
+      if (Buffer.byteLength(req.body, 'utf8') > maxBytes) {
         return { rawBody: '', data: { _error: 'PAYLOAD_TOO_LARGE' }, error: 'PAYLOAD_TOO_LARGE' };
       }
       try {
@@ -91,6 +97,9 @@ export async function getRawAndParsedBody(req: any): Promise<{
     // req.body is already a parsed object
     try {
       const serialized = JSON.stringify(req.body);
+      if (Buffer.byteLength(serialized, 'utf8') > maxBytes) {
+        return { rawBody: '', data: { _error: 'PAYLOAD_TOO_LARGE' }, error: 'PAYLOAD_TOO_LARGE' };
+      }
       return { rawBody: serialized, data: req.body };
     } catch {
       return { rawBody: '', data: req.body };
@@ -104,15 +113,47 @@ export async function getRawAndParsedBody(req: any): Promise<{
       let totalBytes = 0;
       let tooLarge = false;
 
-      req.on('data', (chunk: any) => {
+      const onData = (chunk: any) => {
         const chunkBuf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
         totalBytes += chunkBuf.length;
-        if (totalBytes > MAX_JSON_BODY_BYTES) {
+        if (totalBytes > maxBytes) {
           tooLarge = true;
+          // Stop accumulating: immediately free memory from already-accumulated data
+          data = '';
+          // Remove accumulating listener immediately to prevent further data processing
+          if (typeof req.removeListener === 'function') {
+            req.removeListener('data', onData);
+          } else if (typeof req.off === 'function') {
+            req.off('data', onData);
+          }
+
+          // Safely drain remaining incoming chunks into a no-op handler without buffering in memory
+          const onDiscard = () => {};
+          req.on('data', onDiscard);
+          req.once?.('end', () => {
+            req.removeListener?.('data', onDiscard);
+          });
+          if (typeof req.resume === 'function') {
+            req.resume();
+          }
+
+          // Defer socket destruction until the HTTP response has been delivered to the client
+          const responseObj = req.res;
+          if (responseObj && typeof responseObj.once === 'function') {
+            responseObj.once('finish', () => {
+              if (typeof req.destroy === 'function' && !req.destroyed) {
+                req.destroy();
+              }
+            });
+          }
+
+          return resolve({ rawBody: '', data: { _error: 'PAYLOAD_TOO_LARGE' }, error: 'PAYLOAD_TOO_LARGE' });
         } else {
           data += chunkBuf.toString('utf8');
         }
-      });
+      };
+
+      req.on('data', onData);
 
       req.on('end', () => {
         if (tooLarge) {
@@ -134,11 +175,46 @@ export async function getRawAndParsedBody(req: any): Promise<{
     });
   }
 
-  // 4. Handle Web standard Request
+  // 4. Handle Web standard Request with ReadableStream reader
+  if (req.body && typeof req.body.getReader === 'function') {
+    try {
+      const reader = req.body.getReader();
+      let totalBytes = 0;
+      const chunks: Uint8Array[] = [];
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) {
+          totalBytes += value.byteLength;
+          if (totalBytes > maxBytes) {
+            await reader.cancel();
+            return { rawBody: '', data: { _error: 'PAYLOAD_TOO_LARGE' }, error: 'PAYLOAD_TOO_LARGE' };
+          }
+          chunks.push(value);
+        }
+      }
+
+      const totalBuf = Buffer.concat(chunks);
+      const rawStr = totalBuf.toString('utf8');
+      if (!rawStr || rawStr.trim().length === 0) {
+        return { rawBody: '', data: {} };
+      }
+      try {
+        return { rawBody: rawStr, data: JSON.parse(rawStr) };
+      } catch {
+        return { rawBody: rawStr, data: { _error: 'MALFORMED_JSON' }, error: 'MALFORMED_JSON' };
+      }
+    } catch {
+      return { rawBody: '', data: { _error: 'MALFORMED_JSON' }, error: 'MALFORMED_JSON' };
+    }
+  }
+
+  // 5. Fallback Web standard Request with text()
   if (typeof req.text === 'function') {
     try {
       const rawStr = await req.text();
-      if (Buffer.byteLength(rawStr, 'utf8') > MAX_JSON_BODY_BYTES) {
+      if (Buffer.byteLength(rawStr, 'utf8') > maxBytes) {
         return { rawBody: '', data: { _error: 'PAYLOAD_TOO_LARGE' }, error: 'PAYLOAD_TOO_LARGE' };
       }
       if (!rawStr || rawStr.trim().length === 0) {
@@ -159,10 +235,10 @@ export async function getRawAndParsedBody(req: any): Promise<{
 
 /**
  * Extracts request body from various request shapes (Node stream, Vercel parsed body, Web Request)
- * while strictly enforcing maximum payload sizes (1MB) and catching malformed JSON.
+ * while strictly enforcing maximum payload sizes (default 1MB) and catching malformed JSON.
  */
-export async function getRequestBody(req: any): Promise<any> {
-  const { data } = await getRawAndParsedBody(req);
+export async function getRequestBody(req: any, maxBytes: number = MAX_JSON_BODY_BYTES): Promise<any> {
+  const { data } = await getRawAndParsedBody(req, maxBytes);
   return data;
 }
 

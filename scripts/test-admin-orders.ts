@@ -1,7 +1,7 @@
 import './testDbGuard.js';
 import 'dotenv/config';
 import prisma from '../src/lib/prisma.js';
-import adminOrdersHandler from '../api/admin/orders.js';
+import adminOrdersHandler from '../api/_admin/orders.js';
 import customerOrdersHandler from '../api/orders.js';
 
 let totalTests = 0;

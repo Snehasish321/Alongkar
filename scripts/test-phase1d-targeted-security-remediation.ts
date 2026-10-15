@@ -30,7 +30,7 @@ import addressesHandler from '../api/addresses.js';
 import ordersHandler from '../api/orders.js';
 import cartHandler from '../api/cart.js';
 import wishlistHandler from '../api/wishlist.js';
-import adminCustomersHandler from '../api/admin/customers.js';
+import adminCustomersHandler from '../api/_admin/customers.js';
 import productsHandler from '../api/products.js';
 
 let passed = 0;

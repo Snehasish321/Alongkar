@@ -31,8 +31,8 @@ function apiDevServerPlugin(): Plugin {
             const { default: handler } = await server.ssrLoadModule('/api/jewellery-requests.ts');
             return await handler(req, res);
           }
-          if (pathname.startsWith('/api/admin/jewellery-requests')) {
-            const { default: handler } = await server.ssrLoadModule('/api/admin/jewellery-requests.ts');
+          if (pathname.startsWith('/api/admin')) {
+            const { default: handler } = await server.ssrLoadModule('/api/admin.ts');
             return await handler(req, res);
           }
           if (pathname.startsWith('/api/uploads')) {
@@ -43,20 +43,16 @@ function apiDevServerPlugin(): Plugin {
             const { default: handler } = await server.ssrLoadModule('/api/payments/razorpay.ts');
             return await handler(req, res);
           }
-          if (pathname.startsWith('/api/admin/orders')) {
-            const { default: handler } = await server.ssrLoadModule('/api/admin/orders.ts');
-            return await handler(req, res);
-          }
-          if (pathname.startsWith('/api/admin/customers')) {
-            const { default: handler } = await server.ssrLoadModule('/api/admin/customers.ts');
-            return await handler(req, res);
-          }
           if (pathname.startsWith('/api/orders') || pathname === '/api/order' || pathname === '/api/order/') {
             const { default: handler } = await server.ssrLoadModule('/api/orders.ts');
             return await handler(req, res);
           }
           if (pathname.startsWith('/api/addresses')) {
             const { default: handler } = await server.ssrLoadModule('/api/addresses.ts');
+            return await handler(req, res);
+          }
+          if (pathname === '/api/newsletter' || pathname === '/api/newsletter/') {
+            const { default: handler } = await server.ssrLoadModule('/api/newsletter.ts');
             return await handler(req, res);
           }
           if (pathname === '/api/health' || pathname === '/api/health/') {

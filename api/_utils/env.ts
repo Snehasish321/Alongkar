@@ -171,6 +171,36 @@ export const ENV_CATALOG: readonly EnvVarSpec[] = [
     description: 'Threshold in ms above which API requests emit performance warnings',
     isSecret: false,
   },
+  {
+    name: 'BREVO_API_KEY',
+    category: 'conditional_production',
+    scope: 'server_only',
+    description: 'Brevo (Sendinblue) transactional email API key',
+    isSecret: true,
+    placeholderPrefixes: ['your_brevo_api_key'],
+  },
+  {
+    name: 'BREVO_SENDER_EMAIL',
+    category: 'conditional_production',
+    scope: 'server_only',
+    description: 'Verified sender email address in Brevo for transactional messages',
+    isSecret: false,
+    placeholderPrefixes: ['your_brevo_sender_email'],
+  },
+  {
+    name: 'BREVO_SENDER_NAME',
+    category: 'optional_production',
+    scope: 'server_only',
+    description: 'Sender display name for Brevo transactional emails (defaults to Alongkar)',
+    isSecret: false,
+  },
+  {
+    name: 'BREVO_ENABLE_WELCOME_EMAIL',
+    category: 'optional_production',
+    scope: 'server_only',
+    description: 'Feature flag to enable real welcome email dispatch via Brevo (true/false)',
+    isSecret: false,
+  },
 ] as const;
 
 export interface EnvValidationResult {
@@ -185,6 +215,7 @@ export interface EnvValidationResult {
     redis: 'configured' | 'not_configured';
     razorpay: 'configured' | 'not_configured';
     shiprocket: 'configured' | 'not_configured';
+    brevo: 'configured' | 'not_configured';
   };
 }
 
@@ -279,6 +310,21 @@ export function validateEnvironment(env: Record<string, string | undefined> = pr
     warnings.push('Shiprocket credentials are partially defined. Automated shipping will fail until SHIPROCKET_EMAIL and SHIPROCKET_PASSWORD are configured.');
   }
 
+  // 7. Validate Brevo Email Provider
+  const brevoApiKey = env.BREVO_API_KEY;
+  const brevoSenderEmail = env.BREVO_SENDER_EMAIL;
+  const isBrevoPartiallySet = Boolean(brevoApiKey || brevoSenderEmail);
+  const isBrevoFullyConfigured = Boolean(
+    brevoApiKey &&
+    brevoSenderEmail &&
+    !brevoApiKey.includes('your_brevo_api_key') &&
+    !brevoSenderEmail.includes('your_brevo_sender_email')
+  );
+
+  if (isBrevoPartiallySet && !isBrevoFullyConfigured) {
+    warnings.push('Brevo credentials are partially defined. Welcome emails will fail until BREVO_API_KEY and BREVO_SENDER_EMAIL are configured.');
+  }
+
   const isValid = missingRequired.length === 0 && placeholderValues.length === 0;
 
   return {
@@ -293,6 +339,7 @@ export function validateEnvironment(env: Record<string, string | undefined> = pr
       redis: isRedisConfigured ? 'configured' : 'not_configured',
       razorpay: isRazorpayFullyConfigured ? 'configured' : 'not_configured',
       shiprocket: isShiprocketFullyConfigured ? 'configured' : 'not_configured',
+      brevo: isBrevoFullyConfigured ? 'configured' : 'not_configured',
     },
   };
 }

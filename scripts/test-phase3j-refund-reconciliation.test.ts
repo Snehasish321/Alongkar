@@ -559,7 +559,7 @@ async function runTests() {
   // --- 13. Admin API Handler & Authorization Verification ---
   console.log('\n--- 13. Admin API Handler & Authorization Verification ---');
   // Dynamic import of admin handler to verify request parsing and authorization
-  const adminOrdersModule = await import('../api/admin/orders.js');
+  const adminOrdersModule = await import('../api/_admin/orders.js');
   const adminHandler = adminOrdersModule.default;
 
   // Unauthenticated request (no auth headers or session)

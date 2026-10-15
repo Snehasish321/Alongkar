@@ -4,7 +4,7 @@ import handler, {
   ALLOWED_STATUS_TRANSITIONS,
   formatAdminJewelleryRequest,
   extractRequestId,
-} from '../api/admin/jewellery-requests.js';
+} from '../api/_admin/jewellery-requests.js';
 
 let passedCount = 0;
 let failedCount = 0;
