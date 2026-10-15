@@ -8,7 +8,7 @@ import wishlistHandler from '../api/wishlist.js';
 import jewelleryRequestsHandler, {
   validateJewelleryRequestCreatePayload,
 } from '../api/jewellery-requests.js';
-import adminJewelleryRequestsHandler from '../api/admin/jewellery-requests.js';
+import adminJewelleryRequestsHandler from '../api/_admin/jewellery-requests.js';
 import {
   handleProductImageUpload as productImageUploadHandler,
   handleJewelleryInspirationUpload as inspirationUploadHandler,

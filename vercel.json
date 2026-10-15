@@ -10,7 +10,35 @@
     },
     {
       "source": "/api/admin/customers/analytics",
-      "destination": "/api/admin/customers?view=analytics"
+      "destination": "/api/admin?resource=customers&view=analytics"
+    },
+    {
+      "source": "/api/admin/customers/:path*",
+      "destination": "/api/admin?resource=customers&path=:path*"
+    },
+    {
+      "source": "/api/admin/customers",
+      "destination": "/api/admin?resource=customers"
+    },
+    {
+      "source": "/api/admin/jewellery-requests/:path*",
+      "destination": "/api/admin?resource=jewellery-requests&path=:path*"
+    },
+    {
+      "source": "/api/admin/jewellery-requests",
+      "destination": "/api/admin?resource=jewellery-requests"
+    },
+    {
+      "source": "/api/admin/orders/:path*",
+      "destination": "/api/admin?resource=orders&path=:path*"
+    },
+    {
+      "source": "/api/admin/orders",
+      "destination": "/api/admin?resource=orders"
+    },
+    {
+      "source": "/api/admin/:resource*",
+      "destination": "/api/admin?resource=:resource*"
     },
     {
       "source": "/api/uploads/:type(jewellery-inspiration|product-image)",

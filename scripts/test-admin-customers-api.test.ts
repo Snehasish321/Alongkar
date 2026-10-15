@@ -16,7 +16,7 @@ await import('./testDbGuard.js');
 import handler, {
   calculateCustomerFinancials,
   formatCustomerSummary,
-} from '../api/admin/customers.js';
+} from '../api/_admin/customers.js';
 
 let passed = 0;
 let failed = 0;

@@ -4,7 +4,7 @@ import productsHandler from '../api/products.js';
 import cartHandler, { getOrCreateCart } from '../api/cart.js';
 import wishlistHandler, { getOrCreateWishlist } from '../api/wishlist.js';
 import jewelleryRequestsHandler from '../api/jewellery-requests.js';
-import adminJewelleryRequestsHandler from '../api/admin/jewellery-requests.js';
+import adminJewelleryRequestsHandler from '../api/_admin/jewellery-requests.js';
 import {
   handleProductImageUpload as productImageUploadHandler,
   handleJewelleryInspirationUpload as inspirationUploadHandler,

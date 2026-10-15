@@ -4,7 +4,7 @@ process.env.NODE_ENV = 'test';
 import prisma from '../src/lib/prisma.js';
 import { cancelAdminOrderWorkflow } from '../api/_utils/orderCancellation.js';
 import { deductOrderInventoryTx, getOrderInventoryMovementsTx, calculateOrderInventoryLedger } from '../api/_utils/inventory.js';
-import adminOrdersHandler from '../api/admin/orders.js';
+import adminOrdersHandler from '../api/_admin/orders.js';
 
 let passed = 0;
 let failed = 0;

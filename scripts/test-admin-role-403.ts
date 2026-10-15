@@ -2,7 +2,7 @@ import './testDbGuard.js';
 import prisma from '../src/lib/prisma.js';
 import { clerkClient } from '../api/_utils/auth.js';
 import productsHandler from '../api/products.js';
-import adminJewelleryRequestsHandler from '../api/admin/jewellery-requests.js';
+import adminJewelleryRequestsHandler from '../api/_admin/jewellery-requests.js';
 import { handleProductImageUpload as productImageUploadHandler } from '../api/uploads.js';
 
 function createMockRes() {

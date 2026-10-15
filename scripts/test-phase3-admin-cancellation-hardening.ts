@@ -11,7 +11,7 @@ import {
   getOrderInventoryMovementsTx,
   calculateOrderInventoryLedger,
 } from '../api/_utils/inventory.js';
-import adminOrdersHandler from '../api/admin/orders.js';
+import adminOrdersHandler from '../api/_admin/orders.js';
 
 let passed = 0;
 let failed = 0;
