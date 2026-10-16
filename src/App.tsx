@@ -43,6 +43,9 @@ const ReturnPolicyPage = lazy(() =>
 const PrivacyPolicyPage = lazy(() =>
   import('./pages/PrivacyPolicyPage').then((m) => ({ default: m.PrivacyPolicyPage }))
 );
+const UnsubscribePage = lazy(() =>
+  import('./pages/UnsubscribePage').then((m) => ({ default: m.UnsubscribePage }))
+);
 const TermsOfServicePage = lazy(() =>
   import('./pages/TermsOfServicePage').then((m) => ({ default: m.TermsOfServicePage }))
 );
@@ -142,6 +145,7 @@ export const AppContent: React.FC = () => {
             }
           />
           <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+          <Route path="/unsubscribe" element={<UnsubscribePage />} />
           <Route path="/terms" element={<TermsOfServicePage />} />
           <Route path="/terms-of-service" element={<TermsOfServicePage />} />
           <Route path="/shipping-policy" element={<ShippingPolicyPage />} />

@@ -39,7 +39,7 @@ export const PrivacyPolicyPage: React.FC = () => {
               How Alongkar collects, uses and protects your information.
             </p>
             <p className="mt-1.5 text-[11px] text-espresso-light/50">
-              Last updated: October 7, 2026
+              Last updated: October 15, 2026
             </p>
             <div className="mt-6 h-px bg-gold/20" />
           </header>
@@ -111,6 +111,7 @@ export const PrivacyPolicyPage: React.FC = () => {
                     <li>Wishlist information</li>
                     <li>Customer support communications</li>
                     <li>Information voluntarily submitted through forms or jewellery requests</li>
+                    <li>Newsletter subscription information (email address, subscription status, and consent records)</li>
                   </ul>
                 </div>
 
@@ -208,6 +209,16 @@ export const PrivacyPolicyPage: React.FC = () => {
                     <li>Other basic technical information necessary to operate and secure the Website</li>
                   </ul>
                 </div>
+
+                {/* 3.9 */}
+                <div className="space-y-2">
+                  <h3 className="font-semibold text-xs sm:text-sm text-espresso">
+                    3.9 Newsletter and Subscription Information
+                  </h3>
+                  <p>
+                    When you voluntarily subscribe to the Alongkar Circle newsletter, we collect your email address. Subscription requires your explicit, affirmative consent. To maintain an accurate and auditable record of your subscription preferences, our system securely records your subscription status (such as subscribed or unsubscribed) along with a server-generated consent timestamp.
+                  </p>
+                </div>
               </div>
             </section>
 
@@ -218,7 +229,7 @@ export const PrivacyPolicyPage: React.FC = () => {
               </h2>
               <ul className="list-disc pl-5 space-y-2 text-espresso-light">
                 <li>
-                  We may collect information directly from you when you create or use an account, browse or interact with the Website, add products to your cart or wishlist, place an order, submit a form, contact us, submit a jewellery request or upload an image.
+                  We may collect information directly from you when you create or use an account, browse or interact with the Website, add products to your cart or wishlist, place an order, submit a form, subscribe to the newsletter, contact us, submit a jewellery request or upload an image.
                 </li>
                 <li>
                   Certain technical information may be collected automatically when you use the Website through cookies and similar technologies.
@@ -278,6 +289,8 @@ export const PrivacyPolicyPage: React.FC = () => {
                 <li>Troubleshoot technical problems.</li>
                 <li>Improve Website performance and user experience.</li>
                 <li>Improve products and services.</li>
+                <li>Process newsletter subscriptions and send welcome communications to subscribers.</li>
+                <li>Send curated marketing newsletters and promotional communications when enabled, subject to your explicit consent.</li>
                 <li>Understand general Website usage and customer preferences.</li>
                 <li>Comply with applicable legal and regulatory requirements.</li>
                 <li>Establish, exercise or defend legal rights where necessary.</li>
@@ -301,6 +314,7 @@ export const PrivacyPolicyPage: React.FC = () => {
                 <li>Application and database information may be processed or stored through infrastructure and database service providers used by Alongkar.</li>
                 <li>Customer-uploaded images may be processed or stored through Cloudinary.</li>
                 <li>Necessary delivery information may be shared with shipping and logistics partners so that orders can be delivered.</li>
+                <li>Email addresses of newsletter subscribers may be processed through Brevo for the delivery of transactional welcome emails and newsletter communications. Brevo does not process payment information, customer orders, or unrelated account records.</li>
               </ul>
               <p>
                 We may also disclose information where required by applicable law, lawful government request, court order or legal process, or where reasonably necessary to protect the rights, property, safety or security of Alongkar, our users or others.
@@ -316,7 +330,7 @@ export const PrivacyPolicyPage: React.FC = () => {
                 Alongkar relies on certain third-party service providers to operate parts of its Website and services.
               </p>
               <p>
-                These providers may process information on behalf of Alongkar for purposes such as authentication, payment processing, database and infrastructure services, image storage and delivery.
+                These providers may process information on behalf of Alongkar for purposes such as authentication, payment processing, database and infrastructure services, image storage, logistics delivery, and transactional email delivery for newsletter communications.
               </p>
               <p>
                 We aim to use service providers that maintain appropriate security and privacy practices for the services they provide.
@@ -355,6 +369,9 @@ export const PrivacyPolicyPage: React.FC = () => {
               </p>
               <p>
                 Certain transaction and business records may need to be retained for longer periods where required by applicable law.
+              </p>
+              <p>
+                Newsletter subscriber records are retained for as long as reasonably necessary to operate the subscription service, honor customer preferences, and satisfy applicable record-keeping obligations. If you choose to unsubscribe, your email address and subscription status may be retained in a limited suppression record to ensure our systems continue to honor your preference and prevent unwanted future communications.
               </p>
               <p>
                 When information is no longer reasonably required, it may be deleted, anonymized or securely disposed of, subject to applicable legal and operational requirements.
@@ -399,19 +416,16 @@ export const PrivacyPolicyPage: React.FC = () => {
             {/* Section 13 */}
             <section className="space-y-3">
               <h2 className="font-serif text-base sm:text-lg font-bold text-espresso">
-                13. Marketing Communications
+                13. Marketing and Promotional Communications
               </h2>
               <p>
-                Alongkar may send promotional or marketing communications where permitted by applicable law.
+                When you subscribe to the Alongkar Circle newsletter, we send an initial welcome email acknowledging your subscription. Where enabled in the future, Alongkar may send occasional promotional newsletters regarding handcrafted jewellery collections, atelier drops, artisanal masterworks, or seasonal offerings, subject to your explicit opt-in consent.
               </p>
               <p>
-                Such communications may include information about new products, jewellery collections, offers, discounts, campaigns or other Alongkar services.
+                Alongkar does not currently operate recurring automated marketing campaigns. Subscribers who wish to withdraw their consent or opt out of future communications can do so at any time by clicking the secure unsubscribe link provided in the footer of our newsletter emails, or by emailing our team at <a href="mailto:alongkar.official@gmail.com" className="text-gold-dark font-medium hover:underline">alongkar.official@gmail.com</a> with the subject line &quot;Unsubscribe&quot;. All opt-out requests are processed directly to update your subscriber status.
               </p>
               <p>
-                You may opt out of promotional communications by following the unsubscribe instructions provided in the relevant communication, where available, or by contacting <a href="mailto:alongkar.official@gmail.com" className="text-gold-dark font-medium hover:underline">alongkar.official@gmail.com</a>.
-              </p>
-              <p>
-                Even if you opt out of promotional communications, Alongkar may continue to send necessary transactional or service-related communications such as order confirmations, payment updates, shipping notifications, security alerts and important account information.
+                Even if you opt out of promotional communications, Alongkar will continue to send necessary transactional or service-related communications when you interact with our store, such as order confirmations, payment receipts, shipping tracking notifications, customer support responses, and essential security notices.
               </p>
             </section>
 
