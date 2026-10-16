@@ -172,15 +172,64 @@ export interface UnsubscribeUrlPair {
  * Generates both the human-facing landing page URL and RFC 8058 API endpoint URL,
  * sharing the exact same securely generated token.
  */
+const CANONICAL_PRODUCTION_URL = 'https://alongkar.in';
+
+export function isValidProductionBaseUrl(urlStr: string): boolean {
+  try {
+    const parsed = new URL(urlStr);
+    // Protocol must be HTTPS
+    if (parsed.protocol !== 'https:') return false;
+    // Hostname must be exactly one of the currently approved production hosts
+    const host = parsed.hostname.toLowerCase();
+    if (host !== 'alongkar.in' && host !== 'www.alongkar.in' && host !== 'alongkar.vercel.app') {
+      return false;
+    }
+    // Port must be absent or standard HTTPS port (443)
+    if (parsed.port !== '' && parsed.port !== '443') return false;
+    // Username and password must be empty
+    if (parsed.username || parsed.password) return false;
+    // Path must be empty or '/'
+    if (parsed.pathname !== '' && parsed.pathname !== '/') return false;
+    // Query string and fragment must be empty
+    if (parsed.search || parsed.hash) return false;
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function generateUnsubscribeUrls(
   subscriber: { id: string; email: string },
   baseUrl?: string
 ): UnsubscribeUrlPair {
   const token = generateUnsubscribeToken(subscriber);
-  const base =
-    baseUrl ||
-    process.env.APP_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://alongkar.in');
+  let base: string;
+
+  const isProduction =
+    process.env.VERCEL_ENV === 'production' ||
+    (process.env.NODE_ENV === 'production' && process.env.VERCEL_ENV !== 'preview');
+
+  if (baseUrl) {
+    // Explicit parameter override (used directly in unit tests and local callers)
+    base = baseUrl;
+  } else if (isProduction) {
+    // Production: enforce canonical alongkar.in. Reject insecure http:// or unapproved host overrides.
+    if (process.env.APP_URL && isValidProductionBaseUrl(process.env.APP_URL)) {
+      base = process.env.APP_URL;
+    } else {
+      base = CANONICAL_PRODUCTION_URL;
+    }
+  } else if (process.env.VERCEL_ENV === 'preview' && process.env.VERCEL_URL) {
+    // Preview: use active preview deployment URL
+    base = `https://${process.env.VERCEL_URL}`;
+  } else if (process.env.APP_URL) {
+    // Non-production (dev/test): allow custom APP_URL
+    base = process.env.APP_URL;
+  } else {
+    base = CANONICAL_PRODUCTION_URL;
+  }
+
   const cleanBase = base.replace(/\/+$/, '');
   const encodedToken = encodeURIComponent(token);
 
