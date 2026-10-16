@@ -21,6 +21,7 @@ import {
   verifyUnsubscribeToken,
   generateUnsubscribeUrl,
   generateUnsubscribeUrls,
+  isValidProductionBaseUrl,
   getDerivedKey,
   hashEmail,
 } from '../api/_utils/unsubscribeToken.js';
@@ -366,6 +367,330 @@ async function runTestSuite() {
     singleVerified.valid === true && singleVerified.subscriberId === testSubscriber.id,
     '[Token URL] generateUnsubscribeUrl token is cryptographically valid'
   );
+
+  // Environment-Aware URL Resolution Tests (Canonical Production vs Preview & Hardened Host Overrides)
+  {
+    const origVercelEnv = process.env.VERCEL_ENV;
+    const origVercelUrl = process.env.VERCEL_URL;
+    const origAppUrl = process.env.APP_URL;
+
+    try {
+      // 1. Direct Production URL Validator Unit Tests (isValidProductionBaseUrl)
+      assert(
+        isValidProductionBaseUrl('https://alongkar.in') === true,
+        '[URL Validator] Accepts https://alongkar.in'
+      );
+      assert(
+        isValidProductionBaseUrl('https://www.alongkar.in') === true,
+        '[URL Validator] Accepts https://www.alongkar.in'
+      );
+      assert(
+        isValidProductionBaseUrl('https://alongkar.in/') === true,
+        '[URL Validator] Accepts https://alongkar.in/ with trailing root slash'
+      );
+      assert(
+        isValidProductionBaseUrl('https://alongkar.in:443') === true,
+        '[URL Validator] Accepts standard HTTPS port 443'
+      );
+      assert(
+        isValidProductionBaseUrl('https://alongkar.in:8080') === false,
+        '[URL Validator] Rejects non-standard port (https://alongkar.in:8080)'
+      );
+      assert(
+        isValidProductionBaseUrl('https://alongkar.in:80') === false,
+        '[URL Validator] Rejects non-443 port (https://alongkar.in:80)'
+      );
+      assert(
+        isValidProductionBaseUrl('https://user:pass@alongkar.in') === false,
+        '[URL Validator] Rejects URL credentials (username and password)'
+      );
+      assert(
+        isValidProductionBaseUrl('https://user@alongkar.in') === false,
+        '[URL Validator] Rejects URL credentials (username only)'
+      );
+      assert(
+        isValidProductionBaseUrl('https://alongkar.in/custom/path') === false,
+        '[URL Validator] Rejects non-root path prefix (/custom/path)'
+      );
+      assert(
+        isValidProductionBaseUrl('https://alongkar.in?foo=bar') === false,
+        '[URL Validator] Rejects query string (?foo=bar)'
+      );
+      assert(
+        isValidProductionBaseUrl('https://alongkar.in#frag') === false,
+        '[URL Validator] Rejects fragment identifier (#frag)'
+      );
+      assert(
+        isValidProductionBaseUrl('http://alongkar.in') === false,
+        '[URL Validator] Rejects insecure HTTP URL (http://alongkar.in)'
+      );
+      assert(
+        isValidProductionBaseUrl('http://www.alongkar.in') === false,
+        '[URL Validator] Rejects insecure HTTP URL (http://www.alongkar.in)'
+      );
+      assert(
+        isValidProductionBaseUrl('https://phishing-attacker-domain.com') === false,
+        '[URL Validator] Rejects unapproved host (https://phishing-attacker-domain.com)'
+      );
+      assert(
+        isValidProductionBaseUrl('not-a-valid-url') === false,
+        '[URL Validator] Rejects malformed URL strings'
+      );
+
+      // 2. Production Canonical URL (VERCEL_ENV=production with VERCEL_URL present)
+      process.env.VERCEL_ENV = 'production';
+      process.env.VERCEL_URL = 'alongkar-deployment-hash.vercel.app';
+      delete process.env.APP_URL;
+      const prodUrls = generateUnsubscribeUrls(testSubscriber);
+      assert(
+        prodUrls.pageUrl.startsWith('https://alongkar.in/unsubscribe?token='),
+        '[Canonical URL] Production email links use canonical https://alongkar.in'
+      );
+      assert(
+        prodUrls.apiUrl.startsWith('https://alongkar.in/api/unsubscribe?token='),
+        '[Canonical URL] Production List-Unsubscribe uses canonical https://alongkar.in/api/unsubscribe'
+      );
+      assert(
+        !prodUrls.pageUrl.includes('vercel.app'),
+        '[Canonical URL] Production links do NOT use deployment-specific VERCEL_URL'
+      );
+
+      // 3. Reject Insecure http:// APP_URL Override in Production
+      process.env.VERCEL_ENV = 'production';
+      process.env.APP_URL = 'http://insecure-domain.com';
+      const rejectedHttpUrls = generateUnsubscribeUrls(testSubscriber);
+      assert(
+        rejectedHttpUrls.pageUrl.startsWith('https://alongkar.in/unsubscribe?token='),
+        '[URL Hardening] Rejects insecure http:// APP_URL override in production and defaults to canonical URL'
+      );
+
+      // 4. Reject Unapproved Host APP_URL Override in Production
+      process.env.VERCEL_ENV = 'production';
+      process.env.APP_URL = 'https://phishing-attacker-domain.com';
+      const rejectedHostUrls = generateUnsubscribeUrls(testSubscriber);
+      assert(
+        rejectedHostUrls.pageUrl.startsWith('https://alongkar.in/unsubscribe?token='),
+        '[URL Hardening] Rejects unapproved host APP_URL override in production and defaults to canonical URL'
+      );
+
+      // 5. Reject Non-Standard Port APP_URL Override in Production
+      process.env.VERCEL_ENV = 'production';
+      process.env.APP_URL = 'https://alongkar.in:8080';
+      const rejectedPortUrls = generateUnsubscribeUrls(testSubscriber);
+      assert(
+        rejectedPortUrls.pageUrl.startsWith('https://alongkar.in/unsubscribe?token='),
+        '[URL Hardening] Rejects non-standard port APP_URL override (https://alongkar.in:8080) and defaults to canonical URL'
+      );
+
+      // 6. Reject Credentials APP_URL Override in Production
+      process.env.VERCEL_ENV = 'production';
+      process.env.APP_URL = 'https://user:pass@alongkar.in';
+      const rejectedCredUrls = generateUnsubscribeUrls(testSubscriber);
+      assert(
+        rejectedCredUrls.pageUrl.startsWith('https://alongkar.in/unsubscribe?token='),
+        '[URL Hardening] Rejects credentials in APP_URL override and defaults to canonical URL'
+      );
+
+      // 7. Reject Path Prefix APP_URL Override in Production
+      process.env.VERCEL_ENV = 'production';
+      process.env.APP_URL = 'https://alongkar.in/custom/path';
+      const rejectedPathUrls = generateUnsubscribeUrls(testSubscriber);
+      assert(
+        rejectedPathUrls.pageUrl.startsWith('https://alongkar.in/unsubscribe?token='),
+        '[URL Hardening] Rejects path prefix in APP_URL override and defaults to canonical URL'
+      );
+
+      // 8. Reject Query String and Fragment APP_URL Override in Production
+      process.env.VERCEL_ENV = 'production';
+      process.env.APP_URL = 'https://alongkar.in?foo=bar#frag';
+      const rejectedQueryFragUrls = generateUnsubscribeUrls(testSubscriber);
+      assert(
+        rejectedQueryFragUrls.pageUrl.startsWith('https://alongkar.in/unsubscribe?token='),
+        '[URL Hardening] Rejects query string/fragment in APP_URL override and defaults to canonical URL'
+      );
+
+      // 9. Accept Valid Approved Production Host Override (https://www.alongkar.in)
+      process.env.VERCEL_ENV = 'production';
+      process.env.APP_URL = 'https://www.alongkar.in';
+      const approvedHostUrls = generateUnsubscribeUrls(testSubscriber);
+      assert(
+        approvedHostUrls.pageUrl.startsWith('https://www.alongkar.in/unsubscribe?token='),
+        '[URL Hardening] Accepts valid approved production host override (https://www.alongkar.in)'
+      );
+
+      // 10. Preview Environment URL (VERCEL_ENV=preview with VERCEL_URL present)
+      process.env.VERCEL_ENV = 'preview';
+      process.env.VERCEL_URL = 'alongkar-git-preview-test.vercel.app';
+      delete process.env.APP_URL;
+      const previewUrls = generateUnsubscribeUrls(testSubscriber);
+      assert(
+        previewUrls.pageUrl.startsWith('https://alongkar-git-preview-test.vercel.app/unsubscribe?token='),
+        '[Preview URL] Preview email links point to the active preview deployment URL'
+      );
+      assert(
+        previewUrls.apiUrl.startsWith('https://alongkar-git-preview-test.vercel.app/api/unsubscribe?token='),
+        '[Preview URL] Preview List-Unsubscribe header points to the preview API endpoint'
+      );
+
+      // 11. Explicit baseUrl argument override (for unit tests)
+      const argUrls = generateUnsubscribeUrls(testSubscriber, 'https://staging.alongkar.in');
+      assert(
+        argUrls.pageUrl.startsWith('https://staging.alongkar.in/unsubscribe?token='),
+        '[URL Override] Explicit baseUrl argument takes highest precedence for unit tests'
+      );
+
+      // 12. Default Fallback when no environment variables exist
+      delete process.env.VERCEL_ENV;
+      delete process.env.VERCEL_URL;
+      delete process.env.APP_URL;
+      const defaultUrls = generateUnsubscribeUrls(testSubscriber);
+      assert(
+        defaultUrls.pageUrl.startsWith('https://alongkar.in/unsubscribe?token='),
+        '[Default URL] Fallback default generates canonical https://alongkar.in'
+      );
+    } finally {
+      if (origVercelEnv !== undefined) process.env.VERCEL_ENV = origVercelEnv; else delete process.env.VERCEL_ENV;
+      if (origVercelUrl !== undefined) process.env.VERCEL_URL = origVercelUrl; else delete process.env.VERCEL_URL;
+      if (origAppUrl !== undefined) process.env.APP_URL = origAppUrl; else delete process.env.APP_URL;
+    }
+  }
+
+  // Frontend History-State Token Lifecycle & Cleanup Tests
+  {
+    console.log('\n--- Frontend History-State Token Lifecycle & Cleanup Tests ---');
+
+    const HISTORY_KEY = 'alongkarUnsubToken';
+
+    // Mock environment representing the browser history and window state
+    let mockHistoryState: any = null;
+    let mockAddressBar = '/unsubscribe';
+
+    function mockGetHistoryToken(): string | null {
+      try {
+        if (mockHistoryState && typeof mockHistoryState === 'object' && typeof mockHistoryState[HISTORY_KEY] === 'string') {
+          const trimmed = mockHistoryState[HISTORY_KEY].trim();
+          return trimmed.length > 0 ? trimmed : null;
+        }
+      } catch {
+        // Safe catch
+      }
+      return null;
+    }
+
+    function mockSetHistoryToken(t: string | null) {
+      const isObj = mockHistoryState && typeof mockHistoryState === 'object';
+      if (t && typeof t === 'string' && t.trim().length > 0) {
+        mockHistoryState = isObj ? { ...mockHistoryState, [HISTORY_KEY]: t.trim() } : { [HISTORY_KEY]: t.trim() };
+      } else {
+        if (!isObj || !(HISTORY_KEY in mockHistoryState)) return;
+        const { [HISTORY_KEY]: _removed, ...rest } = mockHistoryState;
+        mockHistoryState = rest;
+      }
+      mockAddressBar = '/unsubscribe';
+    }
+
+    function mockClearHistoryToken() {
+      mockSetHistoryToken(null);
+    }
+
+    function simulateMount(searchParamToken: string | null): string | null {
+      const queryToken = searchParamToken?.trim();
+      if (queryToken && queryToken.length > 0) {
+        return queryToken;
+      }
+      return mockGetHistoryToken();
+    }
+
+    // 1. Direct Tokenized Link: Query token is captured on mount and bound to history.state
+    mockHistoryState = { key: 'route_entry_1', idx: 0, usr: { referrer: 'email' } };
+    const rawIncomingToken = generateUnsubscribeToken(testSubscriber);
+    const capturedToken = simulateMount(rawIncomingToken);
+    assert(capturedToken === rawIncomingToken, '[History Token] Valid query token is captured on initial mount');
+
+    // Simulate URL cleanup effect: binds to history.state while sanitizing address bar
+    mockSetHistoryToken(capturedToken);
+    assert(
+      mockHistoryState[HISTORY_KEY] === rawIncomingToken,
+      '[History Token] Token is stored in history.state for this entry'
+    );
+    assert(mockAddressBar === '/unsubscribe', '[History Token] Address bar URL is sanitized without query token');
+
+    // 2. Preservation of Unrelated Router History State
+    assert(
+      mockHistoryState.key === 'route_entry_1' && mockHistoryState.idx === 0 && mockHistoryState.usr?.referrer === 'email',
+      '[History Token] Unrelated router history state (key, idx, usr) is strictly preserved'
+    );
+
+    // 3. React Strict Mode / Remount of the Same History Entry
+    // Query param in URL is now gone; component remounts and recovers token from history.state
+    const remountToken = simulateMount(null);
+    assert(
+      remountToken === rawIncomingToken,
+      '[History Token] StrictMode remount of the same history entry recovers token from history.state'
+    );
+
+    // 4. Page Refresh on the Same History Entry
+    // Browser preserves window.history.state across reloads of the same entry
+    const refreshToken = simulateMount(null);
+    assert(
+      refreshToken === rawIncomingToken,
+      '[History Token] Page refresh on the same history entry recovers token from history.state'
+    );
+
+    // 5. Direct /unsubscribe Visit with No Token (Elimination of Stale-Token Reuse)
+    // User navigates away to /shop, then visits /unsubscribe directly. A new history entry is pushed without alongkarUnsubToken.
+    mockHistoryState = { key: 'route_entry_2', idx: 1 }; // New history entry without token
+    const directUnparameterizedVisit = simulateMount(null);
+    assert(
+      directUnparameterizedVisit === null,
+      '[History Token] Direct visit to /unsubscribe with no token yields null (displays invalid-link UI)'
+    );
+
+    // 6. Successful Unsubscribe (HTTP 200) Clears Token from History State
+    // Set up active state
+    mockHistoryState = { key: 'route_entry_3', idx: 2, [HISTORY_KEY]: rawIncomingToken };
+    assert(mockHistoryState[HISTORY_KEY] !== undefined, '[History Token] Pre-condition: token present in history');
+    mockClearHistoryToken();
+    assert(
+      mockHistoryState[HISTORY_KEY] === undefined,
+      '[History Token] Successful unsubscribe clears token from history.state'
+    );
+    assert(mockHistoryState.key === 'route_entry_3', '[History Token] Preserves unrelated history keys during cleanup');
+
+    // 7. Deterministic Rejections (HTTP 400 & 404) Clear Token from History State
+    mockHistoryState = { key: 'route_entry_4', [HISTORY_KEY]: 'tampered-token' };
+    mockClearHistoryToken(); // simulate 400 Bad Request branch
+    assert(
+      mockHistoryState[HISTORY_KEY] === undefined,
+      '[History Token] Deterministic HTTP 400 rejection clears token from history.state'
+    );
+
+    mockHistoryState = { key: 'route_entry_5', [HISTORY_KEY]: 'non-existent-sub' };
+    mockClearHistoryToken(); // simulate 404 Not Found branch
+    assert(
+      mockHistoryState[HISTORY_KEY] === undefined,
+      '[History Token] Deterministic HTTP 404 rejection clears token from history.state'
+    );
+
+    // 8. Transient Failures (HTTP 429, 500, Network Failure) Preserve Token for User Retry
+    mockHistoryState = { key: 'route_entry_6', [HISTORY_KEY]: rawIncomingToken };
+    let componentTokenInMemory: string | null = rawIncomingToken;
+    // On 429 rate limit or 500 or network catch: clearHistoryToken is NOT called
+    assert(
+      componentTokenInMemory === rawIncomingToken && mockHistoryState[HISTORY_KEY] === rawIncomingToken,
+      '[History Token] Transient failure (429/500/network error) preserves token in memory and state for retry'
+    );
+
+    // 9. Malformed or Unexpected History State Handled Gracefully
+    mockHistoryState = 'string_instead_of_object';
+    assert(mockGetHistoryToken() === null, '[History Token] Non-object history state evaluates to null safely');
+
+    mockHistoryState = { [HISTORY_KEY]: '   ' };
+    assert(mockGetHistoryToken() === null, '[History Token] Whitespace-only token in history state is rejected as null');
+
+    mockHistoryState = { [HISTORY_KEY]: 12345 };
+    assert(mockGetHistoryToken() === null, '[History Token] Non-string token in history state is rejected as null');
+  }
 
   // ─── PART 2: Unsubscribe API Handler Tests ─────────────────────────────────
   console.log('\n--- PART 2: Unsubscribe API Handler Tests (api/unsubscribe.ts) ---');

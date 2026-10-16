@@ -1,16 +1,64 @@
 import React, { useState, useEffect } from 'react';
-import { useSearchParams, useNavigate, Link } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import { ArrowLeft, Check, Warning, Sms } from 'reicon-react';
 import { StorefrontLayout } from '../components/layout/StorefrontLayout';
 import { Button } from '../components/ui/Button';
 
+export const HISTORY_TOKEN_KEY = 'alongkarUnsubToken';
+
+export function getHistoryToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const state = window.history.state;
+    if (state && typeof state === 'object' && typeof state[HISTORY_TOKEN_KEY] === 'string') {
+      const trimmed = state[HISTORY_TOKEN_KEY].trim();
+      return trimmed.length > 0 ? trimmed : null;
+    }
+  } catch {
+    // Ignore history access exceptions
+  }
+  return null;
+}
+
+export function setHistoryToken(token: string | null) {
+  if (typeof window === 'undefined') return;
+  try {
+    const currentState = window.history.state;
+    const isObj = currentState && typeof currentState === 'object';
+    let nextState: Record<string, unknown>;
+
+    if (token && typeof token === 'string' && token.trim().length > 0) {
+      nextState = isObj
+        ? { ...currentState, [HISTORY_TOKEN_KEY]: token.trim() }
+        : { [HISTORY_TOKEN_KEY]: token.trim() };
+    } else {
+      if (!isObj || !(HISTORY_TOKEN_KEY in currentState)) return;
+      const { [HISTORY_TOKEN_KEY]: _removed, ...rest } = currentState;
+      nextState = rest;
+    }
+
+    window.history.replaceState(nextState, '', window.location.pathname);
+  } catch {
+    // Ignore replaceState errors in restricted environments
+  }
+}
+
+export function clearHistoryToken() {
+  setHistoryToken(null);
+}
+
 export const UnsubscribePage: React.FC = () => {
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
 
-  // Safely capture initial token from URL searchParams into component state
+  // Safely capture initial token:
+  // 1. Primary: read directly from the incoming URL query string (?token=...)
+  // 2. Bound history state: survives React StrictMode remounts and page refresh for this exact entry
   const [token] = useState<string | null>(() => {
-    return searchParams.get('token');
+    const queryToken = searchParams.get('token')?.trim();
+    if (queryToken && queryToken.length > 0) {
+      return queryToken;
+    }
+    return getHistoryToken();
   });
 
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
@@ -39,10 +87,14 @@ export const UnsubscribePage: React.FC = () => {
       metaReferrer.setAttribute('content', 'no-referrer');
     }
 
-    // Safely remove token query parameter from browser address bar & history
-    // while preserving it in component state for explicit confirmation POST.
-    if (searchParams.has('token')) {
-      navigate('/unsubscribe', { replace: true });
+    // Safely remove token from visible address bar while binding it strictly to history.state
+    // without triggering a React Router navigation that resets component state.
+    if (typeof window !== 'undefined') {
+      if (token) {
+        setHistoryToken(token);
+      } else if (window.location.search && window.location.search.includes('token=')) {
+        window.history.replaceState(window.history.state, '', window.location.pathname);
+      }
     }
 
     return () => {
@@ -50,7 +102,7 @@ export const UnsubscribePage: React.FC = () => {
         metaReferrer.parentNode.removeChild(metaReferrer);
       }
     };
-  }, [navigate, searchParams]);
+  }, [token]);
 
   const handleConfirmUnsubscribe = async () => {
     if (!token) return;
@@ -70,8 +122,14 @@ export const UnsubscribePage: React.FC = () => {
       const data = await response.json().catch(() => ({}));
 
       if (response.ok && data.success) {
+        clearHistoryToken();
         setStatus('success');
       } else {
+        // Clear history token on deterministic validation or terminal error (e.g. HTTP 400 Bad Request, 404 Not Found)
+        if (response.status === 400 || response.status === 404) {
+          clearHistoryToken();
+        }
+        // HTTP 429 rate limit, 500 server error, or other non-terminal status preserves token in state for retry
         setStatus('error');
         setErrorMessage(
           data.error ||
@@ -79,6 +137,7 @@ export const UnsubscribePage: React.FC = () => {
         );
       }
     } catch {
+      // Network failure preserves token in state and history for user retry
       setStatus('error');
       setErrorMessage(
         'A network error occurred. Please check your internet connection and try again.'
