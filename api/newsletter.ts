@@ -258,6 +258,34 @@ export default async function handler(req: any, res: any) {
       'findUnique newsletter subscriber'
     );
 
+    // Step B: Legacy unsubscribed cleanup
+    // If a legacy record exists with status === 'UNSUBSCRIBED', remove only that specific
+    // NewsletterSubscriber row so explicit patron consent creates a fresh subscription.
+    if (existingSubscriber && existingSubscriber.status === 'UNSUBSCRIBED') {
+      if (typeof db.newsletterSubscriber?.delete === 'function') {
+        try {
+          await withTimeout(
+            db.newsletterSubscriber.delete({
+              where: { id: existingSubscriber.id },
+            }),
+            5000,
+            'delete legacy newsletter subscriber'
+          );
+        } catch (delError: any) {
+          // Concurrency: if already deleted by a racing request, P2025 is safe to ignore
+          if (
+            delError?.code === 'P2025' ||
+            (delError instanceof Prisma.PrismaClientKnownRequestError && delError.code === 'P2025')
+          ) {
+            // Already deleted by concurrent race
+          } else {
+            throw delError;
+          }
+        }
+        existingSubscriber = null;
+      }
+    }
+
     let isNewSubscriber = false;
     let subscriberRecord: any = existingSubscriber;
 

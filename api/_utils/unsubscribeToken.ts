@@ -212,26 +212,26 @@ export function generateUnsubscribeUrls(
 
   if (baseUrl) {
     // Explicit parameter override (used directly in unit tests and local callers)
-    base = baseUrl;
+    base = baseUrl.trim();
   } else if (isProduction) {
     // Production: enforce canonical alongkar.in. Reject insecure http:// or unapproved host overrides.
     if (process.env.APP_URL && isValidProductionBaseUrl(process.env.APP_URL)) {
-      base = process.env.APP_URL;
+      base = process.env.APP_URL.trim();
     } else {
       base = CANONICAL_PRODUCTION_URL;
     }
   } else if (process.env.VERCEL_ENV === 'preview' && process.env.VERCEL_URL) {
     // Preview: use active preview deployment URL
-    base = `https://${process.env.VERCEL_URL}`;
+    base = `https://${process.env.VERCEL_URL.trim()}`;
   } else if (process.env.APP_URL) {
     // Non-production (dev/test): allow custom APP_URL
-    base = process.env.APP_URL;
+    base = process.env.APP_URL.trim();
   } else {
     base = CANONICAL_PRODUCTION_URL;
   }
 
-  const cleanBase = base.replace(/\/+$/, '');
-  const encodedToken = encodeURIComponent(token);
+  const cleanBase = base.replace(/\/+$/, '').trim();
+  const encodedToken = encodeURIComponent(token.trim());
 
   return {
     token,

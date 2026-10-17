@@ -62,9 +62,51 @@ interface SubscriberRecord {
 
 function createMockDb() {
   const store = new Map<string, SubscriberRecord>();
+  const userStore = new Map<string, any>();
+  const orderStore = new Map<string, any>();
+
+  // Seed sample unrelated user and order records
+  userStore.set('usr_connoisseur_01', {
+    id: 'usr_connoisseur_01',
+    clerkUserId: 'user_clerk_001',
+    email: 'patron.active@alongkar.in',
+  });
+  orderStore.set('ord_heritage_01', {
+    id: 'ord_heritage_01',
+    orderNumber: 'AK-2026-0001',
+    customerEmail: 'patron.active@alongkar.in',
+    grandTotal: 125000,
+  });
 
   return {
     store,
+    userStore,
+    orderStore,
+    user: {
+      findUnique: async ({ where }: any) => {
+        if (where?.id) return userStore.get(where.id) || null;
+        if (where?.email) {
+          for (const u of userStore.values()) {
+            if (u.email === where.email) return { ...u };
+          }
+        }
+        return null;
+      },
+      findMany: async () => Array.from(userStore.values()),
+      delete: async () => {
+        throw new Error('SECURITY VIOLATION: User table delete attempted!');
+      },
+    },
+    order: {
+      findUnique: async ({ where }: any) => {
+        if (where?.id) return orderStore.get(where.id) || null;
+        return null;
+      },
+      findMany: async () => Array.from(orderStore.values()),
+      delete: async () => {
+        throw new Error('SECURITY VIOLATION: Order table delete attempted!');
+      },
+    },
     newsletterSubscriber: {
       findUnique: async ({ where }: any) => {
         if (where?.id) {
@@ -138,6 +180,32 @@ function createMockDb() {
           }
         }
         return { count };
+      },
+      delete: async ({ where }: any) => {
+        let existingKey: string | undefined;
+        let existingRec: SubscriberRecord | undefined;
+        if (where?.id) {
+          for (const [key, rec] of store.entries()) {
+            if (rec.id === where.id) {
+              existingKey = key;
+              existingRec = rec;
+              break;
+            }
+          }
+        } else if (where?.email) {
+          const key = where.email.toLowerCase();
+          if (store.has(key)) {
+            existingKey = key;
+            existingRec = store.get(key);
+          }
+        }
+        if (!existingKey || !existingRec) {
+          const err: any = new Error('Record to delete does not exist');
+          err.code = 'P2025';
+          throw err;
+        }
+        store.delete(existingKey);
+        return { ...existingRec };
       },
     },
   };
@@ -815,8 +883,12 @@ async function runTestSuite() {
     assert(activeSub.status === 'SUBSCRIBED', '[Handler] Subscriber remains SUBSCRIBED');
   }
 
-  // 2.7 Successful Unsubscribe
+  // 2.7 Successful Unsubscribe (Deletes matching NewsletterSubscriber row only)
   {
+    const initialUserCount = mockDb.userStore.size;
+    const initialOrderCount = mockDb.orderStore.size;
+    assert(mockDb.store.has(activeSub.email) === true, '[Pre-condition] activeSub exists in DB');
+
     const validToken = generateUnsubscribeToken({
       id: activeSub.id,
       email: activeSub.email,
@@ -831,13 +903,15 @@ async function runTestSuite() {
     assert(res.statusCode === 200, '[Handler] Successfully unsubscribes valid token with HTTP 200');
     assert(res.data?.success === true, '[Handler] Reports success === true');
     assert(res.data?.message === USER_FACING_UNSUBSCRIBE_SUCCESS, '[Handler] Returns canonical success message');
-    assert(activeSub.status === 'UNSUBSCRIBED', '[Handler] Subscriber status in DB transitions to UNSUBSCRIBED');
+    assert(mockDb.store.has(activeSub.email) === false, '[Handler] NewsletterSubscriber row is DELETED from database (not marked UNSUBSCRIBED)');
+    assert(mockDb.userStore.size === initialUserCount, '[Security] User table was NOT touched during unsubscribe');
+    assert(mockDb.orderStore.size === initialOrderCount, '[Security] Order table was NOT touched during unsubscribe');
     assert(!JSON.stringify(res.data).includes(activeSub.email), '[Handler] Response does NOT leak subscriber email');
   }
 
-  // 2.8 Idempotent Repeated Unsubscribe
+  // 2.8 Safe Repeated Unsubscribe (Terminal response after deletion)
   {
-    // Call again with same token for now-unsubscribed user
+    // Call again with same token for now-deleted subscriber
     const validToken = generateUnsubscribeToken({
       id: activeSub.id,
       email: activeSub.email,
@@ -849,11 +923,16 @@ async function runTestSuite() {
     });
     const res = createMockRes();
     await unsubscribeHandler(req, res);
-    assert(res.statusCode === 200, '[Handler] Repeated unsubscribe returns HTTP 200 (idempotent)');
-    assert(activeSub.status === 'UNSUBSCRIBED', '[Handler] Status remains UNSUBSCRIBED without error');
+    assert(res.statusCode === 404, '[Handler] Repeated unsubscribe returns terminal HTTP 404');
+    assert(res.data?.success === false, '[Handler] Reports success === false on already-deleted record');
+    assert(
+      res.data?.error === 'Subscriber record was not found or has already been removed.',
+      '[Handler] Returns safe terminal message indicating record was removed'
+    );
+    assert(mockDb.store.has(activeSub.email) === false, '[Handler] Record remains deleted, no re-subscription occurred');
   }
 
-  // 2.9 RFC 8058 One-Click POST (token in query string, One-Click body)
+  // 2.9 RFC 8058 One-Click POST (Deletes subscriber row via token in query string)
   {
     const rfcSubscriber: SubscriberRecord = {
       id: 'sub_rfc_003',
@@ -883,7 +962,7 @@ async function runTestSuite() {
     const res = createMockRes();
     await unsubscribeHandler(req, res);
     assert(res.statusCode === 200, '[Handler] Supports RFC 8058 One-Click POST via query parameter');
-    assert(rfcSubscriber.status === 'UNSUBSCRIBED', '[Handler] RFC 8058 transitions status to UNSUBSCRIBED');
+    assert(mockDb.store.has(rfcSubscriber.email) === false, '[Handler] RFC 8058 One-Click DELETES subscriber record from database');
   }
 
   // ─── PART 3: End-to-End Newsletter Integration & Brevo Templates ───────────
@@ -957,10 +1036,32 @@ async function runTestSuite() {
     if (origEnable !== undefined) process.env.BREVO_ENABLE_WELCOME_EMAIL = origEnable; else delete process.env.BREVO_ENABLE_WELCOME_EMAIL;
   }
 
-  // 3.2 Resubmission by Unsubscribed User is Protected from Silent Reactivation
+  // 3.2 Resubscription After Deletion Creates Fresh Record and Triggers Welcome Path
   {
-    // Active subscriber was unsubscribed above (activeSub)
-    assert(activeSub.status === 'UNSUBSCRIBED', '[Newsletter] Pre-condition: user is UNSUBSCRIBED');
+    // activeSub was deleted in test 2.7
+    assert(mockDb.store.has(activeSub.email) === false, '[Newsletter Re-subscription] Pre-condition: user was deleted');
+
+    const origFetch = global.fetch;
+    const origApiKey = process.env.BREVO_API_KEY;
+    const origSenderEmail = process.env.BREVO_SENDER_EMAIL;
+    const origEnable = process.env.BREVO_ENABLE_WELCOME_EMAIL;
+
+    process.env.BREVO_API_KEY = 'test_brevo_api_key_mock_12345';
+    process.env.BREVO_SENDER_EMAIL = 'concierge@alongkar.in';
+    process.env.BREVO_ENABLE_WELCOME_EMAIL = 'true';
+
+    let emailSent = false;
+    let emailSentTo = '';
+    (global as any).fetch = async (_url: string, options: any) => {
+      const payload = JSON.parse(options.body);
+      emailSent = true;
+      emailSentTo = payload.to?.[0]?.email;
+      return {
+        status: 201,
+        ok: true,
+        json: async () => ({ messageId: 'mock_resubscribe_welcome_msg_001' }),
+      };
+    };
 
     const req = createMockReq({
       method: 'POST',
@@ -974,12 +1075,24 @@ async function runTestSuite() {
     const res = createMockRes();
     await newsletterHandler(req, res);
 
-    assert(res.statusCode === 200, '[Newsletter] Form resubmission returns HTTP 200');
-    assert(res.data?.message === USER_FACING_SUCCESS_MESSAGE, '[Newsletter] Returns generic anti-enumeration success message');
-    assert(activeSub.status === 'UNSUBSCRIBED', '[Newsletter] Status is NEVER silently reactivated to SUBSCRIBED');
+    assert(res.statusCode === 200, '[Newsletter Re-subscription] Re-subscribing returns HTTP 200');
+    assert(res.data?.message === USER_FACING_SUCCESS_MESSAGE, '[Newsletter Re-subscription] Returns user-facing success message');
+    assert(mockDb.store.has(activeSub.email) === true, '[Newsletter Re-subscription] Creates a fresh NewsletterSubscriber record in DB');
+
+    const freshRecord = mockDb.store.get(activeSub.email);
+    assert(freshRecord?.status === 'SUBSCRIBED', '[Newsletter Re-subscription] Fresh record has status SUBSCRIBED');
+    assert(freshRecord?.id !== activeSub.id, '[Newsletter Re-subscription] Fresh record receives a new distinct ID');
+    assert(freshRecord?.welcomeEmailStatus === 'SENT', '[Newsletter Re-subscription] Welcome email status transitions to SENT');
+    assert(emailSent === true && emailSentTo === activeSub.email, '[Newsletter Re-subscription] Dispatches normal welcome email to resubscriber');
+
+    // Restore environment & fetch
+    global.fetch = origFetch;
+    if (origApiKey !== undefined) process.env.BREVO_API_KEY = origApiKey; else delete process.env.BREVO_API_KEY;
+    if (origSenderEmail !== undefined) process.env.BREVO_SENDER_EMAIL = origSenderEmail; else delete process.env.BREVO_SENDER_EMAIL;
+    if (origEnable !== undefined) process.env.BREVO_ENABLE_WELCOME_EMAIL = origEnable; else delete process.env.BREVO_ENABLE_WELCOME_EMAIL;
   }
 
-  // 3.3 Normal Duplicate Signup remains idempotent
+  // 3.3 Duplicate Active Signup Remains Idempotent (No Duplicate Record or Welcome Email)
   {
     const freshSubscriber: SubscriberRecord = {
       id: 'sub_fresh_004',
@@ -994,6 +1107,13 @@ async function runTestSuite() {
     };
     mockDb.store.set(freshSubscriber.email, freshSubscriber);
 
+    let unexpectedEmailSent = false;
+    const origFetch = global.fetch;
+    (global as any).fetch = async () => {
+      unexpectedEmailSent = true;
+      return { status: 200, ok: true, json: async () => ({}) };
+    };
+
     const req = createMockReq({
       method: 'POST',
       url: '/api/newsletter',
@@ -1006,8 +1126,259 @@ async function runTestSuite() {
     const res = createMockRes();
     await newsletterHandler(req, res);
 
-    assert(res.statusCode === 200, '[Newsletter] Duplicate active signup returns HTTP 200');
-    assert(freshSubscriber.status === 'SUBSCRIBED', '[Newsletter] Status remains SUBSCRIBED');
+    assert(res.statusCode === 200, '[Newsletter Duplicate] Duplicate active signup returns HTTP 200');
+    assert(freshSubscriber.status === 'SUBSCRIBED', '[Newsletter Duplicate] Status remains SUBSCRIBED');
+    assert(freshSubscriber.id === 'sub_fresh_004', '[Newsletter Duplicate] Does not create a new or duplicate record');
+    assert(unexpectedEmailSent === false, '[Newsletter Duplicate] Does NOT send duplicate welcome email');
+
+    global.fetch = origFetch;
+  }
+
+  // 3.4 Legacy Unsubscribed Record Re-subscription & Protection
+  {
+    const legacyUnsub: SubscriberRecord = {
+      id: 'sub_legacy_005',
+      email: 'legacy.unsub@alongkar.in',
+      status: 'UNSUBSCRIBED',
+      consentAt: new Date(Date.now() - 30 * 86400000),
+      subscribedAt: new Date(Date.now() - 30 * 86400000),
+      source: 'homepage',
+      welcomeEmailStatus: 'SENT',
+      createdAt: new Date(Date.now() - 30 * 86400000),
+      updatedAt: new Date(Date.now() - 30 * 86400000),
+    };
+    mockDb.store.set(legacyUnsub.email, { ...legacyUnsub });
+
+    const initialUserCount = mockDb.userStore.size;
+    const initialOrderCount = mockDb.orderStore.size;
+
+    // 1. Invalid requests must NOT delete or mutate the legacy record
+    // 1a. Missing/False Consent
+    const reqNoConsent = createMockReq({
+      method: 'POST',
+      url: '/api/newsletter',
+      headers: { 'x-forwarded-for': '192.168.50.1' },
+      body: { email: legacyUnsub.email, consent: false },
+      db: mockDb,
+    });
+    const resNoConsent = createMockRes();
+    await newsletterHandler(reqNoConsent, resNoConsent);
+    assert(resNoConsent.statusCode === 400, '[Legacy Unsubscribed Security] Missing consent rejects with HTTP 400');
+    assert(
+      mockDb.store.get(legacyUnsub.email)?.id === 'sub_legacy_005',
+      '[Legacy Unsubscribed Security] Missing consent does NOT delete or alter legacy record'
+    );
+    assert(
+      mockDb.store.get(legacyUnsub.email)?.status === 'UNSUBSCRIBED',
+      '[Legacy Unsubscribed Security] Legacy status remains UNSUBSCRIBED on rejected request'
+    );
+
+    // 1b. Invalid Email Format
+    const reqInvalidEmail = createMockReq({
+      method: 'POST',
+      url: '/api/newsletter',
+      headers: { 'x-forwarded-for': '192.168.50.1' },
+      body: { email: 'not-a-valid-email', consent: true },
+      db: mockDb,
+    });
+    const resInvalidEmail = createMockRes();
+    await newsletterHandler(reqInvalidEmail, resInvalidEmail);
+    assert(resInvalidEmail.statusCode === 400, '[Legacy Unsubscribed Security] Invalid email rejects with HTTP 400');
+    assert(
+      mockDb.store.get(legacyUnsub.email)?.id === 'sub_legacy_005',
+      '[Legacy Unsubscribed Security] Invalid email payload does NOT delete legacy record'
+    );
+
+    // 2. Valid request with explicit consent: replaces legacy row with fresh SUBSCRIBED record
+    const origFetch = global.fetch;
+    const origApiKey = process.env.BREVO_API_KEY;
+    const origSenderEmail = process.env.BREVO_SENDER_EMAIL;
+    const origEnable = process.env.BREVO_ENABLE_WELCOME_EMAIL;
+
+    try {
+      process.env.BREVO_API_KEY = 'test_brevo_api_key_mock_12345';
+      process.env.BREVO_SENDER_EMAIL = 'concierge@alongkar.in';
+      process.env.BREVO_ENABLE_WELCOME_EMAIL = 'true';
+
+      let emailSentCount = 0;
+      let emailSentTo = '';
+      (global as any).fetch = async (_url: string, options: any) => {
+        const payload = JSON.parse(options.body);
+        emailSentCount++;
+        emailSentTo = payload.to?.[0]?.email;
+        return {
+          status: 201,
+          ok: true,
+          json: async () => ({ messageId: 'mock_msg_resub_001' }),
+        };
+      };
+
+      const reqValid = createMockReq({
+        method: 'POST',
+        url: '/api/newsletter',
+        headers: { 'x-forwarded-for': '192.168.50.2' },
+        body: {
+          email: legacyUnsub.email,
+          consent: true,
+        },
+        db: mockDb,
+      });
+      const resValid = createMockRes();
+      await newsletterHandler(reqValid, resValid);
+
+      assert(resValid.statusCode === 200, '[Legacy Unsubscribed] Valid resubmission returns HTTP 200');
+      assert(
+        resValid.data?.message === USER_FACING_SUCCESS_MESSAGE,
+        '[Legacy Unsubscribed] Returns canonical user-facing success message'
+      );
+
+      // Verify old record was replaced by a fresh record
+      const freshRecord = mockDb.store.get(legacyUnsub.email);
+      assert(freshRecord !== undefined, '[Legacy Unsubscribed] Record exists in store');
+      assert(
+        freshRecord.id !== 'sub_legacy_005',
+        '[Legacy Unsubscribed] Replaced record has a fresh distinct ID'
+      );
+      assert(
+        freshRecord.status === 'SUBSCRIBED',
+        '[Legacy Unsubscribed] Fresh record status is SUBSCRIBED'
+      );
+      assert(
+        freshRecord.welcomeEmailStatus === 'SENT',
+        '[Legacy Unsubscribed] Fresh record welcome email status is SENT'
+      );
+      assert(
+        emailSentCount === 1,
+        '[Legacy Unsubscribed] Welcome email workflow triggered exactly once'
+      );
+      assert(
+        emailSentTo === legacyUnsub.email,
+        '[Legacy Unsubscribed] Welcome email addressed to re-subscribing email'
+      );
+
+      // 3. Active duplicate subscriptions remain idempotent
+      const reqDuplicate = createMockReq({
+        method: 'POST',
+        url: '/api/newsletter',
+        headers: { 'x-forwarded-for': '192.168.50.2' },
+        body: {
+          email: legacyUnsub.email,
+          consent: true,
+        },
+        db: mockDb,
+      });
+      const resDuplicate = createMockRes();
+      await newsletterHandler(reqDuplicate, resDuplicate);
+
+      assert(resDuplicate.statusCode === 200, '[Legacy Resubscription Duplicate] Returns HTTP 200');
+      const duplicateRecord = mockDb.store.get(legacyUnsub.email);
+      assert(
+        duplicateRecord?.id === freshRecord.id,
+        '[Legacy Resubscription Duplicate] Does NOT create another record or alter existing ID'
+      );
+      assert(
+        duplicateRecord?.status === 'SUBSCRIBED',
+        '[Legacy Resubscription Duplicate] Status remains SUBSCRIBED'
+      );
+      assert(
+        emailSentCount === 1,
+        '[Legacy Resubscription Duplicate] Does NOT send duplicate welcome email'
+      );
+
+      // 4. Unrelated tables remain untouched
+      assert(mockDb.userStore.size === initialUserCount, '[Legacy Security] User table was NOT touched during re-subscription');
+      assert(mockDb.orderStore.size === initialOrderCount, '[Legacy Security] Order table was NOT touched during re-subscription');
+    } finally {
+      // Restore environment & fetch
+      global.fetch = origFetch;
+      if (origApiKey !== undefined) process.env.BREVO_API_KEY = origApiKey; else delete process.env.BREVO_API_KEY;
+      if (origSenderEmail !== undefined) process.env.BREVO_SENDER_EMAIL = origSenderEmail; else delete process.env.BREVO_SENDER_EMAIL;
+      if (origEnable !== undefined) process.env.BREVO_ENABLE_WELCOME_EMAIL = origEnable; else delete process.env.BREVO_ENABLE_WELCOME_EMAIL;
+    }
+  }
+
+  // 3.5 URL Generation Audit & Malformed Link Investigation
+  {
+    console.log('\n--- PART 4: Unsubscribe URL Audit & Malformed Link Investigation ---');
+
+    const sampleSubscriber = { id: 'sub_audit_100', email: 'audit.patron@alongkar.in' };
+
+    // Standard Canonical Generation
+    const urls = generateUnsubscribeUrls(sampleSubscriber);
+    assert(urls.pageUrl.startsWith('https://alongkar.in/unsubscribe?token='), '[URL Audit] pageUrl uses canonical production https://alongkar.in');
+    assert(urls.apiUrl.startsWith('https://alongkar.in/api/unsubscribe?token='), '[URL Audit] apiUrl uses canonical production https://alongkar.in/api/unsubscribe');
+    assert(!urls.pageUrl.includes('&#x20'), '[URL Audit] pageUrl does NOT contain &#x20');
+    assert(!urls.apiUrl.includes('&#x20'), '[URL Audit] apiUrl does NOT contain &#x20');
+    assert(!urls.pageUrl.includes(' '), '[URL Audit] pageUrl does NOT contain spaces');
+    assert(!urls.apiUrl.includes(' '), '[URL Audit] apiUrl does NOT contain spaces');
+
+    // Verification of URL structure
+    const parsedPageUrl = new URL(urls.pageUrl);
+    assert(parsedPageUrl.protocol === 'https:', '[URL Audit] Protocol is strictly https:');
+    assert(parsedPageUrl.hostname === 'alongkar.in', '[URL Audit] Hostname is canonical alongkar.in');
+    assert(parsedPageUrl.pathname === '/unsubscribe', '[URL Audit] Path is exactly /unsubscribe (no trailing entities or chars)');
+    assert(Boolean(parsedPageUrl.searchParams.get('token')), '[URL Audit] Token query parameter is present');
+
+    const parsedApiUrl = new URL(urls.apiUrl);
+    assert(parsedApiUrl.pathname === '/api/unsubscribe', '[URL Audit] API path is exactly /api/unsubscribe');
+
+    // Defensive trimming against dirty baseUrl overrides
+    const dirtyBaseUrls = generateUnsubscribeUrls(sampleSubscriber, '  https://alongkar.in/   ');
+    assert(dirtyBaseUrls.pageUrl.startsWith('https://alongkar.in/unsubscribe?token='), '[URL Audit] Trims leading/trailing whitespace and slashes in baseUrl');
+    assert(!dirtyBaseUrls.pageUrl.includes(' '), '[URL Audit] Sanitized baseUrl contains no spaces');
+
+    // Email template rendering checks
+    const origFetch = global.fetch;
+    const origApiKey = process.env.BREVO_API_KEY;
+    const origSenderEmail = process.env.BREVO_SENDER_EMAIL;
+    const origEnable = process.env.BREVO_ENABLE_WELCOME_EMAIL;
+
+    process.env.BREVO_API_KEY = 'test_brevo_api_key_mock_12345';
+    process.env.BREVO_SENDER_EMAIL = 'concierge@alongkar.in';
+    process.env.BREVO_ENABLE_WELCOME_EMAIL = 'true';
+
+    let capturedEmailPayload: any = null;
+    (global as any).fetch = async (_url: string, options: any) => {
+      capturedEmailPayload = JSON.parse(options.body);
+      return {
+        status: 201,
+        ok: true,
+        json: async () => ({ messageId: 'mock_audit_msg_001' }),
+      };
+    };
+
+    await sendWelcomeEmail('audit.patron@alongkar.in', 'Patron', 'sub_audit_100');
+
+    assert(capturedEmailPayload !== null, '[Email Payload] Captured email dispatch payload');
+    const htmlContent: string = capturedEmailPayload.htmlContent;
+    const textContent: string = capturedEmailPayload.textContent;
+    const headers = capturedEmailPayload.headers;
+
+    // Check RFC 8058 Headers
+    assert(headers['List-Unsubscribe']?.startsWith('<https://alongkar.in/api/unsubscribe?token='), '[Email Payload] RFC 8058 List-Unsubscribe header is valid');
+    assert(headers['List-Unsubscribe']?.endsWith('>'), '[Email Payload] List-Unsubscribe is properly enclosed in angle brackets');
+    assert(!headers['List-Unsubscribe']?.includes('&#x20'), '[Email Payload] List-Unsubscribe header does NOT contain &#x20');
+    assert(!headers['List-Unsubscribe']?.includes(' '), '[Email Payload] List-Unsubscribe header does NOT contain spaces');
+    assert(headers['List-Unsubscribe-Post'] === 'List-Unsubscribe=One-Click', '[Email Payload] List-Unsubscribe-Post header is intact');
+
+    // Check HTML Link
+    assert(!htmlContent.includes('/unsubscribe&#x20'), '[Email Payload] HTML content does NOT contain /unsubscribe&#x20');
+    assert(htmlContent.includes('href="https://alongkar.in/unsubscribe?token='), '[Email Payload] HTML contains valid href to /unsubscribe');
+    assert(!htmlContent.includes('href="https://alongkar.in/unsubscribe?token= '), '[Email Payload] HTML href does not have trailing space before token');
+    assert(!htmlContent.includes('/unsubscribe "'), '[Email Payload] HTML href does not have trailing space before quote');
+
+    // Check Plain Text Link
+    assert(!textContent.includes('/unsubscribe&#x20'), '[Email Payload] Text content does NOT contain /unsubscribe&#x20');
+    assert(textContent.includes('https://alongkar.in/unsubscribe?token='), '[Email Payload] Text content includes valid plain-text link');
+
+    // Token privacy check: ensure secrets are not logged or exposed
+    assert(!htmlContent.includes('secret') && !textContent.includes('secret'), '[Email Payload] Secrets are never exposed in email payload');
+
+    // Restore environment & fetch
+    global.fetch = origFetch;
+    if (origApiKey !== undefined) process.env.BREVO_API_KEY = origApiKey; else delete process.env.BREVO_API_KEY;
+    if (origSenderEmail !== undefined) process.env.BREVO_SENDER_EMAIL = origSenderEmail; else delete process.env.BREVO_SENDER_EMAIL;
+    if (origEnable !== undefined) process.env.BREVO_ENABLE_WELCOME_EMAIL = origEnable; else delete process.env.BREVO_ENABLE_WELCOME_EMAIL;
   }
 
   console.log('\n====================================================================');
