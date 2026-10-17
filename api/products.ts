@@ -542,7 +542,7 @@ export default async function handler(req: any, res?: any) {
             {
               'X-Cache': 'HIT',
               'X-Cache-Source': cached.source,
-              'Cache-Control': 'public, max-age=60, s-maxage=300, stale-while-revalidate=600',
+              'Cache-Control': 'public, max-age=0, s-maxage=30, stale-while-revalidate=60',
             }
           );
         }
@@ -602,7 +602,7 @@ export default async function handler(req: any, res?: any) {
           { product: formatted },
           {
             'X-Cache': 'MISS',
-            'Cache-Control': 'public, max-age=60, s-maxage=300, stale-while-revalidate=600',
+            'Cache-Control': 'public, max-age=0, s-maxage=30, stale-while-revalidate=60',
           }
         );
       }
@@ -723,7 +723,7 @@ export default async function handler(req: any, res?: any) {
             {
               'X-Cache': 'HIT',
               'X-Cache-Source': cachedList.source,
-              'Cache-Control': 'public, max-age=60, s-maxage=300, stale-while-revalidate=600',
+              'Cache-Control': 'public, max-age=0, s-maxage=30, stale-while-revalidate=60',
             }
           );
         }
@@ -832,7 +832,7 @@ export default async function handler(req: any, res?: any) {
           responseData,
           {
             'X-Cache': 'MISS',
-            'Cache-Control': 'public, max-age=60, s-maxage=300, stale-while-revalidate=600',
+            'Cache-Control': 'public, max-age=0, s-maxage=30, stale-while-revalidate=60',
           }
         );
       }
