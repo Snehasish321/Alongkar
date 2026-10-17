@@ -60,13 +60,13 @@ export const SearchModal: React.FC<SearchModalProps> = ({ isOpen, onClose, onSel
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
-  // Try to fetch fresh DB products in background; fall back silently to local data
+  // Try to fetch fresh DB products in background; fall back silently to local data if initial fetch fails
   useEffect(() => {
     if (!isOpen) return;
     let alive = true;
     fetchProducts()
       .then((data) => {
-        if (alive && data.length > 0) setCatalog(data);
+        if (alive && Array.isArray(data)) setCatalog(data);
       })
       .catch(() => {
         // silently use local catalog already seeded

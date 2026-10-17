@@ -79,8 +79,8 @@ interface CacheRecord<T> {
   timestamp: number;
 }
 
-const CATALOG_CACHE_TTL = 60 * 1000; // 60 seconds
-const ITEM_CACHE_TTL = 120 * 1000;   // 2 minutes
+const CATALOG_CACHE_TTL = 15 * 1000; // 15 seconds (responsive storefront updates while deduplicating rapid re-renders)
+const ITEM_CACHE_TTL = 30 * 1000;   // 30 seconds
 
 const catalogCache = new Map<string, CacheRecord<Product[]>>();
 const itemCache = new Map<string, CacheRecord<Product>>();
@@ -90,10 +90,26 @@ const activeAbortControllers = new Map<string, AbortController>();
 // Generation counter to protect against stale in-flight requests overwriting fresh data
 let clientCacheGeneration = 0;
 
+// Setup cross-tab sync channel so admin mutations immediately notify customer/admin storefront tabs
+let syncChannel: BroadcastChannel | null = null;
+try {
+  if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+    syncChannel = new BroadcastChannel('alongkar_product_cache_sync');
+    syncChannel.onmessage = (event) => {
+      if (event?.data?.type === 'CLEAR_PRODUCT_CACHE') {
+        clearProductApiCache(false);
+      }
+    };
+  }
+} catch {
+  // Gracefully ignore environments where BroadcastChannel is restricted
+}
+
 /**
  * Manually invalidates client-side memory cache and aborts any active in-flight requests.
+ * @param broadcast Whether to notify other browser tabs via BroadcastChannel (defaults to true)
  */
-export function clearProductApiCache(): void {
+export function clearProductApiCache(broadcast = true): void {
   clientCacheGeneration++;
   catalogCache.clear();
   itemCache.clear();
@@ -106,6 +122,12 @@ export function clearProductApiCache(): void {
   });
   activeAbortControllers.clear();
   inFlightRequests.clear();
+
+  if (broadcast && syncChannel) {
+    try {
+      syncChannel.postMessage({ type: 'CLEAR_PRODUCT_CACHE', timestamp: Date.now() });
+    } catch {}
+  }
 }
 
 /**
@@ -245,6 +267,7 @@ export async function fetchProductBySlug(slug: string, forceRefresh = false): Pr
     });
 
     if (response.status === 404) {
+      itemCache.delete(cacheKey);
       return null;
     }
 
@@ -328,6 +351,7 @@ export async function fetchProductById(id: string, forceRefresh = false): Promis
     });
 
     if (response.status === 404) {
+      itemCache.delete(cacheKey);
       return null;
     }
 

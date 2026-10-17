@@ -27,11 +27,11 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onQuickView }) => {
     setSelectedCategory(categoryParam);
   }
 
-  const loadProducts = useCallback(async () => {
+  const loadProducts = useCallback(async (forceRefresh = false) => {
     try {
       setIsLoading(true);
       setError(null);
-      const data = await fetchProducts();
+      const data = await fetchProducts({ forceRefresh });
       setProducts(data);
     } catch (err: any) {
       console.error('Failed to load shop products from database:', err);
@@ -136,7 +136,7 @@ export const ShopPage: React.FC<ShopPageProps> = ({ onQuickView }) => {
               </h3>
               <p className="text-xs text-red-700/80 max-w-md mx-auto">{error}</p>
               <button
-                onClick={loadProducts}
+                onClick={() => loadProducts(true)}
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#2A0008] text-[#E8C98A] text-xs font-semibold uppercase tracking-wider hover:bg-[#3D0010] transition-colors cursor-pointer"
               >
                 <Refresh size={14} />

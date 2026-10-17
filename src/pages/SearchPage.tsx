@@ -133,7 +133,7 @@ export const SearchPage: React.FC = () => {
   useEffect(() => {
     fetchProducts()
       .then((data) => {
-        if (data && data.length > 0) setCatalog(data);
+        if (Array.isArray(data)) setCatalog(data);
       })
       .catch(() => {});
   }, []);
