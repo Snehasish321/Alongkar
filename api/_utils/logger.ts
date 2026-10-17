@@ -93,11 +93,14 @@ export function maskSensitiveString(str: string): string {
     .replace(/eyJ[A-Za-z0-9-_=]{10,}/g, '[REDACTED_JWT]')
     .replace(/CLERK_SECRET_KEY=[^\s&]+/gi, 'CLERK_SECRET_KEY=[REDACTED]')
     .replace(/CLOUDINARY_API_SECRET=[^\s&]+/gi, 'CLOUDINARY_API_SECRET=[REDACTED]')
+    .replace(/CLOUDINARY_REQUESTS_API_SECRET=[^\s&]+/gi, 'CLOUDINARY_REQUESTS_API_SECRET=[REDACTED]')
     .replace(/RAZORPAY_KEY_SECRET=[^\s&]+/gi, 'RAZORPAY_KEY_SECRET=[REDACTED]')
     .replace(/RAZORPAY_WEBHOOK_SECRET=[^\s&]+/gi, 'RAZORPAY_WEBHOOK_SECRET=[REDACTED]')
-    .replace(/key_secret[:=][^\s&,]+/gi, 'key_secret=[REDACTED]')
-    .replace(/webhook_secret[:=][^\s&,]+/gi, 'webhook_secret=[REDACTED]')
-    .replace(/password[:=][^\s&,]+/gi, 'password=[REDACTED]');
+    .replace(/\bkey_secret[:=][^\s&,]+/gi, 'key_secret=[REDACTED]')
+    .replace(/\bapi_secret[:=][^\s&,]+/gi, 'api_secret=[REDACTED]')
+    .replace(/\bwebhook_secret[:=][^\s&,]+/gi, 'webhook_secret=[REDACTED]')
+    .replace(/\bpassword[:=][^\s&,]+/gi, 'password=[REDACTED]')
+    .replace(/["']?(CLOUDINARY_API_SECRET|CLOUDINARY_REQUESTS_API_SECRET|api_secret|key_secret|webhook_secret)["']?\s*:\s*["'][^"']+["']/gi, '"$1":"[REDACTED]"');
 }
 
 export interface LogContext {

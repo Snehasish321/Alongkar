@@ -1,6 +1,12 @@
 import { getAuthenticatedUser, requireAdmin, respond } from './_utils/auth.js';
 import { parseMultipartForm } from './_utils/multipart.js';
-import { cloudinary, isCloudinaryConfigured } from './_utils/cloudinary.js';
+import {
+  cloudinary,
+  isCloudinaryProductsConfigured,
+  isCloudinaryRequestsConfigured,
+  getCloudinaryProductsUploadOptions,
+  getCloudinaryRequestsUploadOptions,
+} from './_utils/cloudinary.js';
 import {
   checkRateLimit,
   getSafeErrorMessage,
@@ -12,20 +18,21 @@ import {
 } from './_utils/security.js';
 import type { UploadApiResponse } from 'cloudinary';
 
-const MAX_INSPIRATION_SIZE_BYTES = 5 * 1024 * 1024; // 5MB limit for customer inspiration images
+export const MAX_INSPIRATION_SIZE_BYTES = 5 * 1024 * 1024; // 5MB limit for customer inspiration images
 
 /**
- * Uploads an inspiration image buffer to Cloudinary in alongkar/jewellery-requests folder.
+ * Uploads an inspiration image buffer to Cloudinary in alongkar/jewellery-requests folder
+ * targeting Account B (Request Jewellery Media) isolated configuration.
  */
-async function uploadInspirationToCloudinary(
+export async function uploadInspirationToCloudinary(
   fileBuffer: Buffer
 ): Promise<UploadApiResponse> {
   return new Promise((resolve, reject) => {
-    const randomSuffix = Math.random().toString(36).substring(2, 8);
-    const publicId = `insp_${Date.now()}_${randomSuffix}`;
+    try {
+      const randomSuffix = Math.random().toString(36).substring(2, 8);
+      const publicId = `insp_${Date.now()}_${randomSuffix}`;
 
-    const uploadStream = cloudinary.uploader.upload_stream(
-      {
+      const uploadOptions = getCloudinaryRequestsUploadOptions({
         folder: 'alongkar/jewellery-requests',
         resource_type: 'image',
         public_id: publicId,
@@ -38,37 +45,44 @@ async function uploadInspirationToCloudinary(
             fetch_format: 'auto',
           },
         ],
-      },
-      (error, result) => {
-        if (error) {
-          return reject(error);
-        }
-        if (!result) {
-          return reject(new Error('Cloudinary upload returned an empty response.'));
-        }
-        resolve(result);
-      }
-    );
+      });
 
-    uploadStream.end(fileBuffer);
+      const uploadStream = cloudinary.uploader.upload_stream(
+        uploadOptions,
+        (error, result) => {
+          if (error) {
+            return reject(error);
+          }
+          if (!result) {
+            return reject(new Error('Cloudinary upload returned an empty response.'));
+          }
+          resolve(result);
+        }
+      );
+
+      uploadStream.end(fileBuffer);
+    } catch (err) {
+      reject(err);
+    }
   });
 }
 
 /**
- * Uploads a product image buffer to Cloudinary with automatic optimization in alongkar/products.
+ * Uploads a product image buffer to Cloudinary with automatic optimization in alongkar/products
+ * targeting Account A (Storefront Products) configuration.
  */
-async function uploadProductImageToCloudinary(
+export async function uploadProductImageToCloudinary(
   fileBuffer: Buffer,
   filename: string
 ): Promise<UploadApiResponse> {
   return new Promise((resolve, reject) => {
-    const cleanName = filename
-      .replace(/\.[^/.]+$/, '')
-      .replace(/[^a-zA-Z0-9_-]/g, '_')
-      .slice(0, 40);
+    try {
+      const cleanName = filename
+        .replace(/\.[^/.]+$/, '')
+        .replace(/[^a-zA-Z0-9_-]/g, '_')
+        .slice(0, 40);
 
-    const uploadStream = cloudinary.uploader.upload_stream(
-      {
+      const uploadOptions = getCloudinaryProductsUploadOptions({
         folder: 'alongkar/products',
         resource_type: 'image',
         public_id: `${cleanName}_${Date.now()}`,
@@ -81,19 +95,25 @@ async function uploadProductImageToCloudinary(
             fetch_format: 'auto',
           },
         ],
-      },
-      (error, result) => {
-        if (error) {
-          return reject(error);
-        }
-        if (!result) {
-          return reject(new Error('Cloudinary upload returned empty response'));
-        }
-        resolve(result);
-      }
-    );
+      });
 
-    uploadStream.end(fileBuffer);
+      const uploadStream = cloudinary.uploader.upload_stream(
+        uploadOptions,
+        (error, result) => {
+          if (error) {
+            return reject(error);
+          }
+          if (!result) {
+            return reject(new Error('Cloudinary upload returned empty response'));
+          }
+          resolve(result);
+        }
+      );
+
+      uploadStream.end(fileBuffer);
+    } catch (err) {
+      reject(err);
+    }
   });
 }
 
@@ -171,16 +191,16 @@ export async function handleJewelleryInspirationUpload(req: any, res?: any) {
       });
     }
 
-    // 5. Verify Cloudinary Configuration
-    if (!isCloudinaryConfigured()) {
+    // 5. Verify Cloudinary Configuration (Account B: Customer Request Jewellery Media)
+    if (!isCloudinaryRequestsConfigured()) {
       return respond(res, 503, {
         success: false,
         error:
-          'Cloudinary image service is not configured on the server. Please ensure CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET are set.',
+          'Cloudinary image service for customer requests is not configured on the server.',
       });
     }
 
-    // 6. Upload Image to Cloudinary folder: alongkar/jewellery-requests
+    // 6. Upload Image to Cloudinary folder: alongkar/jewellery-requests (Account B)
     const uploadResult = await uploadInspirationToCloudinary(file.buffer);
 
     const durationMs = Date.now() - startTime;
@@ -256,15 +276,15 @@ export async function handleProductImageUpload(req: any, res?: any) {
       });
     }
 
-    // 3. Verify Cloudinary Configuration
-    if (!isCloudinaryConfigured()) {
+    // 3. Verify Cloudinary Configuration (Account A: Storefront Products)
+    if (!isCloudinaryProductsConfigured()) {
       return respond(res, 503, {
         error:
           'Cloudinary image service is not configured on the server. Please set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET.',
       });
     }
 
-    // 4. Upload Image to Cloudinary in alongkar/products
+    // 4. Upload Image to Cloudinary in alongkar/products (Account A)
     const uploadResult = await uploadProductImageToCloudinary(file.buffer, file.filename);
 
     const durationMs = Date.now() - startTime;

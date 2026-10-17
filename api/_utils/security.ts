@@ -150,18 +150,24 @@ export function getSafeErrorMessage(error: unknown, fallbackMessage = 'Internal 
 
     if ('message' in errObj) {
       const msg = String(errObj.message);
+      const lower = msg.toLowerCase();
       // Redact database connection strings, credentials, and internal stack traces
       if (
-        msg.includes('postgresql://') ||
-        msg.includes('postgres://') ||
-        msg.includes('prisma') ||
-        msg.includes('PrismaClient') ||
-        msg.includes('CLERK_') ||
-        msg.includes('CLOUDINARY_') ||
-        msg.includes('SECRET') ||
-        msg.includes('apiKey') ||
-        msg.includes('token') ||
-        msg.includes('at ') // stack trace line
+        lower.includes('postgresql://') ||
+        lower.includes('postgres://') ||
+        lower.includes('prisma') ||
+        lower.includes('prismaclient') ||
+        lower.includes('clerk') ||
+        lower.includes('cloudinary') ||
+        lower.includes('secret') ||
+        lower.includes('apikey') ||
+        lower.includes('api_key') ||
+        lower.includes('api_secret') ||
+        lower.includes('token') ||
+        lower.includes('password') ||
+        lower.includes('signature') ||
+        lower.includes('credential') ||
+        lower.includes('at ') // stack trace line
       ) {
         return fallbackMessage;
       }
