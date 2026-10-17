@@ -349,9 +349,12 @@ Ensure the following variables are configured in your `.env` and Vercel project 
 | `DIRECT_URL` | PostgreSQL direct connection string for Prisma migrations | **Yes** | Server-side |
 | `RAZORPAY_KEY_ID` | Razorpay Merchant Key ID | **Yes** | Client / Server |
 | `RAZORPAY_KEY_SECRET` | Razorpay Merchant Secret for HMAC verification | **Yes** | Server-side |
-| `CLOUDINARY_CLOUD_NAME` | Cloudinary cloud identifier | **Yes** | Server-side |
-| `CLOUDINARY_API_KEY` | Cloudinary API Key | **Yes** | Server-side |
-| `CLOUDINARY_API_SECRET` | Cloudinary API Secret | **Yes** | Server-side |
+| `CLOUDINARY_CLOUD_NAME` | Cloudinary Account A cloud name (storefront products) | **Yes** | Server-side |
+| `CLOUDINARY_API_KEY` | Cloudinary Account A API key (storefront products) | **Yes** | Server-side |
+| `CLOUDINARY_API_SECRET` | Cloudinary Account A API secret (storefront products) | **Yes** | Server-side |
+| `CLOUDINARY_REQUESTS_CLOUD_NAME` | Cloudinary Account B cloud name (request jewellery) | Conditional | Server-side |
+| `CLOUDINARY_REQUESTS_API_KEY` | Cloudinary Account B API key (request jewellery) | Conditional | Server-side |
+| `CLOUDINARY_REQUESTS_API_SECRET` | Cloudinary Account B API secret (request jewellery) | Conditional | Server-side |
 | `BREVO_API_KEY` | Brevo API key for transactional emails | Optional | Server-side |
 | `BREVO_SENDER_EMAIL` | Verified sender email address in Brevo | Optional | Server-side |
 | `BREVO_SENDER_NAME` | Display name for outgoing emails (Alongkar) | Optional | Server-side |
@@ -360,7 +363,7 @@ Ensure the following variables are configured in your `.env` and Vercel project 
 | `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis REST token | Optional | Server-side |
 
 > [!CAUTION]
-> Never prefix private credentials (`CLERK_SECRET_KEY`, `RAZORPAY_KEY_SECRET`, `CLOUDINARY_API_SECRET`, `BREVO_API_KEY`) with `VITE_`. Serverless secrets must never be exposed to the browser.
+> Never prefix private credentials (`CLERK_SECRET_KEY`, `RAZORPAY_KEY_SECRET`, `CLOUDINARY_API_SECRET`, `CLOUDINARY_REQUESTS_API_SECRET`, `BREVO_API_KEY`) with `VITE_`. Serverless secrets must never be exposed to the browser.
 
 ---
 

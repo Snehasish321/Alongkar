@@ -62,7 +62,7 @@ export const ENV_CATALOG: readonly EnvVarSpec[] = [
     name: 'CLOUDINARY_CLOUD_NAME',
     category: 'conditional_production',
     scope: 'server_only',
-    description: 'Cloudinary cloud name for product & jewellery image uploads',
+    description: 'Cloudinary cloud name for storefront product catalog uploads (Account A)',
     isSecret: false,
     placeholderPrefixes: ['your_cloudinary_cloud_name'],
   },
@@ -70,7 +70,7 @@ export const ENV_CATALOG: readonly EnvVarSpec[] = [
     name: 'CLOUDINARY_API_KEY',
     category: 'conditional_production',
     scope: 'server_only',
-    description: 'Cloudinary API key for server-side image uploads',
+    description: 'Cloudinary API key for storefront product catalog uploads (Account A)',
     isSecret: false,
     placeholderPrefixes: ['your_cloudinary_api_key'],
   },
@@ -78,9 +78,33 @@ export const ENV_CATALOG: readonly EnvVarSpec[] = [
     name: 'CLOUDINARY_API_SECRET',
     category: 'conditional_production',
     scope: 'server_only',
-    description: 'Cloudinary API secret for server-side image upload signing',
+    description: 'Cloudinary API secret for storefront product catalog uploads (Account A)',
     isSecret: true,
     placeholderPrefixes: ['your_cloudinary_api_secret'],
+  },
+  {
+    name: 'CLOUDINARY_REQUESTS_CLOUD_NAME',
+    category: 'conditional_production',
+    scope: 'server_only',
+    description: 'Cloudinary cloud name for customer jewellery request inspiration uploads (Account B)',
+    isSecret: false,
+    placeholderPrefixes: ['your_cloudinary_requests_cloud_name'],
+  },
+  {
+    name: 'CLOUDINARY_REQUESTS_API_KEY',
+    category: 'conditional_production',
+    scope: 'server_only',
+    description: 'Cloudinary API key for customer jewellery request inspiration uploads (Account B)',
+    isSecret: false,
+    placeholderPrefixes: ['your_cloudinary_requests_api_key'],
+  },
+  {
+    name: 'CLOUDINARY_REQUESTS_API_SECRET',
+    category: 'conditional_production',
+    scope: 'server_only',
+    description: 'Cloudinary API secret for customer jewellery request inspiration uploads (Account B)',
+    isSecret: true,
+    placeholderPrefixes: ['your_cloudinary_requests_api_secret'],
   },
   {
     name: 'UPSTASH_REDIS_REST_URL',
@@ -212,6 +236,8 @@ export interface EnvValidationResult {
     database: 'configured' | 'missing';
     clerk: 'configured' | 'missing';
     cloudinary: 'configured' | 'not_configured';
+    cloudinaryProducts: 'configured' | 'not_configured';
+    cloudinaryRequests: 'configured' | 'not_configured';
     redis: 'configured' | 'not_configured';
     razorpay: 'configured' | 'not_configured';
     shiprocket: 'configured' | 'not_configured';
@@ -251,13 +277,13 @@ export function validateEnvironment(env: Record<string, string | undefined> = pr
     placeholderValues.push('VITE_CLERK_PUBLISHABLE_KEY');
   }
 
-  // 3. Check Cloudinary (conditional service)
+  // 3a. Check Cloudinary Account A - Storefront Products (conditional service)
   const cName = env.CLOUDINARY_CLOUD_NAME;
   const cKey = env.CLOUDINARY_API_KEY;
   const cSecret = env.CLOUDINARY_API_SECRET;
 
-  const isCloudinaryPartiallySet = Boolean(cName || cKey || cSecret);
-  const isCloudinaryFullyConfigured = Boolean(
+  const isCloudinaryProductsPartiallySet = Boolean(cName || cKey || cSecret);
+  const isCloudinaryProductsFullyConfigured = Boolean(
     cName &&
     cKey &&
     cSecret &&
@@ -266,8 +292,27 @@ export function validateEnvironment(env: Record<string, string | undefined> = pr
     cSecret !== 'your_cloudinary_api_secret'
   );
 
-  if (isCloudinaryPartiallySet && !isCloudinaryFullyConfigured) {
-    warnings.push('Cloudinary credentials are partially defined. Image uploads will be disabled until all 3 keys are configured.');
+  if (isCloudinaryProductsPartiallySet && !isCloudinaryProductsFullyConfigured) {
+    warnings.push('Cloudinary Account A (Products) credentials are partially defined. Product uploads will be disabled until CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET are fully configured.');
+  }
+
+  // 3b. Check Cloudinary Account B - Request Jewellery (conditional service)
+  const crName = env.CLOUDINARY_REQUESTS_CLOUD_NAME;
+  const crKey = env.CLOUDINARY_REQUESTS_API_KEY;
+  const crSecret = env.CLOUDINARY_REQUESTS_API_SECRET;
+
+  const isCloudinaryRequestsPartiallySet = Boolean(crName || crKey || crSecret);
+  const isCloudinaryRequestsFullyConfigured = Boolean(
+    crName &&
+    crKey &&
+    crSecret &&
+    crName !== 'your_cloudinary_requests_cloud_name' &&
+    crKey !== 'your_cloudinary_requests_api_key' &&
+    crSecret !== 'your_cloudinary_requests_api_secret'
+  );
+
+  if (isCloudinaryRequestsPartiallySet && !isCloudinaryRequestsFullyConfigured) {
+    warnings.push('Cloudinary Account B (Request Jewellery) credentials are partially defined. Inspiration uploads will be disabled until CLOUDINARY_REQUESTS_CLOUD_NAME, CLOUDINARY_REQUESTS_API_KEY, and CLOUDINARY_REQUESTS_API_SECRET are fully configured.');
   }
 
   // 4. Check Redis (optional service)
@@ -335,7 +380,9 @@ export function validateEnvironment(env: Record<string, string | undefined> = pr
     services: {
       database: databaseUrl && !placeholderValues.includes('DATABASE_URL') ? 'configured' : 'missing',
       clerk: clerkSecret && clerkPub ? 'configured' : 'missing',
-      cloudinary: isCloudinaryFullyConfigured ? 'configured' : 'not_configured',
+      cloudinary: isCloudinaryProductsFullyConfigured ? 'configured' : 'not_configured',
+      cloudinaryProducts: isCloudinaryProductsFullyConfigured ? 'configured' : 'not_configured',
+      cloudinaryRequests: isCloudinaryRequestsFullyConfigured ? 'configured' : 'not_configured',
       redis: isRedisConfigured ? 'configured' : 'not_configured',
       razorpay: isRazorpayFullyConfigured ? 'configured' : 'not_configured',
       shiprocket: isShiprocketFullyConfigured ? 'configured' : 'not_configured',
