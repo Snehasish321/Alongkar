@@ -118,14 +118,14 @@ async function runPhase3Tests() {
 
   const mockAccountA = {
     cloud_name: 'alongkar-account-a-prod',
-    api_key: 'mock_key_a_999888',
-    api_secret: 'mock_secret_a_777666',
+    api_key: 'mock-key-a',
+    api_secret: 'mock-secret-a',
   };
 
   const mockAccountB = {
     cloud_name: 'alongkar-account-b-requests',
-    api_key: 'mock_key_b_111222',
-    api_secret: 'mock_secret_b_333444',
+    api_key: 'mock-key-b',
+    api_secret: 'mock-secret-b',
   };
 
   // Helper to configure env for tests
@@ -351,17 +351,19 @@ async function runPhase3Tests() {
     // Account B configured, Account A unconfigured
     setupEnv({ accountA: false, accountB: true });
 
-    let uploadStreamCalledForProduct = false;
-    let uploadStreamCalledForInspiration = false;
+    const tracker = {
+      uploadStreamCalledForProduct: false,
+      uploadStreamCalledForInspiration: false,
+    };
     const originalUploadStream = cloudinary.uploader.upload_stream;
 
     cloudinary.uploader.upload_stream = function (options: any, callback: any) {
       if (options.folder === 'alongkar/products') {
-        uploadStreamCalledForProduct = true;
+        tracker.uploadStreamCalledForProduct = true;
         throw new Error('Product upload stream should not be invoked when Account A is unconfigured');
       }
       if (options.folder === 'alongkar/jewellery-requests') {
-        uploadStreamCalledForInspiration = true;
+        tracker.uploadStreamCalledForInspiration = true;
         const fakeStream: any = new (Readable as any)();
         fakeStream._read = () => {};
         fakeStream.end = (buf: any) => {
@@ -397,7 +399,7 @@ async function runPhase3Tests() {
           !prodRes.data.error.includes(mockAccountB.api_secret),
         'Product 503 response preserves expected configuration guidance without leaking secrets'
       );
-      assert(uploadStreamCalledForProduct === false, 'Product upload was NOT invoked when Account A was unset');
+      assert(tracker.uploadStreamCalledForProduct === false, 'Product upload was NOT invoked when Account A was unset');
 
       // 2. Inspiration upload remains fully functional on Account B
       const inspReq = createMockMultipartReq({
@@ -409,7 +411,7 @@ async function runPhase3Tests() {
 
       assert(inspRes.statusCode === 200, 'Inspiration upload succeeds on Account B despite Account A outage');
       assert(inspRes.data?.success === true, 'Inspiration upload response reports success: true');
-      assert(uploadStreamCalledForInspiration === true, 'Inspiration upload correctly routes to Account B');
+      assert(tracker.uploadStreamCalledForInspiration === true, 'Inspiration upload correctly routes to Account B');
     } finally {
       cloudinary.uploader.upload_stream = originalUploadStream;
     }

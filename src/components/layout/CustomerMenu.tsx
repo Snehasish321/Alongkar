@@ -4,13 +4,12 @@ import { useUser, useClerk } from '@clerk/react';
 import {
   Package,
   Heart,
-  Sparkles,
   Settings,
   Logout,
   ChevronRight,
   User as UserIcon,
 } from 'reicon-react';
-import { MapPin } from 'lucide-react';
+import { MapPin, ClipboardCheck } from 'lucide-react';
 
 interface CustomerMenuProps {
   className?: string;
@@ -248,7 +247,7 @@ export const CustomerMenu: React.FC<CustomerMenuProps> = ({ className = '' }) =>
             >
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-8 h-8 rounded-lg bg-[#E8C98A]/15 border border-[#E8C98A]/30 flex items-center justify-center text-[#E8C98A] shrink-0 group-hover:scale-105 transition-transform">
-                  <Sparkles size={17} />
+                  <ClipboardCheck size={17} />
                 </div>
                 <div className="min-w-0">
                   <p className="text-xs font-semibold tracking-wide text-[#FFE3C7]">
