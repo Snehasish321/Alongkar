@@ -59,7 +59,19 @@ export const AdminProductsPage: React.FC = () => {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/products');
+      const token = await getToken();
+      const headers: Record<string, string> = {
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache',
+      };
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const res = await fetch(`/api/products?_t=${Date.now()}`, {
+        cache: 'no-store',
+        headers,
+      });
       if (!res.ok) {
         throw new Error(`Failed to load products (HTTP ${res.status})`);
       }
@@ -75,7 +87,7 @@ export const AdminProductsPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [getToken]);
 
   useEffect(() => {
     fetchProducts();
@@ -194,6 +206,11 @@ export const AdminProductsPage: React.FC = () => {
       if (!res.ok) {
         throw new Error(data.error || `Deletion failed with status ${res.status}`);
       }
+
+      const deletedProductId = data.deletedProductId || productToDelete.id;
+
+      // Immediately remove deleted product from state using functional update
+      setProducts((prev) => prev.filter((product) => product.id !== deletedProductId));
 
       showToast(`🗑️ Product "${productToDelete.name}" deleted from database.`);
       setIsDeleteModalOpen(false);

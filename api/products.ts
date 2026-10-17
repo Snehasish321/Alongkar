@@ -700,19 +700,33 @@ export default async function handler(req: any, res?: any) {
         limit,
       };
 
+      // Identify whether this listing query is issued by an authenticated administrator
+      let isAdminRequest = false;
+      const authHeader = req.headers?.authorization || req.headers?.Authorization;
+      if (authHeader) {
+        try {
+          const authCheck = await requireAdmin(req);
+          isAdminRequest = Boolean(authCheck.authorized);
+        } catch {
+          isAdminRequest = false;
+        }
+      }
+
       const listCacheKey = CacheKey.productsList(filterOptions);
-      const cachedList = await cacheGet<any>(listCacheKey);
-      if (cachedList.hit && cachedList.data) {
-        return respond(
-          res,
-          200,
-          cachedList.data,
-          {
-            'X-Cache': 'HIT',
-            'X-Cache-Source': cachedList.source,
-            'Cache-Control': 'public, max-age=60, s-maxage=300, stale-while-revalidate=600',
-          }
-        );
+      if (!isAdminRequest) {
+        const cachedList = await cacheGet<any>(listCacheKey);
+        if (cachedList.hit && cachedList.data) {
+          return respond(
+            res,
+            200,
+            cachedList.data,
+            {
+              'X-Cache': 'HIT',
+              'X-Cache-Source': cachedList.source,
+              'Cache-Control': 'public, max-age=60, s-maxage=300, stale-while-revalidate=600',
+            }
+          );
+        }
       }
 
       // Capture cache version before DB query to guard against concurrent mutations
@@ -804,20 +818,35 @@ export default async function handler(req: any, res?: any) {
         };
       }
 
-      // Store in Redis with cache generation verification to prevent stale overwrite
-      try {
-        await cacheSet(listCacheKey, responseData, TTL.PRODUCTS_ALL, cacheVersion);
-      } catch (cacheErr) {
-        console.warn('[Cache] Non-critical cacheSet error:', cacheErr);
+      if (!isAdminRequest) {
+        // Store in Redis with cache generation verification to prevent stale overwrite
+        try {
+          await cacheSet(listCacheKey, responseData, TTL.PRODUCTS_ALL, cacheVersion);
+        } catch (cacheErr) {
+          console.warn('[Cache] Non-critical cacheSet error:', cacheErr);
+        }
+
+        return respond(
+          res,
+          200,
+          responseData,
+          {
+            'X-Cache': 'MISS',
+            'Cache-Control': 'public, max-age=60, s-maxage=300, stale-while-revalidate=600',
+          }
+        );
       }
 
+      // For authenticated administrator listing requests, return strict private/no-store headers
+      // so neither browser nor shared CDN caches will retain or serve stale catalog state.
       return respond(
         res,
         200,
         responseData,
         {
-          'X-Cache': 'MISS',
-          'Cache-Control': 'public, max-age=60, s-maxage=300, stale-while-revalidate=600',
+          'X-Cache': 'BYPASS-ADMIN',
+          'Cache-Control': 'private, no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
         }
       );
     }
@@ -1025,7 +1054,27 @@ export default async function handler(req: any, res?: any) {
           deletedProductId: deletedProduct.id,
           product: formatProductResponse(deletedProduct),
         });
-      } catch (error) {
+      } catch (error: any) {
+        // Check for Prisma foreign-key restriction (e.g. InventoryMovement relation)
+        const isForeignKeyConstraint =
+          error?.code === 'P2003' ||
+          error?.code === 'P2014' ||
+          String(error?.message || '').includes('foreign key constraint') ||
+          String(error?.message || '').includes('InventoryMovementToProduct');
+
+        if (isForeignKeyConstraint) {
+          logServerError({
+            endpoint: '/api/products',
+            method: 'DELETE',
+            operation: 'delete_product_foreign_key_restricted',
+            error,
+          });
+          return respond(res, 409, {
+            error:
+              'Cannot delete this product because it has associated order or inventory history. To remove it from the storefront, update its stock or mark it out of stock.',
+          });
+        }
+
         logServerError({
           endpoint: '/api/products',
           method: 'DELETE',
