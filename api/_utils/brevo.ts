@@ -72,12 +72,13 @@ export async function sendWelcomeEmail(
   let apiUnsubscribeUrl: string;
 
   if (customUnsubscribeUrl) {
-    pageUnsubscribeUrl = customUnsubscribeUrl;
-    apiUnsubscribeUrl = customUnsubscribeUrl.includes('/api/unsubscribe')
-      ? customUnsubscribeUrl
-      : customUnsubscribeUrl.replace('/unsubscribe?', '/api/unsubscribe?');
+    const trimmedCustom = customUnsubscribeUrl.trim();
+    pageUnsubscribeUrl = trimmedCustom;
+    apiUnsubscribeUrl = trimmedCustom.includes('/api/unsubscribe')
+      ? trimmedCustom
+      : trimmedCustom.replace('/unsubscribe?', '/api/unsubscribe?');
   } else if (subscriberId) {
-    const urls = generateUnsubscribeUrls({ id: subscriberId, email: subscriberEmail });
+    const urls = generateUnsubscribeUrls({ id: subscriberId.trim(), email: subscriberEmail.trim() });
     pageUnsubscribeUrl = urls.pageUrl;
     apiUnsubscribeUrl = urls.apiUrl;
   } else {

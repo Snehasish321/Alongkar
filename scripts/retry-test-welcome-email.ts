@@ -131,7 +131,7 @@ async function main() {
     console.log(`\n📨 Dispatching welcome email via Brevo to ${maskedTarget}...`);
     let sendResult;
     try {
-      sendResult = await sendWelcomeEmail(normalizedTarget);
+      sendResult = await sendWelcomeEmail(normalizedTarget, undefined, subscriber.id);
     } catch (dispatchErr: any) {
       console.error('❌ [DISPATCH_ERROR] Network or unexpected error calling Brevo API.');
       await prisma.newsletterSubscriber.update({

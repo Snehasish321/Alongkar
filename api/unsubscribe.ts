@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import prisma from '../src/lib/prisma.js';
 import { getRequestBody, respond, isPayloadTooLarge, isMalformedJson } from './_utils/auth.js';
 import {
@@ -207,27 +208,28 @@ export default async function handler(req: any, res: any) {
       });
     }
 
-    // 7. Idempotent Handling: If already UNSUBSCRIBED, return success without unnecessary DB mutation
-    if (subscriber.status === 'UNSUBSCRIBED') {
-      return respond(res, 200, {
-        success: true,
-        message: USER_FACING_UNSUBSCRIBE_SUCCESS,
-      });
+    // 7. Atomic Deletion of the NewsletterSubscriber row
+    try {
+      await withTimeout(
+        db.newsletterSubscriber.delete({
+          where: { id: subscriber.id },
+        }),
+        5000,
+        'delete newsletter subscriber'
+      );
+    } catch (delError: any) {
+      // Concurrency race: if already deleted by a simultaneous request, return safe terminal response
+      if (
+        delError?.code === 'P2025' ||
+        (delError instanceof Prisma.PrismaClientKnownRequestError && delError.code === 'P2025')
+      ) {
+        return respond(res, 404, {
+          success: false,
+          error: 'Subscriber record was not found or has already been removed.',
+        });
+      }
+      throw delError;
     }
-
-    // 8. Atomic State Transition to UNSUBSCRIBED
-    const updateData: any = {
-      status: 'UNSUBSCRIBED',
-    };
-
-    await withTimeout(
-      db.newsletterSubscriber.update({
-        where: { id: subscriber.id },
-        data: updateData,
-      }),
-      5000,
-      'update subscriber status to UNSUBSCRIBED'
-    );
 
     return respond(res, 200, {
       success: true,
