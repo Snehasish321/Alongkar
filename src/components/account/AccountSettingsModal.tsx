@@ -2215,16 +2215,16 @@ export const AccountSettingsModal: React.FC<AccountSettingsModalProps> = ({ isOp
           <div className="border-t border-[#E5E7EB] pt-5 pb-2">
             <div className="flex items-center justify-start text-xs text-gray-500">
               <div
-                className="inline-flex items-center gap-2 py-1"
+                className="inline-flex items-center gap-2.5 py-1"
                 aria-label="Secured by Clerk"
               >
-                <span className="text-xs font-medium text-gray-500 tracking-normal">
+                <span className="text-sm font-medium text-gray-500 tracking-normal">
                   Secured by
                 </span>
                 <img
                   src="/clerk-logo.png"
                   alt="Clerk"
-                  className="h-4 w-auto object-contain shrink-0"
+                  className="h-5 w-auto object-contain shrink-0"
                 />
               </div>
             </div>
