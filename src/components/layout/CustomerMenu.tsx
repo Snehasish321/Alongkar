@@ -10,6 +10,7 @@ import {
   User as UserIcon,
 } from 'reicon-react';
 import { MapPin, ClipboardCheck } from 'lucide-react';
+import { useAccountModal } from '../../context/AccountModalContext';
 
 interface CustomerMenuProps {
   className?: string;
@@ -20,6 +21,7 @@ export const CustomerMenu: React.FC<CustomerMenuProps> = ({ className = '' }) =>
   const clerk = useClerk();
   const location = useLocation();
   const navigate = useNavigate();
+  const { openAccountModal } = useAccountModal();
 
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -70,7 +72,7 @@ export const CustomerMenu: React.FC<CustomerMenuProps> = ({ className = '' }) =>
 
   const handleOpenAccountSettings = () => {
     setIsOpen(false);
-    clerk.openUserProfile();
+    openAccountModal();
   };
 
   const handleSignOut = async () => {

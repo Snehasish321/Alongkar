@@ -19,6 +19,7 @@ import { SignInButton, Show, useUser, useClerk } from '@clerk/react';
 import { Heart, MapPin } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
 import { useWishlist } from '../../context/WishlistContext';
+import { useAccountModal } from '../../context/AccountModalContext';
 
 interface MobileMenuProps {
   isOpen: boolean;
@@ -31,6 +32,7 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
   const clerk = useClerk();
   const { totalItems } = useCart();
   const { wishlist } = useWishlist();
+  const { openAccountModal } = useAccountModal();
   const [isShopExpanded, setIsShopExpanded] = useState(false);
 
   // Close drawer on Escape key
@@ -293,7 +295,7 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({ isOpen, onClose }) => {
                       type="button"
                       onClick={() => {
                         onClose();
-                        clerk.openUserProfile();
+                        openAccountModal();
                       }}
                       className="hover:text-[#E8C98A] transition-colors cursor-pointer flex items-center gap-1"
                     >

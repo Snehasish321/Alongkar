@@ -2,6 +2,7 @@ import React, { useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { CartProvider } from './context/CartContext';
 import { WishlistProvider } from './context/WishlistContext';
+import { AccountModalProvider } from './context/AccountModalContext';
 import { HomePage } from './pages/HomePage';
 
 // Lazy-loaded routes for performance & code-splitting
@@ -228,7 +229,9 @@ export default function App() {
       <Router>
         <CartProvider>
           <WishlistProvider>
-            <AppContent />
+            <AccountModalProvider>
+              <AppContent />
+            </AccountModalProvider>
           </WishlistProvider>
         </CartProvider>
       </Router>
