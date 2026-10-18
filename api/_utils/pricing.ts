@@ -167,7 +167,7 @@ export function calculateShippingFee(subtotal: number): number {
  */
 export function calculatePrepaidIncentive(
   eligibleAmount: number,
-  paymentMethod: PaymentMethod
+  paymentMethod?: PaymentMethod | null | string
 ): number {
   if (paymentMethod !== 'RAZORPAY' || eligibleAmount <= 0) {
     return 0;

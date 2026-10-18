@@ -18,13 +18,13 @@ import {
   STANDARD_SHIPPING_FEE,
   PREPAID_INCENTIVE_MAX_DISCOUNT,
   PREPAID_INCENTIVE_PERCENT,
-} from '../api/_utils/pricing.ts';
+} from '../api/_utils/pricing.js';
 
 let totalTests = 0;
 let passedTests = 0;
 let failedTests = 0;
 
-function assert(condition: boolean, testName: string, detail?: string) {
+function assert(condition: unknown, testName: string, detail?: string) {
   totalTests++;
   if (condition) {
     passedTests++;

@@ -11,6 +11,7 @@ import {
   restoreOrderInventoryTx,
   invalidateRestoredProductsCache,
   type AggregatedOrderItem,
+  type InventoryRestorationFailure,
 } from './inventory.js';
 import { getRazorpayClient, rupeesToPaise } from './razorpay.js';
 import { hasPendingCancellationRequest, isOrderCancellationEligible } from '../../src/lib/order-status.js';
@@ -640,12 +641,15 @@ export async function cancelAdminOrderWorkflow(
               restoredItems = restorationResult.restoredItems;
               const totalRestoredQty = restoredItems.reduce((sum, it) => sum + it.quantity, 0);
               inventoryNote = `Inventory restored (${totalRestoredQty} pcs)`;
-            } else if (restorationResult.reason === 'NO_INVENTORY_DEDUCTED') {
-              inventoryNote = '[Legacy Order: No durable deduction records found; inventory was not modified]';
-            } else if (restorationResult.reason === 'ALREADY_RESTORED') {
-              throw new Error('ALREADY_RESTORED');
             } else {
-              throw new Error(`INVENTORY_RESTORATION_FAILED:${restorationResult.error}`);
+              const failure = restorationResult as InventoryRestorationFailure;
+              if (failure.reason === 'NO_INVENTORY_DEDUCTED') {
+                inventoryNote = '[Legacy Order: No durable deduction records found; inventory was not modified]';
+              } else if (failure.reason === 'ALREADY_RESTORED') {
+                throw new Error('ALREADY_RESTORED');
+              } else {
+                throw new Error(`INVENTORY_RESTORATION_FAILED:${failure.error}`);
+              }
             }
           }
 

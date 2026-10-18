@@ -23,7 +23,7 @@ import { getRawAndParsedBody, isPayloadTooLarge } from '../api/_utils/auth.js';
 let totalPassed = 0;
 let totalFailed = 0;
 
-function assert(condition: boolean, testName: string, detail?: string) {
+function assert(condition: unknown, testName: string, detail?: string) {
   if (condition) {
     console.log(`✅ [PASS] ${testName}`);
     totalPassed++;
@@ -42,7 +42,7 @@ function createMockRes() {
   const res: any = Object.assign(emitter, {
     statusCode: 200,
     headers: {} as Record<string, string>,
-    data: null,
+    data: null as any,
     status(code: number) {
       this.statusCode = code;
       return this;
@@ -59,7 +59,7 @@ function createMockRes() {
     },
     json(payload: any) {
       this.data = payload;
-      this.emit('finish');
+      emitter.emit('finish');
       return this;
     },
     end(str: string) {
@@ -70,7 +70,7 @@ function createMockRes() {
           this.data = str;
         }
       }
-      this.emit('finish');
+      emitter.emit('finish');
       return this;
     },
   });
@@ -248,7 +248,7 @@ async function runTestSuite() {
   assert(bypassResult.success === true, '[Unit] sendWelcomeEmail returns success without throwing when disabled');
   assert(bypassResult.providerAccepted === false, '[Unit] providerAccepted is false when sending is bypassed');
   assert(
-    bypassResult.skippedReason?.includes('disabled or unconfigured'),
+    Boolean(bypassResult.skippedReason?.includes('disabled or unconfigured')),
     '[Unit] Reports explicit skippedReason when bypassed'
   );
 

@@ -18,6 +18,7 @@ import {
   checkLiveStockAvailability,
   deductOrderInventoryTx,
   invalidateDeductedProductsCache,
+  type InventoryDeductionFailure,
 } from './_utils/inventory.js';
 import { requestCustomerCancellationWorkflow } from './_utils/orderCancellation.js';
 import { getCancellationRequestDetails } from '../src/lib/order-status.js';
@@ -655,7 +656,8 @@ export default async function handler(req: any, res?: any) {
                 reason: 'cod_order_placed',
               });
               if (!deduction.success) {
-                throw new Error(`INSUFFICIENT_STOCK:${deduction.conflictProductId || 'UNKNOWN'}`);
+                const failure = deduction as InventoryDeductionFailure;
+                throw new Error(`INSUFFICIENT_STOCK:${failure.conflictProductId || 'UNKNOWN'}`);
               }
             }
 

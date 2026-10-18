@@ -15,6 +15,7 @@ export interface AggregatedOrderItem {
 export interface InventoryDeductionSuccess {
   success: true;
   deductedItems: AggregatedOrderItem[];
+  conflictProductId?: undefined;
 }
 
 export interface InventoryDeductionFailure {
@@ -393,6 +394,8 @@ export interface InventoryRestorationSuccess {
   orderNumber?: string;
   restoredItems: AggregatedOrderItem[];
   restoredAt: Date;
+  reason?: undefined;
+  error?: undefined;
 }
 
 export interface InventoryRestorationFailure {
