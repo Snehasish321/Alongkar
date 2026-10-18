@@ -143,10 +143,13 @@ export const Footer: React.FC = () => {
                 <label
                   id="footer-newsletter-consent-label"
                   htmlFor="footer-newsletter-consent"
-                  className="text-[10px] leading-snug text-[#FDF8F0]/80 cursor-pointer select-none"
+                  className="text-[10px] leading-snug text-[#000000] cursor-pointer select-none"
                 >
                   I consent to receive the welcome email and occasional Alongkar marketing newsletters. View our{' '}
-                  <Link to="/privacy-policy" className="underline hover:text-[#FFE3C7] transition-colors focus:outline-none focus:ring-1 focus:ring-[#FFE3C7] rounded">
+                  <Link
+                    to="/privacy-policy"
+                    className="text-[#000000] hover:text-[#000000] focus:text-[#000000] underline transition-colors focus:outline-none focus:ring-1 focus:ring-[#000000] rounded"
+                  >
                     Privacy Policy
                   </Link>
                   .

@@ -9,7 +9,7 @@ import adminOrdersHandler from '../api/_admin/orders.js';
 let passed = 0;
 let failed = 0;
 
-function assert(condition: boolean, message: string) {
+function assert(condition: unknown, message: string) {
   if (condition) {
     console.log(`✅ [PASS] ${message}`);
     passed++;
@@ -195,7 +195,7 @@ async function run() {
     assert(stockP2AfterDeduct?.availableStock === 9, 'Product 2 availableStock decremented to 9');
 
     // Mock Razorpay client for refund
-    let mockRefundCalled = false;
+    let mockRefundCalled: boolean = false;
     let mockRefundArgs: any = null;
     const mockRazorpayClient = {
       payments: {
@@ -226,7 +226,7 @@ async function run() {
     assert(cancelPrepaidResult.inventoryRestored === true, 'Prepaid cancellation restored inventory');
     assert(cancelPrepaidResult.refundStatus === 'REFUNDED', 'Refund status is REFUNDED');
     assert(cancelPrepaidResult.refundId === `rfnd_mock_${timestamp}`, 'Refund ID is captured');
-    assert(mockRefundCalled === true, 'Razorpay payments.refund was called');
+    assert((mockRefundCalled as boolean) === true, 'Razorpay payments.refund was called');
     assert(mockRefundArgs.paymentId === `pay_p3i_${timestamp}`, 'Refund passed correct paymentId');
     assert(mockRefundArgs.amount === 1500000, 'Refund passed amount in paise (15000 * 100)');
 
@@ -240,7 +240,10 @@ async function run() {
     });
     assert(freshPrepaidOrder?.status === 'CANCELLED', 'Order status is CANCELLED');
     assert(freshPrepaidOrder?.paymentStatus === 'REFUNDED', 'Payment status is REFUNDED');
-    assert(freshPrepaidOrder?.adminNotes?.includes(`rfnd_mock_${timestamp}`), 'Admin notes contains refund ID');
+    assert(
+      Boolean(freshPrepaidOrder?.adminNotes?.includes(`rfnd_mock_${timestamp}`)),
+      'Admin notes contains refund ID'
+    );
 
     // ─── 3. Prepaid Razorpay Refund Failure & Recovery ────────────────────────
     console.log('\n--- 3. Prepaid Razorpay Refund Failure & Recovery ---');
@@ -311,7 +314,10 @@ async function run() {
     });
     assert(freshFailOrder?.status === 'CANCELLED', 'Order status is CANCELLED');
     assert(freshFailOrder?.paymentStatus === 'PAID', 'Payment status remains PAID (recoverable state)');
-    assert(freshFailOrder?.paymentFailureReason?.includes('GATEWAY_TIMEOUT'), 'paymentFailureReason recorded gateway error');
+    assert(
+      Boolean(freshFailOrder?.paymentFailureReason?.includes('GATEWAY_TIMEOUT')),
+      'paymentFailureReason recorded gateway error'
+    );
 
     // ─── 4. Duplicate and Replay Cancellation Protection ─────────────────────
     console.log('\n--- 4. Duplicate and Replay Cancellation Protection ---');

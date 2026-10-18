@@ -36,7 +36,7 @@ import productsHandler from '../api/products.js';
 let passed = 0;
 let failed = 0;
 
-function assert(condition: boolean, testName: string, detail?: string) {
+function assert(condition: unknown, testName: string, detail?: string) {
   if (condition) {
     console.log(`✅ [PASS] ${testName}`);
     passed++;
@@ -309,7 +309,7 @@ async function runTestSuite() {
       'getRuntimeDatabaseUrl preserves existing URL query parameters intact'
     );
     assert(
-      runtimeUrl?.includes('sslmode=require') && runtimeUrl?.includes('connect_timeout=10'),
+      Boolean(runtimeUrl?.includes('sslmode=require') && runtimeUrl?.includes('connect_timeout=10')),
       'getRuntimeDatabaseUrl preserves all existing query parameters'
     );
     assert(
@@ -328,7 +328,7 @@ async function runTestSuite() {
       'getRuntimeDatabaseUrl strips ineffective statement_timeout parameter to prevent false assumptions'
     );
     assert(
-      runtimeUrl?.includes('sslmode=require'),
+      Boolean(runtimeUrl?.includes('sslmode=require')),
       'getRuntimeDatabaseUrl preserves other valid parameters when stripping statement_timeout'
     );
   }
