@@ -2213,29 +2213,20 @@ export const AccountSettingsModal: React.FC<AccountSettingsModalProps> = ({ isOp
 
           {/* Secured by Clerk Footer */}
           <div className="border-t border-[#E5E7EB] pt-5 pb-2">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-gray-500">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white border border-[#E5E7EB] text-gray-700 shadow-2xs">
-                <Lock size={12} className="text-gray-500" />
-                <span className="text-[11px] font-medium tracking-wide">
+            <div className="flex items-center justify-start text-xs text-gray-500">
+              <div
+                className="inline-flex items-center gap-2 py-1"
+                aria-label="Secured by Clerk"
+              >
+                <span className="text-xs font-medium text-gray-500 tracking-normal">
                   Secured by
                 </span>
-                <span className="font-semibold text-xs text-gray-900 flex items-center gap-1">
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none">
-                    <path
-                      d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"
-                      fill="#6C47FF"
-                    />
-                    <path
-                      d="M12 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c1.66 0 3.17-.67 4.24-1.76l-1.41-1.41C14.11 15.55 13.11 16 12 16c-2.21 0-4-1.79-4-4s1.79-4 4-4c1.11 0 2.11.45 2.83 1.17l1.41-1.41C15.17 6.67 13.66 6 12 6z"
-                      fill="#6C47FF"
-                    />
-                  </svg>
-                  Clerk
-                </span>
+                <img
+                  src="/clerk-logo.png"
+                  alt="Clerk"
+                  className="h-4 w-auto object-contain shrink-0"
+                />
               </div>
-              <p className="text-[11px] text-gray-400 text-center sm:text-right">
-                Your personal details and authentication methods are securely encrypted.
-              </p>
             </div>
           </div>
         </div>
