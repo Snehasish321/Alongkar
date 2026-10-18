@@ -1088,7 +1088,7 @@ export const AccountSettingsModal: React.FC<AccountSettingsModalProps> = ({ isOp
         aria-describedby="account-settings-description"
         onClick={(e) => e.stopPropagation()}
         data-lenis-prevent
-        className="relative w-full max-w-2xl max-h-[90vh] bg-[#FCFAF7] rounded-2xl md:rounded-3xl border border-[#E5E7EB] shadow-2xl flex flex-col overflow-hidden text-[#111827] font-sans"
+        className="relative w-full max-w-5xl max-h-[90vh] bg-[#FCFAF7] rounded-lg border border-[#E5E7EB] shadow-2xl flex flex-col overflow-hidden text-[#111827] font-sans"
       >
         {/* Brand Header (Pinned to Top) */}
         <header className="px-5 py-4 sm:px-7 sm:py-5 border-b border-[#E5E7EB] bg-white flex items-start justify-between shrink-0">
@@ -1123,7 +1123,7 @@ export const AccountSettingsModal: React.FC<AccountSettingsModalProps> = ({ isOp
             ref={closeButtonRef}
             type="button"
             onClick={handleModalClose}
-            className="p-2 -mr-1 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#70012B]/20 shrink-0 ml-4"
+            className="p-2 -mr-1 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#70012B]/20 shrink-0 ml-4"
             aria-label="Close account settings"
           >
             <X size={20} />
