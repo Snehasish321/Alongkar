@@ -1085,48 +1085,63 @@ export const AccountSettingsModal: React.FC<AccountSettingsModalProps> = ({ isOp
         role="dialog"
         aria-modal="true"
         aria-labelledby="account-settings-title"
-        aria-describedby="account-settings-description"
         onClick={(e) => e.stopPropagation()}
         data-lenis-prevent
         className="relative w-full max-w-5xl max-h-[90vh] bg-[#FCFAF7] rounded-lg border border-[#E5E7EB] shadow-2xl flex flex-col overflow-hidden text-[#111827] font-sans"
       >
-        {/* Brand Header (Pinned to Top) */}
-        <header className="px-5 py-4 sm:px-7 sm:py-5 border-b border-[#E5E7EB] bg-white flex items-start justify-between shrink-0">
-          <div>
-            <div className="flex items-center gap-3">
+        {/* Brand Header (Pinned to Top) — Alongkar Premium Burgundy */}
+        <header className="px-5 py-3.5 sm:px-7 sm:py-4.5 border-b border-[#2A0008] bg-[#40000D] flex items-center justify-between gap-4 sm:gap-6 shrink-0 relative overflow-hidden">
+          {/* Subtle radial warmth for royal depth */}
+          <div className="absolute inset-0 bg-radial-[at_top_left] from-[#5A0015]/40 via-transparent to-transparent pointer-events-none" />
+
+          {/* Left + Center + Right-Center Visual Zones */}
+          <div className="relative z-10 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 lg:gap-5 min-w-0 flex-1">
+            {/* Zone 1: Alongkar Logo */}
+            <div className="flex items-center shrink-0">
               <img
                 src="/alongkar-logo.png"
                 alt="Alongkar"
-                className="h-7 sm:h-8 w-auto object-contain"
+                className="h-8 sm:h-9 lg:h-10 w-auto object-contain drop-shadow-xs"
               />
-              <span className="text-[10px] sm:text-[11px] font-bold tracking-[0.2em] text-[#70012B] uppercase">
-                MY ACCOUNT
-              </span>
             </div>
-            <div className="mt-3">
+
+            {/* Zone 2: Decorative Vertical Gold Divider with Central Ornament (Desktop/Tablet) */}
+            <div
+              className="hidden sm:flex flex-col items-center justify-center self-stretch w-3 shrink-0 py-0.5"
+              aria-hidden="true"
+            >
+              <div className="w-[1px] flex-1 bg-gradient-to-b from-transparent via-[#C9A45D]/60 to-[#E8C98A]" />
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="none" className="shrink-0 my-0.5 text-[#E8C98A]">
+                <path d="M8 0L9.6 6.4L16 8L9.6 9.6L8 16L6.4 9.6L0 8L6.4 6.4L8 0Z" fill="currentColor" />
+                <circle cx="8" cy="8" r="1.3" fill="#40000D" />
+              </svg>
+              <div className="w-[1px] flex-1 bg-gradient-to-b from-[#E8C98A] via-[#C9A45D]/60 to-transparent" />
+            </div>
+
+            {/* Zone 3: Heading & Subtitle */}
+            <div className="min-w-0">
               <h2
                 id="account-settings-title"
-                className="text-xl sm:text-2xl font-serif font-bold text-[#111827] tracking-tight"
+                style={{ fontFamily: "'Playfair Display', 'Cormorant Garamond', 'Georgia', 'Cambria', serif" }}
+                className="text-xl sm:text-2xl lg:text-[25px] font-medium text-[#FFFDF8] tracking-tight leading-none"
               >
-                Account settings
+                My Account
               </h2>
-              <p
-                id="account-settings-description"
-                className="text-xs sm:text-sm text-gray-500 mt-1 font-sans"
-              >
-                Manage your personal information, account security and how it appears on Alongkar.
+              <p className="text-xs sm:text-[13px] lg:text-[13.5px] font-sans text-[#E8C98A]/90 mt-0.5 sm:mt-1 font-normal tracking-normal leading-snug">
+                Profile, email and sign-in settings
               </p>
             </div>
           </div>
 
+          {/* Zone 4: Refined Close Button */}
           <button
             ref={closeButtonRef}
             type="button"
             onClick={handleModalClose}
-            className="p-2 -mr-1 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#70012B]/20 shrink-0 ml-4"
+            className="relative z-10 p-1.5 sm:p-2 rounded-lg border border-[#E8C98A]/30 bg-black/15 hover:bg-white/10 hover:border-[#E8C98A]/60 text-[#FFFDF8]/80 hover:text-white transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#E8C98A]/40 shrink-0 self-start sm:self-center"
             aria-label="Close account settings"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </header>
 
