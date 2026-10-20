@@ -30,7 +30,7 @@ const MAX_ITEM_QUANTITY = 99;
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { isSignedIn, isLoaded, getToken } = useAuth();
+  const { isSignedIn, isLoaded, getToken, userId } = useAuth();
 
   // Helper to load unauthenticated guest cart from localStorage
   const loadGuestCart = (): CartItem[] => {
@@ -50,16 +50,24 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return [];
   };
 
-  const [cart, setCart] = useState<CartItem[]>(() => {
-    // Initial state: start with guest cart if not yet signed in
-    return loadGuestCart();
-  });
+  // Cart starts empty while Clerk authentication is unresolved (!isLoaded)
+  // to prevent displaying stale guest-cart quantities before auth state is known.
+  const [cart, setCart] = useState<CartItem[]>([]);
 
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [lastAddedProduct, setLastAddedProduct] = useState<Product | null>(null);
 
-  // Track authentication state transitions to handle login and logout cleanly
+  // Track authentication state transitions to handle login, logout, and account switches cleanly
   const prevIsSignedInRef = useRef<boolean | null>(null);
+  const prevUserIdRef = useRef<string | null | undefined>(undefined);
+  const currentUserIdRef = useRef<string | null | undefined>(userId);
+  currentUserIdRef.current = userId;
+
+  // Monotonically increasing counter to prevent out-of-order or stale async responses from overwriting cart
+  const serverSyncVersionRef = useRef<number>(0);
+
+  // Flag ensuring localStorage is only written when guest cart is actively in use
+  const isGuestLoadedRef = useRef<boolean>(false);
 
   // Helper to map API server items ({ productId, quantity }) to frontend CartItem[]
   const mapServerItemsToCart = useCallback(
@@ -117,14 +125,29 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     let isCancelled = false;
 
+    // Do nothing while Clerk authentication is unresolved
     if (!isLoaded) return;
 
     const wasSignedIn = prevIsSignedInRef.current;
+    const prevUserId = prevUserIdRef.current;
     prevIsSignedInRef.current = isSignedIn;
+    prevUserIdRef.current = userId;
 
     if (isSignedIn) {
-      // User is authenticated (either on page load or on sign-in)
-      // Fetch authoritative server cart from PostgreSQL via GET /api/cart
+      // Visitor is confirmed authenticated: guest cart must not be active
+      isGuestLoadedRef.current = false;
+
+      // When transitioning to authenticated or switching user accounts,
+      // reset in-memory cart until authoritative server cart arrives.
+      const isUserSwitch = wasSignedIn === true && prevUserId !== undefined && prevUserId !== userId;
+      const isInitialOrLogin = wasSignedIn !== true || isUserSwitch;
+      if (isInitialOrLogin) {
+        setCart([]);
+      }
+
+      const syncVersion = ++serverSyncVersionRef.current;
+      const targetUserId = userId;
+
       async function loadServerCart() {
         try {
           const token = await getToken();
@@ -138,9 +161,18 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
           if (res.ok) {
             const data = await res.json();
-            if (!isCancelled && data.items) {
+            if (
+              !isCancelled &&
+              data.items &&
+              serverSyncVersionRef.current === syncVersion &&
+              currentUserIdRef.current === targetUserId
+            ) {
               const mapped = await mapServerItemsToCart(data.items);
-              if (!isCancelled) {
+              if (
+                !isCancelled &&
+                serverSyncVersionRef.current === syncVersion &&
+                currentUserIdRef.current === targetUserId
+              ) {
                 setCart(mapped);
               }
             }
@@ -154,23 +186,23 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       loadServerCart();
     } else {
-      // User is unauthenticated (either initial guest or logged out)
-      // If user just logged out, immediately remove authenticated cart and restore guest cart
-      if (wasSignedIn === true) {
-        setCart(loadGuestCart());
-      }
+      // Visitor is confirmed signed out: cancel pending server operations and restore guest cart
+      ++serverSyncVersionRef.current;
+      const guestItems = loadGuestCart();
+      setCart(guestItems);
+      isGuestLoadedRef.current = true;
     }
 
     return () => {
       isCancelled = true;
     };
-  }, [isLoaded, isSignedIn, getToken, mapServerItemsToCart]);
+  }, [isLoaded, isSignedIn, userId, getToken, mapServerItemsToCart]);
 
   // ─── Guest Cart Persistence Effect ───────────────────────────────────────────
-  // ONLY persist to localStorage when unauthenticated so authenticated database carts
-  // are never copied or leaked into the guest cart storage.
+  // ONLY persist to localStorage when unauthenticated and after guest cart has been loaded,
+  // so authenticated database carts are never copied or leaked into the guest cart storage.
   useEffect(() => {
-    if (isLoaded && !isSignedIn) {
+    if (isLoaded && !isSignedIn && isGuestLoadedRef.current) {
       try {
         localStorage.setItem(GUEST_CART_STORAGE_KEY, JSON.stringify(cart));
       } catch {
@@ -205,6 +237,8 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     // If signed in, synchronize exclusively with the authenticated user's PostgreSQL cart
     if (isSignedIn) {
+      const mutationVersion = ++serverSyncVersionRef.current;
+      const requestUserId = userId;
       try {
         const token = await getToken();
         if (token) {
@@ -219,9 +253,20 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
           if (res.ok) {
             const data = await res.json();
-            if (data.items) {
+            if (
+              data.items &&
+              serverSyncVersionRef.current === mutationVersion &&
+              currentUserIdRef.current === requestUserId &&
+              isSignedIn
+            ) {
               const mapped = await mapServerItemsToCart(data.items);
-              setCart(mapped);
+              if (
+                serverSyncVersionRef.current === mutationVersion &&
+                currentUserIdRef.current === requestUserId &&
+                isSignedIn
+              ) {
+                setCart(mapped);
+              }
             }
           }
         }
@@ -238,6 +283,8 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     // If signed in, remove from authenticated user's database cart
     if (isSignedIn) {
+      const mutationVersion = ++serverSyncVersionRef.current;
+      const requestUserId = userId;
       try {
         const token = await getToken();
         if (token) {
@@ -252,9 +299,20 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
           if (res.ok) {
             const data = await res.json();
-            if (data.items) {
+            if (
+              data.items &&
+              serverSyncVersionRef.current === mutationVersion &&
+              currentUserIdRef.current === requestUserId &&
+              isSignedIn
+            ) {
               const mapped = await mapServerItemsToCart(data.items);
-              setCart(mapped);
+              if (
+                serverSyncVersionRef.current === mutationVersion &&
+                currentUserIdRef.current === requestUserId &&
+                isSignedIn
+              ) {
+                setCart(mapped);
+              }
             }
           }
         }
@@ -282,6 +340,8 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     // If signed in, update authenticated user's database cart
     if (isSignedIn) {
+      const mutationVersion = ++serverSyncVersionRef.current;
+      const requestUserId = userId;
       try {
         const token = await getToken();
         if (token) {
@@ -296,9 +356,20 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
           if (res.ok) {
             const data = await res.json();
-            if (data.items) {
+            if (
+              data.items &&
+              serverSyncVersionRef.current === mutationVersion &&
+              currentUserIdRef.current === requestUserId &&
+              isSignedIn
+            ) {
               const mapped = await mapServerItemsToCart(data.items);
-              setCart(mapped);
+              if (
+                serverSyncVersionRef.current === mutationVersion &&
+                currentUserIdRef.current === requestUserId &&
+                isSignedIn
+              ) {
+                setCart(mapped);
+              }
             }
           }
         }
@@ -311,6 +382,7 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // ─── Clear Cart ──────────────────────────────────────────────────────────────
   const clearCart = async () => {
     setCart([]);
+    ++serverSyncVersionRef.current;
 
     if (!isSignedIn) {
       try {
